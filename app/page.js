@@ -143,7 +143,7 @@ export default function ToT() {
 
   const fetchPicks = async (date) => {
     setLoading(true);
-    setPicks([]);
+
     try {
       const res = await fetch(`/api/picks?date=${date}`);
       const data = await res.json();
