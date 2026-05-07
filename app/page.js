@@ -391,7 +391,7 @@ export default function ToT() {
 
       <div style={S.content}>
         {activeTab === "picks" && (
-          (loading || picks === null) ? (
+          picks === null ? (
             <div style={S.center}>
               <div style={S.spinner} />
               <div style={{ color: "#333", fontSize: 13, marginTop: 12 }}>Analyzing {fmtDateLabel(selectedDate)}'s games…</div>
@@ -549,10 +549,7 @@ export default function ToT() {
         )}
 
         {activeTab === "tracker" && (
-          loading ? (
-            <div style={S.center}><div style={S.spinner} /></div>
-          ) : (
-            <>
+          <>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
                 <div style={S.statCard}><div style={{ ...S.statVal, color: "#00FF87", fontSize: 22 }}>{wins}</div><div style={S.statLabel}>Wins</div></div>
                 <div style={S.statCard}><div style={{ ...S.statVal, color: "#FF4D4D", fontSize: 22 }}>{losses}</div><div style={S.statLabel}>Losses</div></div>
