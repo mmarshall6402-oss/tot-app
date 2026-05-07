@@ -106,7 +106,7 @@ export default function ToT() {
   const [password, setPassword] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState("");
-  const [picks, setPicks] = useState([]);
+  const [picks, setPicks] = useState(null);
   const [savedPicks, setSavedPicks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("picks");
@@ -212,7 +212,7 @@ export default function ToT() {
     setDrawerOpen(false);
   };
 
-  const sorted = [...picks].sort((a, b) => {
+  const sorted = [...(picks || [])].sort((a, b) => {
     if (sortBy === "confidence") {
       const o = { High: 3, Medium: 2, Low: 1 };
       return (o[b.tier?.level] || 0) - (o[a.tier?.level] || 0);
@@ -391,7 +391,7 @@ export default function ToT() {
 
       <div style={S.content}>
         {activeTab === "picks" && (
-          loading ? (
+          (loading || picks === null) ? (
             <div style={S.center}>
               <div style={S.spinner} />
               <div style={{ color: "#333", fontSize: 13, marginTop: 12 }}>Analyzing {fmtDateLabel(selectedDate)}'s games…</div>
