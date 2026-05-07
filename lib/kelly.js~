@@ -1,0 +1,14 @@
+// lib/kelly.js
+
+export function recommendedBetSize(edge, decimalOdds, bankroll = 1000) {
+  const fraction = 0.25;
+  const b = decimalOdds - 1;
+  const p = edge + (1 / decimalOdds);
+  const q = 1 - p;
+  const kelly = (b * p - q) / b;
+  const size = Math.max(0, kelly * fraction);
+  return {
+    percentage: (size * 100).toFixed(1),
+    amount: (size * bankroll).toFixed(2),
+  };
+}
