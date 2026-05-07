@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+const getSupabase = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
 const fmtOdds = (o) => (o > 0 ? `+${o}` : `${o}`);
 
@@ -120,8 +120,8 @@ export default function ToT() {
   const [selectedDate, setSelectedDate] = useState(weekDates[0]);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => setUser(session?.user ?? null));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => setUser(s?.user ?? null));
+    createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY).auth.getSession().then(({ data: { session } }) => setUser(session?.user ?? null));
+    const { data: { subscription } } = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY).auth.onAuthStateChange((_e, s) => setUser(s?.user ?? null));
     return () => subscription.unsubscribe();
   }, []);
 
@@ -154,7 +154,7 @@ export default function ToT() {
 
   const fetchSaved = async () => {
     setLoading(activeTab === "tracker");
-    const { data } = await supabase.from("saved_picks").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
+    const { data } = await getSupabase().from("saved_picks").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
     setSavedPicks(data || []);
     setLoading(false);
   };
@@ -162,7 +162,7 @@ export default function ToT() {
   const savePick = async (pick) => {
     if (saving[pick.id] === "saved") return;
     setSaving(s => ({ ...s, [pick.id]: "saving" }));
-    await supabase.from("saved_picks").insert({
+    await getSupabase().from("saved_picks").insert({
       user_id: user.id,
       game_id: pick.id,
       home_team: pick.homeTeam,
@@ -177,19 +177,19 @@ export default function ToT() {
   };
 
   const deleteSaved = async (id) => {
-    await supabase.from("saved_picks").delete().eq("id", id);
+    await getSupabase().from("saved_picks").delete().eq("id", id);
     setSavedPicks(p => p.filter(x => x.id !== id));
   };
 
   const markResult = async (id, result) => {
-    await supabase.from("saved_picks").update({ result }).eq("id", id);
+    await getSupabase().from("saved_picks").update({ result }).eq("id", id);
     setSavedPicks(p => p.map(x => x.id === id ? { ...x, result } : x));
   };
 
   const signIn = async () => {
     setAuthLoading(true);
     setAuthError("");
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await getSupabase().auth.signInWithPassword({ email, password });
     if (error) setAuthError(error.message);
     setAuthLoading(false);
   };
@@ -197,18 +197,18 @@ export default function ToT() {
   const signUp = async () => {
     setAuthLoading(true);
     setAuthError("");
-    const { error } = await supabase.auth.signUp({ email, password });
+    const { error } = await getSupabase().auth.signUp({ email, password });
     if (error) setAuthError(error.message);
     else setAuthError("Check your email to confirm.");
     setAuthLoading(false);
   };
 
   const signInGoogle = async () => {
-    await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.origin } });
+    await getSupabase().auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.origin } });
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    await getSupabase().auth.signOut();
     setDrawerOpen(false);
   };
 
