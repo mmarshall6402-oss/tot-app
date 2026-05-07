@@ -6,11 +6,6 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
-
 const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || "";
 const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
 
@@ -37,6 +32,10 @@ export default function AdminTracker() {
   const [resolveMsg, setResolveMsg] = useState("");
 
   useEffect(() => {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    );
     supabase.auth.getSession().then(({ data: { session } }) => {
       const u = session?.user;
       setUser(u);
