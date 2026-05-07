@@ -4,13 +4,13 @@
 
 import { createClient } from "@supabase/supabase-js";
 
-// Use service role to bypass RLS on model_picks table
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY  // NOT the anon key
-);
-
 const MLB_API = "https://statsapi.mlb.com/api/v1";
+
+// Create client lazily — env vars not available at build time
+const getSupabase = () => createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 function checkAuth(request) {
   const key = request.headers.get("x-admin-key");
@@ -36,9 +36,9 @@ export async function GET(request) {
     const sinceStr = since.toISOString().split("T")[0];
 
     const [dailyRes, tierRes, recentRes] = await Promise.all([
-      supabase.from("model_daily_stats").select("*").gte("date", sinceStr),
-      supabase.from("model_tier_stats").select("*"),
-      supabase.from("model_picks")
+      getSupabase().from("model_daily_stats").select("*").gte("date", sinceStr),
+      getSupabase().from("model_tier_stats").select("*"),
+      getSupabase().from("model_picks")
         .select("*")
         .gte("date", sinceStr)
         .order("date", { ascending: false })
