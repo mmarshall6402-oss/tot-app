@@ -1,0 +1,13 @@
+{
+  "functions": {
+    "app/api/picks/route.js": {
+      "maxDuration": 60
+    },
+    "app/api/free-pick/route.js": {
+      "maxDuration": 30
+    },
+    "app/api/mlb/route.js": {
+      "maxDuration": 30
+    }
+  }
+}

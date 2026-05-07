@@ -148,7 +148,7 @@ export default function ToT() {
       const res = await fetch(`/api/picks?date=${date}`);
       const data = await res.json();
       setPicks(data.picks || []);
-    } catch {}
+    } catch (e) { console.error("picks error", e); setPicks([]); }
     setLoading(false);
   };
 
