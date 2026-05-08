@@ -96,7 +96,15 @@ const computeProb = (g, m) => {
   const eliteFactor = Math.min(1.0, Math.abs(pitchDiff) / 1.5);
   const offWeight   = 0.22 * (1.0 - 0.30 * eliteFactor);
 
-  const offense    = (hOps - aOps) * offWeight;
+  // Rockies road penalty: Coors inflates their home OPS ~15-20%
+      // Subtract from away OPS when Rockies are visiting
+      const isRockiesAway = (g.awayTeam || '').toLowerCase().includes('rock') || 
+                            (g.awayTeam || '').toLowerCase().includes('colorado');
+      const isRockiesHome = (g.homeTeam || '').toLowerCase().includes('rock') ||
+                            (g.homeTeam || '').toLowerCase().includes('colorado');
+      const adjAwayOps = isRockiesAway ? aOps - 0.060 : aOps;
+      const adjHomeOps = isRockiesHome ? hOps - 0.060 : hOps;
+      const offense    = (adjHomeOps - adjAwayOps) * offWeight;
   const bullpen    = Math.max(-0.08, Math.min(0.08, (aBull - hBull) * 0.07));
   const volatility = Math.abs(pitchDiff) * 0.06;
   const homefield  = 0.02;
