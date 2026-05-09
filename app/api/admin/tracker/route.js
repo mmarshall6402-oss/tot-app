@@ -43,7 +43,7 @@ export async function GET(request) {
         .gte("date", sinceStr)
         .order("date", { ascending: false })
         .order("edge", { ascending: false })
-        .limit(100),
+        .limit(500),
     ]);
 
     // Overall stats

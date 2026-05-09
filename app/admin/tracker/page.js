@@ -181,11 +181,16 @@ export default function AdminTracker() {
 
         {tab === "picks" && (
           <div>
-            <div style={S.sectionLabel}>RECENT MODEL PICKS</div>
-            {(data?.recent || []).filter(p => p.is_bet).map(p => (
-              <div key={p.id} style={{ ...S.pickRow, borderColor: p.result === "win" ? "rgba(0,255,135,0.2)" : p.result === "loss" ? "rgba(255,77,77,0.15)" : "#1a1a1a" }}>
+            <div style={S.sectionLabel}>ALL MODEL PICKS (BETs highlighted)</div>
+            {(data?.recent || []).map(p => (
+              <div key={p.id} style={{ ...S.pickRow, borderColor: p.is_bet ? (p.result === "win" ? "rgba(0,255,135,0.3)" : p.result === "loss" ? "rgba(255,77,77,0.2)" : "rgba(0,255,135,0.15)") : "#111", opacity: p.is_bet ? 1 : 0.5 }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 12, color: "#555", marginBottom: 2 }}>{p.date} · {p.tier}</div>
+                  <div style={{ fontSize: 12, color: "#555", marginBottom: 2, display: "flex", gap: 6, alignItems: "center" }}>
+                    <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 6px", borderRadius: 4, background: p.is_bet ? "rgba(0,255,135,0.1)" : "rgba(50,50,50,0.5)", color: p.is_bet ? "#00FF87" : "#444", border: `1px solid ${p.is_bet ? "rgba(0,255,135,0.2)" : "#222"}` }}>
+                      {p.is_bet ? "BET" : "PASS"}
+                    </span>
+                    <span>{p.date} · {p.tier}</span>
+                  </div>
                   <div style={{ fontSize: 13, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace" }}>
                     {p.away_team} @ {p.home_team}
                   </div>
