@@ -61,7 +61,16 @@ export async function GET(request) {
       ? ((wins * 90.9 - losses * 100) / settled.length).toFixed(1)
       : null;
 
+    // All-time record
+    const allTimeRes = await getSupabase().from('model_picks').select('result').eq('is_bet', true);
+    const allTime    = allTimeRes.data || [];
+    const atSettled  = allTime.filter(p => ['win','loss'].includes(p.result));
+    const atWins     = atSettled.filter(p => p.result === 'win').length;
+    const atLosses   = atSettled.filter(p => p.result === 'loss').length;
+    const atWinPct   = atSettled.length > 0 ? (atWins/atSettled.length*100).toFixed(1) : null;
+
     return Response.json({
+      allTime: { wins: atWins, losses: atLosses, winPct: atWinPct, settled: atSettled.length },
       overall: { bets: bets.length, wins, losses, pending: bets.length - settled.length, winPct, avgEdge, roi },
       daily:   dailyRes.data || [],
       byTier:  tierRes.data  || [],
@@ -70,7 +79,7 @@ export async function GET(request) {
   }
 
   if (action === "pending") {
-    const { data } = await supabase
+    const { data } = await getSupabase()
       .from("model_picks")
       .select("*")
       .eq("result", "pending")

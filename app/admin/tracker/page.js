@@ -133,7 +133,26 @@ export default function AdminTracker() {
 
         {tab === "overview" && (
           <div>
-            <div style={S.sectionLabel}>DAILY RECORD (last {days}d)</div>
+            {data?.allTime?.settled > 0 && (
+            <div style={{ background: '#080808', border: '1px solid #1a1a1a', borderRadius: 12, padding: '14px 16px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontSize: 11, color: '#333', letterSpacing: 1.5, fontWeight: 700 }}>ALL-TIME RECORD</div>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 18, fontWeight: 700 }}>{data.allTime.wins}W <span style={{ color: '#333' }}>-</span> {data.allTime.losses}L</span>
+                <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 16, fontWeight: 700, color: data.allTime.winPct >= 55 ? '#00FF87' : data.allTime.winPct >= 52.4 ? '#FFD600' : '#FF4D4D' }}>{data.allTime.winPct}%</span>
+                <span style={{ fontSize: 11, color: '#444' }}>{data.allTime.settled} settled</span>
+              </div>
+            </div>
+          )}
+          {data?.allTime?.settled > 0 && (
+            <div style={{ background: '#080808', border: '1px solid #00FF87', borderRadius: 12, padding: '14px 16px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 11, color: '#333', letterSpacing: 1.5, fontWeight: 700 }}>ALL-TIME RECORD</span>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 20, fontWeight: 700 }}>{data.allTime.wins}W - {data.allTime.losses}L</span>
+                <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 16, fontWeight: 700, color: data.allTime.winPct >= 55 ? '#00FF87' : data.allTime.winPct >= 52.4 ? '#FFD600' : '#FF4D4D' }}>{data.allTime.winPct}%</span>
+              </div>
+            </div>
+          )}
+          <div style={S.sectionLabel}>DAILY RECORD (last {days}d)</div>
             {(data?.daily || []).slice(0, 14).map(d => (
               <div key={d.date} style={S.row}>
                 <span style={S.rowDate}>{d.date}</span>
