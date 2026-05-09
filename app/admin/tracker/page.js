@@ -3,7 +3,6 @@
 // Protected: only accessible if logged in as admin email
 
 "use client";
-export const dynamic = 'force-dynamic';
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 
@@ -109,14 +108,18 @@ export default function AdminTracker() {
         {/* Overall stats */}
         <div style={S.grid4}>
           <StatCard label="Record" value={o ? `${o.wins}-${o.losses}` : "—"} color="#fff" />
-          <StatCard label="Win %" value={fmtPct(o?.winPct)} color={o?.winPct >= 55 ? "#00FF87" : o?.winPct >= 50 ? "#FFD600" : "#FF4D4D"} />
-          <StatCard label="ROI / Bet" value={fmtROI(o?.roi)} color={o?.roi > 0 ? "#00FF87" : "#FF4D4D"} />
+          <StatCard label="Hit Rate" value={fmtPct(o?.winPct)} color={o?.winPct >= 55 ? "#00FF87" : o?.winPct >= 50 ? "#FFD600" : o?.winPct != null ? "#FF4D4D" : "#555"} />
+          <StatCard label="ROI / Bet" value={fmtROI(o?.roi)} color={o?.roi > 0 ? "#00FF87" : o?.roi != null ? "#FF4D4D" : "#555"} />
           <StatCard label="Avg Edge" value={o?.avgEdge ? `${o.avgEdge}%` : "—"} />
         </div>
         <div style={S.grid3}>
-          <StatCard label="BETs Placed" value={o?.bets} />
-          <StatCard label="Pending" value={o?.pending} color="#FFD600" />
-          <StatCard label="Settled" value={o ? o.wins + o.losses : "—"} />
+          <StatCard label="BETs Placed" value={o?.bets ?? "—"} />
+          <StatCard label="Pending" value={o?.pending ?? "—"} color="#FFD600" />
+          <StatCard label="Settled" value={o ? o.wins + o.losses : "—"} color="#555" />
+        </div>
+        {/* Break-even reminder */}
+        <div style={{ fontSize: 11, color: "#333", marginBottom: 12, textAlign: "center" }}>
+          Break-even at -110: 52.4% · Sharp threshold: 55%+ · Need 100+ bets for significance
         </div>
 
         {/* Tabs */}

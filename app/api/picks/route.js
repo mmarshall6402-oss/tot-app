@@ -90,47 +90,85 @@ const computeProb = (g, m) => {
   const hBull = num(m.homeBullpen?.era, 4.2);
   const aBull = num(m.awayBullpen?.era, 4.2);
 
+  // ROCKIES ROAD PENALTY: Coors inflates their home OPS ~15-20%
+  // Road splits are significantly worse than home stats suggest
+  const isRockiesAway = /rockies|colorado/i.test(g.awayTeam || "");
+  const isRockiesHome = /rockies|colorado/i.test(g.homeTeam || "");
+  const adjAwayOps = isRockiesAway ? aOps - 0.060 : aOps;
+  const adjHomeOps = isRockiesHome ? hOps - 0.060 : hOps;
+
   const pitchDiff = pitchSignal(hp) - pitchSignal(ap);
 
   // Elite dampener: large pitch gap → reduce offense weight
   const eliteFactor = Math.min(1.0, Math.abs(pitchDiff) / 1.5);
   const offWeight   = 0.22 * (1.0 - 0.30 * eliteFactor);
 
-  // Rockies road penalty: Coors inflates their home OPS ~15-20%
-      // Subtract from away OPS when Rockies are visiting
-      const isRockiesAway = (g.awayTeam || '').toLowerCase().includes('rock') || 
-                            (g.awayTeam || '').toLowerCase().includes('colorado');
-      const isRockiesHome = (g.homeTeam || '').toLowerCase().includes('rock') ||
-                            (g.homeTeam || '').toLowerCase().includes('colorado');
-      const adjAwayOps = isRockiesAway ? aOps - 0.060 : aOps;
-      const adjHomeOps = isRockiesHome ? hOps - 0.060 : hOps;
-      const offense    = (adjHomeOps - adjAwayOps) * offWeight;
+  const offense    = (adjHomeOps - adjAwayOps) * offWeight;
   const bullpen    = Math.max(-0.08, Math.min(0.08, (aBull - hBull) * 0.07));
   const volatility = Math.abs(pitchDiff) * 0.06;
   const homefield  = 0.02;
 
-  const raw = 0.5 + pitchDiff * 0.22 + offense + bullpen - volatility + homefield;
+  // TEAM QUALITY: run differential per game as tiebreaker
+  const hG   = Math.max(1, (m.homeStandings?.wins || 0) + (m.homeStandings?.losses || 0));
+  const aG   = Math.max(1, (m.awayStandings?.wins || 0) + (m.awayStandings?.losses || 0));
+  const hRd  = (m.homeStandings?.runDifferential || 0) / hG;
+  const aRd  = (m.awayStandings?.runDifferential || 0) / aG;
+  const quality = Math.max(-0.04, Math.min(0.04, (hRd - aRd) * 0.008));
+
+  const raw = 0.5 + pitchDiff * 0.22 + offense + bullpen + quality - volatility + homefield;
   return Math.max(0.25, Math.min(0.75, raw));
 };
 
 // ─────────────────────────────
 // CHAOS GATE
+// Binary. Returns null (playable) or reason string (no bet).
 // ─────────────────────────────
 const chaosGate = (g, m, pf) => {
   if (pf === "coors") return "Coors Field";
+
   const hKnown = !!(m.homePitcher?.name && m.homePitcher.name !== "TBD");
   const aKnown = !!(m.awayPitcher?.name && m.awayPitcher.name !== "TBD");
   if (!hKnown && !aKnown) return "both starters TBD";
+
   const hWhip = num(m.homePitcher?.whip, LEAGUE.WHIP);
   const aWhip = num(m.awayPitcher?.whip, LEAGUE.WHIP);
+  const hEra  = num(m.homePitcher?.era, LEAGUE.ERA);
+  const aEra  = num(m.awayPitcher?.era, LEAGUE.ERA);
+
+  // Both high-WHIP = chaos game
   if (hWhip > 1.65 && aWhip > 1.65) return "both high-WHIP chaos";
+
+  // EXTREME OUTLIER: ERA > 9.0 or WHIP > 2.0 = stat is unreliable garbage
+  // (Kelly 9.95/2.32, Mikolas 8.23/1.72 type situations)
+  // Don't block the bet — these are actually good signal — but flag for explanation
+  const hasOutlier = hEra > 9.0 || aEra > 9.0 || hWhip > 2.0 || aWhip > 2.0;
+  if (hasOutlier) return null; // playable — extreme stats are real signal, not chaos
+
   return null;
 };
 
-const isNoisy = (m) =>
-  Math.max(num(m.homePitcher?.whip, LEAGUE.WHIP), num(m.awayPitcher?.whip, LEAGUE.WHIP)) > 1.55 ||
-  num(m.homePitcher?.inningsPitched, 40) < 20 ||
-  num(m.awayPitcher?.inningsPitched, 40) < 20;
+// NO-BET SUPPRESSOR: additional soft checks beyond chaos gate
+// Returns reason string if game should be suppressed, null if fine
+const noBetCheck = (g, m, rawEdge) => {
+  const hWhip = num(m.homePitcher?.whip, LEAGUE.WHIP);
+  const aWhip = num(m.awayPitcher?.whip, LEAGUE.WHIP);
+  const hIp   = num(m.homePitcher?.inningsPitched, 40);
+  const aIp   = num(m.awayPitcher?.inningsPitched, 40);
+
+  // Weak edge — not worth the variance
+  if (rawEdge < BET_THRESHOLD) return "edge below threshold";
+
+  // Noisy: one starter high-WHIP or very small sample
+  if (Math.max(hWhip, aWhip) > 1.55) return "high-WHIP starter";
+  if (Math.min(hIp, aIp) < 15) return "small sample";
+
+  // Coinflip: pitching signals nearly identical
+  const hSig = pitchSignal(m.homePitcher || {});
+  const aSig = pitchSignal(m.awayPitcher || {});
+  if (Math.abs(hSig - aSig) < 0.12) return "pitching coinflip";
+
+  return null; // clear to bet
+};
 
 // ─────────────────────────────
 // TIER LABEL
@@ -292,19 +330,15 @@ export async function GET(req) {
       const awayEdge = calculateEdge(1 - homeProb, g.awayImplied);
       const pickHome = homeEdge >= awayEdge;
       // Hard cap: real MLB edges don't exceed ~12-14%
-      // Anything above = model overconfidence, not real market inefficiency
       const rawEdge  = Math.min(0.14, pickHome ? homeEdge : awayEdge);
 
-      // Coinflip gate: if pitching signals nearly identical, don't bet
-      // Market edge in coinflip games comes from noise, not real signal
-      const hSig = pitchSignal(m.homePitcher || {});
-      const aSig = pitchSignal(m.awayPitcher || {});
-      const isCoinflip = Math.abs(hSig - aSig) < 0.12 && !chaos;
+      // Single unified no-bet check
+      const noisy = !chaos && !!noBetCheck(g, m, rawEdge);
+      const noBetReason = chaos || noBetCheck(g, m, rawEdge);
+      const isBet = !noBetReason;
+      const tier  = tierLabel(rawEdge, noisy, chaos);
 
-      const isBet    = rawEdge >= BET_THRESHOLD && !chaos && !noisy && !isCoinflip;
-      const tier     = tierLabel(rawEdge, noisy, chaos);
-
-      return { g, m, pick: pickHome ? g.homeTeam : g.awayTeam, rawEdge, isBet, tier, chaos, noisy };
+      return { g, m, pick: pickHome ? g.homeTeam : g.awayTeam, rawEdge, isBet, tier, chaos, noisy, noBetReason };
     }).filter(Boolean);
 
     // Only explain games worth explaining:
