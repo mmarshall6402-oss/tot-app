@@ -5,8 +5,8 @@ const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 const cache = new Map();
 
 const BET_THRESHOLD = 0.045; // 4.5% edge minimum
-
-const LEAGUE = { WHIP: 1.30, K9: 8.5, ERA: 4.50 };
+const MAX_BETS = 5;
+const LEAGUE = { WHIP: 1.30, K9: 8.5, ERA: 4.50, BULL_ERA: 4.20 };
 
 // ─────────────────────────────
 // CACHE
@@ -22,39 +22,68 @@ const getCached = async (key, fn, ttl = 1000 * 60 * 15) => {
 // ─────────────────────────────
 // HELPERS
 // ─────────────────────────────
-const num = (v, f) => (isNaN(+v) ? f : +v);
+const num  = (v, f) => (isNaN(+v) ? f : +v);
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
-// WHIP lookup table — simple, no normalization needed
-const whipScore = (w) =>
-  w < 1.00 ? 1.6 :
-  w < 1.10 ? 1.2 :
-  w < 1.25 ? 0.6 :
-  w < 1.40 ? 0.2 :
-  w < 1.55 ? -0.3 :
-  -0.7;
-
-// ERA shrinkage: regress raw ERA toward league mean
-// Prevents early-season sample distortion from generating fake edges
-// Gallen at 4.45 ERA over 30 IP → shrunk to 4.47 (minimal change, close to league)
-// Elite pitcher at 1.80 ERA over 80 IP → shrunk to 2.88 (still clearly good, not fake elite)
-// Formula: adj_era = era * 0.60 + leagueERA * 0.40
-// This kills the "20%+ edge because one pitcher has a 6.5 ERA in April" problem
-const shrinkERA = (era) => era * 0.60 + LEAGUE.ERA * 0.40;
-
-// ERA legitimacy: low ERA only trusted if K9 backs it up
-// Applied AFTER shrinkage so the bonus is on the stabilized value
-const eraBonus = (era, k9) => {
-  const adjEra = shrinkERA(era);
-  if (adjEra >= LEAGUE.ERA) return 0;
-  const gap = (LEAGUE.ERA - adjEra) / LEAGUE.ERA;
-  const credibility = Math.min(1.0, k9 / LEAGUE.K9);
-  return gap * credibility * 0.15;
+// ─────────────────────────────
+// TEAM IDENTITY LAYER
+// Hard baselines so bad teams can't hide behind one good pitcher.
+// Scale: points relative to league-average 0. Range: roughly -4 to +4.
+// ─────────────────────────────
+const TEAM_RATING = {
+  // Elite
+  dodgers:     4,
+  phillies:    3,
+  astros:      3,
+  braves:      3,
+  yankees:     2,
+  mets:        2,
+  cubs:        2,
+  "red sox":   2,
+  guardians:   2,
+  // Above average
+  padres:      1,
+  brewers:     1,
+  orioles:     1,
+  mariners:    1,
+  rangers:     1,
+  twins:       1,
+  // Below average
+  giants:     -1,
+  angels:     -1,
+  pirates:    -1,
+  reds:       -1,
+  // Bad
+  royals:     -2,
+  tigers:     -2,
+  marlins:    -2,
+  nationals:  -2,
+  // Terrible
+  athletics:  -3,
+  "white sox":-3,
+  rockies:    -4, // also chaos gated away but belt + suspenders
 };
 
-// Sample reliability: 1.0 at 60 IP, 0.33 at 0 IP
-const conf = (ip) => Math.min(1, ip / 60);
+const teamRating = (name) => {
+  if (!name) return 0;
+  const n = name.toLowerCase();
+  for (const [key, val] of Object.entries(TEAM_RATING)) {
+    if (n.includes(key)) return val;
+  }
+  return 0;
+};
 
-// Park factors
+// Road penalty: bad teams get extra penalty on the road
+const roadPenalty = (name) => {
+  const r = teamRating(name);
+  if (r <= -3) return 1.5;
+  if (r <= -1) return 0.5;
+  return 0;
+};
+
+// ─────────────────────────────
+// PARK FACTORS
+// ─────────────────────────────
 const parkFactor = (homeTeam) => {
   const t = (homeTeam || "").toLowerCase();
   if (t.includes("rockies") || t.includes("colorado")) return "coors";
@@ -66,62 +95,134 @@ const parkFactor = (homeTeam) => {
 };
 
 // ─────────────────────────────
-// PITCHING SIGNAL
+// STARTER EDGE  (clamped -3 to 3)
+// This is the key fix: WHIP alone can no longer drive a 14% edge.
 // ─────────────────────────────
-const pitchSignal = (p) => {
+const whipScore = (w) =>
+  w < 1.00 ?  1.6 :
+  w < 1.10 ?  1.2 :
+  w < 1.25 ?  0.6 :
+  w < 1.40 ?  0.2 :
+  w < 1.55 ? -0.3 :
+  -0.7;
+
+const shrinkERA  = (era) => era * 0.60 + LEAGUE.ERA * 0.40;
+const conf       = (ip)  => Math.min(1, ip / 60);
+
+const eraBonus = (era, k9) => {
+  const adj = shrinkERA(era);
+  if (adj >= LEAGUE.ERA) return 0;
+  const gap  = (LEAGUE.ERA - adj) / LEAGUE.ERA;
+  const cred = Math.min(1.0, k9 / LEAGUE.K9);
+  return gap * cred * 0.15;
+};
+
+const pitchSignalRaw = (p) => {
   if (!p?.name || p.name === "TBD") return 0;
   const whip = num(p.whip, LEAGUE.WHIP);
   const k9   = num(p.k9 ?? p.strikeoutsPer9, LEAGUE.K9);
   const era  = num(p.era, LEAGUE.ERA);
   const ip   = num(p.inningsPitched, 40);
   const base = whipScore(whip) + eraBonus(era, k9);
-  const k9Mult = Math.min(1.15, Math.max(0.85, k9 / LEAGUE.K9));
-  return base * k9Mult * conf(ip);
+  const k9m  = clamp(k9 / LEAGUE.K9, 0.85, 1.15);
+  return base * k9m * conf(ip);
 };
 
+// CLAMPED — this is what actually fixes the overconfidence bug
+const pitchSignal = (p) => clamp(pitchSignalRaw(p), -3, 3);
+
 // ─────────────────────────────
-// PROBABILITY MODEL
+// V2 SCORING ENGINE
+// score = starterEdge*0.25 + teamStrength*0.30 + bullpenEdge*0.20
+//       + offenseEdge*0.15 + contextPenalty*0.10
+// Output: probability [0.25, 0.75]
 // ─────────────────────────────
 const computeProb = (g, m) => {
   const hp = m.homePitcher || {};
   const ap = m.awayPitcher || {};
+
+  // --- 1. STARTER EDGE (25%) ---
+  const hSig = pitchSignal(hp);
+  const aSig = pitchSignal(ap);
+  const pitchDiff = hSig - aSig; // clamped per-side so max diff is ±6, typical ±2
+  const starterEdge = pitchDiff; // used in weighted sum below
+
+  // --- 2. TEAM STRENGTH (30%) ---
+  const hRating = teamRating(g.homeTeam);
+  const aRating = teamRating(g.awayTeam) - roadPenalty(g.awayTeam);
+  // normalize to probability-space contribution: each point ≈ 1.5% win prob
+  const teamStrength = (hRating - aRating) * 0.015;
+
+  // --- 3. BULLPEN EDGE (20%) ---
+  const hBull = num(m.homeBullpen?.era, LEAGUE.BULL_ERA);
+  const aBull = num(m.awayBullpen?.era, LEAGUE.BULL_ERA);
+  // better bullpen (lower ERA) helps home team
+  const bullpenEdge = clamp((aBull - hBull) * 0.07, -0.06, 0.06);
+
+  // --- 4. OFFENSE EDGE (15%) ---
+  let hOps = num(m.homeForm?.ops, 0.720);
+  let aOps = num(m.awayForm?.ops, 0.720);
+  // Coors penalty on road OPS — their home splits are badly inflated
+  if (/rockies|colorado/i.test(g.awayTeam || "")) aOps -= 0.060;
+  if (/rockies|colorado/i.test(g.homeTeam || "")) hOps -= 0.060;
+  // Elite starters suppress offense — reduce weight when big gap
+  const eliteFactor = clamp(Math.abs(pitchDiff) / 1.5, 0, 1);
+  const offWeight   = 0.22 * (1 - 0.30 * eliteFactor);
+  const offenseEdge = (hOps - aOps) * offWeight;
+
+  // --- 5. CONTEXT PENALTY (10%) ---
+  // Run differential as quality signal
+  const hG      = Math.max(1, (m.homeStandings?.wins || 0) + (m.homeStandings?.losses || 0));
+  const aG      = Math.max(1, (m.awayStandings?.wins || 0) + (m.awayStandings?.losses || 0));
+  const hRd     = (m.homeStandings?.runDifferential || 0) / hG;
+  const aRd     = (m.awayStandings?.runDifferential || 0) / aG;
+  const contextPenalty = clamp((hRd - aRd) * 0.008, -0.04, 0.04);
+
+  // --- WEIGHTED SUM ---
+  const raw =
+    0.50 +                           // baseline
+    starterEdge  * 0.25 * 0.22 +    // 25% weight (0.22 is prob-space scalar)
+    teamStrength * 0.30 +            // 30% weight (already in prob-space)
+    bullpenEdge  * 0.20 / 0.06 * 0.04 + // 20% weight (normalize to ~4% max impact)
+    offenseEdge  * 0.15 / offWeight * offWeight + // 15% weight
+    contextPenalty * 0.10 / 0.04 * 0.02 + // 10% weight
+    0.02;                            // home field
+
+  // HARD CAP: real MLB edges don't produce 75% win probs often
+  return clamp(raw, 0.28, 0.72);
+};
+
+// ─────────────────────────────
+// CONFLICT DETECTION
+// Signals pointing different directions → downgrade or PASS
+// ─────────────────────────────
+const detectConflict = (g, m, pickHome) => {
+  const hp = m.homePitcher || {};
+  const ap = m.awayPitcher || {};
+  const hSig = pitchSignal(hp);
+  const aSig = pitchSignal(ap);
+  const pitchFavorsHome = hSig > aSig;
+
   const hOps  = num(m.homeForm?.ops, 0.720);
   const aOps  = num(m.awayForm?.ops, 0.720);
-  const hBull = num(m.homeBullpen?.era, 4.2);
-  const aBull = num(m.awayBullpen?.era, 4.2);
+  const offFavorsHome = hOps > aOps;
 
-  // ROCKIES ROAD PENALTY: Coors inflates their home OPS ~15-20%
-  // Road splits are significantly worse than home stats suggest
-  const isRockiesAway = /rockies|colorado/i.test(g.awayTeam || "");
-  const isRockiesHome = /rockies|colorado/i.test(g.homeTeam || "");
-  const adjAwayOps = isRockiesAway ? aOps - 0.060 : aOps;
-  const adjHomeOps = isRockiesHome ? hOps - 0.060 : hOps;
+  const hRating = teamRating(g.homeTeam);
+  const aRating = teamRating(g.awayTeam);
+  const teamFavorsHome = hRating >= aRating;
 
-  const pitchDiff = pitchSignal(hp) - pitchSignal(ap);
+  // Count how many signals agree with the pick
+  const signals = [pitchFavorsHome, offFavorsHome, teamFavorsHome];
+  const agreeing = signals.filter(s => s === pickHome).length;
 
-  // Elite dampener: large pitch gap → reduce offense weight
-  const eliteFactor = Math.min(1.0, Math.abs(pitchDiff) / 1.5);
-  const offWeight   = 0.22 * (1.0 - 0.30 * eliteFactor);
-
-  const offense    = (adjHomeOps - adjAwayOps) * offWeight;
-  const bullpen    = Math.max(-0.08, Math.min(0.08, (aBull - hBull) * 0.07));
-  const volatility = Math.abs(pitchDiff) * 0.06;
-  const homefield  = 0.02;
-
-  // TEAM QUALITY: run differential per game as tiebreaker
-  const hG   = Math.max(1, (m.homeStandings?.wins || 0) + (m.homeStandings?.losses || 0));
-  const aG   = Math.max(1, (m.awayStandings?.wins || 0) + (m.awayStandings?.losses || 0));
-  const hRd  = (m.homeStandings?.runDifferential || 0) / hG;
-  const aRd  = (m.awayStandings?.runDifferential || 0) / aG;
-  const quality = Math.max(-0.04, Math.min(0.04, (hRd - aRd) * 0.008));
-
-  const raw = 0.5 + pitchDiff * 0.22 + offense + bullpen + quality - volatility + homefield;
-  return Math.max(0.25, Math.min(0.75, raw));
+  // 0/3 or 1/3 signals agree = high conflict
+  if (agreeing === 0) return "all signals conflict";
+  if (agreeing === 1) return "majority signals conflict";
+  return null; // 2/3 or 3/3 — acceptable
 };
 
 // ─────────────────────────────
 // CHAOS GATE
-// Binary. Returns null (playable) or reason string (no bet).
 // ─────────────────────────────
 const chaosGate = (g, m, pf) => {
   if (pf === "coors") return "Coors Field";
@@ -132,42 +233,36 @@ const chaosGate = (g, m, pf) => {
 
   const hWhip = num(m.homePitcher?.whip, LEAGUE.WHIP);
   const aWhip = num(m.awayPitcher?.whip, LEAGUE.WHIP);
-  const hEra  = num(m.homePitcher?.era, LEAGUE.ERA);
-  const aEra  = num(m.awayPitcher?.era, LEAGUE.ERA);
-
-  // Both high-WHIP = chaos game
   if (hWhip > 1.65 && aWhip > 1.65) return "both high-WHIP chaos";
-
-  // EXTREME OUTLIER: ERA > 9.0 or WHIP > 2.0 = stat is unreliable garbage
-  // (Kelly 9.95/2.32, Mikolas 8.23/1.72 type situations)
-  // Don't block the bet — these are actually good signal — but flag for explanation
-  const hasOutlier = hEra > 9.0 || aEra > 9.0 || hWhip > 2.0 || aWhip > 2.0;
-  if (hasOutlier) return null; // playable — extreme stats are real signal, not chaos
 
   return null;
 };
 
-// NO-BET SUPPRESSOR: additional soft checks beyond chaos gate
-// Returns reason string if game should be suppressed, null if fine
-const noBetCheck = (g, m, rawEdge) => {
+// ─────────────────────────────
+// NO-BET SUPPRESSOR
+// ─────────────────────────────
+const noBetCheck = (g, m, rawEdge, pickHome) => {
+  // Edge too small
+  if (rawEdge < BET_THRESHOLD) return "edge below threshold";
+
   const hWhip = num(m.homePitcher?.whip, LEAGUE.WHIP);
   const aWhip = num(m.awayPitcher?.whip, LEAGUE.WHIP);
   const hIp   = num(m.homePitcher?.inningsPitched, 40);
   const aIp   = num(m.awayPitcher?.inningsPitched, 40);
 
-  // Weak edge — not worth the variance
-  if (rawEdge < BET_THRESHOLD) return "edge below threshold";
-
-  // Noisy: one starter high-WHIP or very small sample
   if (Math.max(hWhip, aWhip) > 1.55) return "high-WHIP starter";
-  if (Math.min(hIp, aIp) < 15) return "small sample";
+  if (Math.min(hIp, aIp) < 15)       return "small sample";
 
-  // Coinflip: pitching signals nearly identical
+  // Pitching coinflip — signals too close
   const hSig = pitchSignal(m.homePitcher || {});
   const aSig = pitchSignal(m.awayPitcher || {});
-  if (Math.abs(hSig - aSig) < 0.12) return "pitching coinflip";
+  if (Math.abs(hSig - aSig) < 0.12)  return "pitching coinflip";
 
-  return null; // clear to bet
+  // CONFLICT CHECK — new in V2
+  const conflict = detectConflict(g, m, pickHome);
+  if (conflict) return conflict;
+
+  return null;
 };
 
 // ─────────────────────────────
@@ -189,14 +284,17 @@ const tierLabel = (edge, noisy, chaos) => {
 };
 
 // ─────────────────────────────
-// EXPLAIN (Claude haiku — batched to avoid rate limits)
+// EXPLAIN  (Claude Haiku — batched)
 // ─────────────────────────────
-async function explain(g, m, pick, edge, isBet, chaos) {
+async function explain(g, m, pick, edge, isBet, chaos, conflict) {
   const hp = m.homePitcher;
   const ap = m.awayPitcher;
   const fmtP = (p) => p?.name && p.name !== "TBD"
     ? `${p.name} (${p.era} ERA, ${p.whip} WHIP, ${p.strikeoutsPer9 || "—"} K/9)`
     : "TBD";
+
+  const hRating = teamRating(g.homeTeam);
+  const aRating = teamRating(g.awayTeam);
 
   const prompt = `Sharp MLB analyst. Pick: ${pick} (${isBet ? "BET" : "PASS"}, ${edge.toFixed(1)}% edge).
 Game: ${g.awayTeam} @ ${g.homeTeam}
@@ -204,28 +302,28 @@ Home SP: ${fmtP(hp)} | Away SP: ${fmtP(ap)}
 Home offense (last 10): ${m.homeForm?.avg || "—"} AVG, ${m.homeForm?.ops || "—"} OPS
 Away offense (last 10): ${m.awayForm?.avg || "—"} AVG, ${m.awayForm?.ops || "—"} OPS
 Home bullpen: ${m.homeBullpen?.era || "—"} ERA | Away bullpen: ${m.awayBullpen?.era || "—"} ERA
-${chaos ? `Chaos flag: ${chaos}` : ""}
+Team ratings: ${g.homeTeam} ${hRating > 0 ? "+" : ""}${hRating} | ${g.awayTeam} ${aRating > 0 ? "+" : ""}${aRating}
+${chaos ? `Chaos flag: ${chaos}` : ""}${conflict ? `\nConflict: ${conflict}` : ""}
 
 Lead with the single biggest edge factor. Use specific stats. Be honest about uncertainty.
 JSON only: {"preview":"2 sentences","what_decides":"1 sentence","what_to_sweat":"1 sentence","honest_lean":"1 sentence","score_range":"e.g. 3-2"}`;
 
   try {
-    // 8 second timeout — don't let slow API calls block the whole response
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
+    const timeout    = setTimeout(() => controller.abort(), 8000);
 
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       signal: controller.signal,
       headers: {
-        "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "Content-Type":    "application/json",
+        "x-api-key":       process.env.ANTHROPIC_API_KEY,
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
+        model:      "claude-haiku-4-5-20251001",
         max_tokens: 300,
-        messages: [{ role: "user", content: prompt }],
+        messages:   [{ role: "user", content: prompt }],
       }),
     });
     clearTimeout(timeout);
@@ -241,7 +339,6 @@ JSON only: {"preview":"2 sentences","what_decides":"1 sentence","what_to_sweat":
     bd.pitcher_home = fmtP(hp);
     bd.pitcher_away = fmtP(ap);
 
-    // Fallback: if Claude didn't return a preview, build one from raw stats
     if (!bd.preview) {
       const hWhip = hp?.whip ? `${hp.whip} WHIP` : null;
       const aWhip = ap?.whip ? `${ap.whip} WHIP` : null;
@@ -262,15 +359,13 @@ JSON only: {"preview":"2 sentences","what_decides":"1 sentence","what_to_sweat":
   }
 }
 
-// Batch explain calls: run N at a time with a small delay between batches
-// Prevents hitting Haiku rate limits when slate has 15 games
 async function explainBatched(items, batchSize = 5, delayMs = 300) {
   const results = [];
   for (let i = 0; i < items.length; i += batchSize) {
     const batch = items.slice(i, i + batchSize);
     const batchResults = await Promise.all(
-      batch.map(({ g, m, pick, rawEdge, isBet, chaos }) =>
-        explain(g, m, pick, rawEdge * 100, isBet, chaos)
+      batch.map(({ g, m, pick, rawEdge, isBet, chaos, conflict }) =>
+        explain(g, m, pick, rawEdge * 100, isBet, chaos, conflict)
       )
     );
     results.push(...batchResults);
@@ -308,7 +403,7 @@ export async function GET(req) {
       return true;
     });
 
-    // Model pass (pure math, no AI)
+    // ── MODEL PASS (pure math, no AI) ──
     const modeled = unique.map(g => {
       const m = mlbGames.find(x => {
         const hw = g.homeTeam.split(" ").pop().toLowerCase();
@@ -322,41 +417,37 @@ export async function GET(req) {
       const pfAdj = typeof pf === "number" ? (1.0 - pf) * 0.06 : 0;
 
       const homeProb = chaos
-        ? Math.max(0.25, Math.min(0.75, 0.5 + pfAdj))
-        : Math.max(0.25, Math.min(0.75, computeProb(g, m) + pfAdj));
+        ? clamp(0.5 + pfAdj, 0.28, 0.72)
+        : clamp(computeProb(g, m) + pfAdj, 0.28, 0.72);
 
       const homeEdge = calculateEdge(homeProb, g.homeImplied);
       const awayEdge = calculateEdge(1 - homeProb, g.awayImplied);
       const pickHome = homeEdge >= awayEdge;
-      // Hard cap: real MLB edges don't exceed ~12-14%
-      const rawEdge  = Math.min(0.14, pickHome ? homeEdge : awayEdge);
 
-      // Single unified no-bet check
-      const noBetReason = chaos || noBetCheck(g, m, rawEdge);
-      const noisy = !chaos && !!noBetReason;
-      const isBet = !noBetReason;
-      const tier  = tierLabel(rawEdge, noisy, chaos);
+      // EDGE CAP: real MLB edges don't exceed ~12%
+      const rawEdge = clamp(pickHome ? homeEdge : awayEdge, 0, 0.12);
 
-      return { g, m, pick: pickHome ? g.homeTeam : g.awayTeam, rawEdge, isBet, tier, chaos, noisy, noBetReason };
+      const conflict    = !chaos ? detectConflict(g, m, pickHome) : null;
+      const noBetReason = chaos || noBetCheck(g, m, rawEdge, pickHome);
+      const noisy       = !chaos && !!noBetReason;
+      const isBet       = !noBetReason;
+      const tier        = tierLabel(rawEdge, noisy, chaos);
+
+      return { g, m, pick: pickHome ? g.homeTeam : g.awayTeam, rawEdge, isBet, tier, chaos, noisy, noBetReason, conflict };
     }).filter(Boolean);
 
-    // Only explain games worth explaining:
-    // - All BET games (users will read these carefully)
-    // - Top 5 PASS games by edge (for context)
-    // - Skip Tossup PASS games (nobody needs an explanation for "flip a coin")
+    // ── EXPLAIN PASS (AI) ──
     const toExplain = modeled.map((item, i) => ({ ...item, _idx: i }));
-    const bets  = toExplain.filter(x => x.isBet);
+    const bets   = toExplain.filter(x => x.isBet);
     const passes = toExplain.filter(x => !x.isBet && x.tier?.level !== "Tossup").slice(0, 5);
-    const skip  = toExplain.filter(x => !x.isBet && x.tier?.level === "Tossup");
+    const skip   = toExplain.filter(x => !x.isBet && x.tier?.level === "Tossup");
 
-    const explainQueue = [...bets, ...passes];
+    const explainQueue   = [...bets, ...passes];
     const explanationMap = new Map();
 
-    // Explain in batches
     const batchedResults = await explainBatched(explainQueue);
     explainQueue.forEach((item, i) => explanationMap.set(item._idx, batchedResults[i]));
 
-    // Tossup skips get minimal breakdown
     skip.forEach(item => {
       explanationMap.set(item._idx, {
         pitcher_home: item.m.homePitcher?.name
@@ -373,7 +464,8 @@ export async function GET(req) {
 
     const explanations = modeled.map((_, i) => explanationMap.get(i) || {});
 
-    const results = modeled.map(({ g, m, pick, rawEdge, isBet, tier, chaos }, i) => ({
+    // ── BUILD RESULTS ──
+    const results = modeled.map(({ g, m, pick, rawEdge, isBet, tier, chaos, conflict, noBetReason }, i) => ({
       id:           g.id,
       homeTeam:     g.homeTeam,
       awayTeam:     g.awayTeam,
@@ -385,6 +477,7 @@ export async function GET(req) {
       edge:         parseFloat((rawEdge * 100).toFixed(1)),
       isBet,
       chaos:        chaos || null,
+      passReason:   isBet ? null : (noBetReason || null),
       breakdown:    explanations[i],
       liveScore:    m.status ? {
         status:     m.status,
@@ -395,19 +488,21 @@ export async function GET(req) {
       } : null,
     }));
 
+    // BETs first, then by edge descending
     results.sort((a, b) => {
       if (a.isBet !== b.isBet) return a.isBet ? -1 : 1;
       return (b.edge || 0) - (a.edge || 0);
     });
 
-    // MAX BETS PER SLATE: cap at 5 bets regardless of how many clear the threshold
-    // Sharp systems pick fewer, higher-confidence spots. 10-12 bets/day = noise.
-    // Games 6+ get isBet=false but keep their edge/tier for reference.
+    // MAX BETS CAP
     let betCount = 0;
     for (const r of results) {
       if (r.isBet) {
         betCount++;
-        if (betCount > 5) r.isBet = false;
+        if (betCount > MAX_BETS) {
+          r.isBet      = false;
+          r.passReason = "slate cap reached";
+        }
       }
     }
 
