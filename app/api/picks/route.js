@@ -319,7 +319,6 @@ export async function GET(req) {
 
       const pf    = parkFactor(g.homeTeam);
       const chaos = chaosGate(g, m, pf);
-      const noisy = isNoisy(m);
       const pfAdj = typeof pf === "number" ? (1.0 - pf) * 0.06 : 0;
 
       const homeProb = chaos
@@ -333,8 +332,8 @@ export async function GET(req) {
       const rawEdge  = Math.min(0.14, pickHome ? homeEdge : awayEdge);
 
       // Single unified no-bet check
-      const noisy = !chaos && !!noBetCheck(g, m, rawEdge);
       const noBetReason = chaos || noBetCheck(g, m, rawEdge);
+      const noisy = !chaos && !!noBetReason;
       const isBet = !noBetReason;
       const tier  = tierLabel(rawEdge, noisy, chaos);
 
