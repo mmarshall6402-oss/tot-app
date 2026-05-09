@@ -226,22 +226,18 @@ const detectConflict = (g, m, pickHome) => {
 // ─────────────────────────────
 const chaosGate = (g, m, pf) => {
   if (pf === "coors") return "Coors Field";
-
+  if (/rockies|colorado/i.test(g.awayTeam || "")) return "Rockies road game";
   const hKnown = !!(m.homePitcher?.name && m.homePitcher.name !== "TBD");
   const aKnown = !!(m.awayPitcher?.name && m.awayPitcher.name !== "TBD");
   if (!hKnown && !aKnown) return "both starters TBD";
-
   const hWhip = num(m.homePitcher?.whip, LEAGUE.WHIP);
   const aWhip = num(m.awayPitcher?.whip, LEAGUE.WHIP);
   if (hWhip > 1.65 && aWhip > 1.65) return "both high-WHIP chaos";
-
   return null;
 };
-
 // ─────────────────────────────
 // NO-BET SUPPRESSOR
-// ─────────────────────────────
-const noBetCheck = (g, m, rawEdge, pickHome) => {
+// ────────────────────────────const noBetCheck = (g, m, rawEdge, pickHome) => {
   // Edge too small
   if (rawEdge < BET_THRESHOLD) return "edge below threshold";
 
