@@ -237,7 +237,8 @@ const chaosGate = (g, m, pf) => {
 };
 // ─────────────────────────────
 // NO-BET SUPPRESSOR
-// ────────────────────────────const noBetCheck = (g, m, rawEdge, pickHome) => {
+// ─────────────────────────────
+const noBetCheck = (g, m, rawEdge, pickHome) => {
   // Edge too small
   if (rawEdge < BET_THRESHOLD) return "edge below threshold";
 
