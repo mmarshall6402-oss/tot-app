@@ -433,8 +433,8 @@ export async function GET(req) {
       const conflict    = !chaos ? detectConflict(g, m, pickHome) : null;
       const noBetReason = chaos || noBetCheck(g, m, rawEdge, pickHome);
       const noisy       = !chaos && !!noBetReason;
-      const isBet       = !noBetReason;
       const tier        = tierLabel(rawEdge, noisy, chaos);
+      const isBet       = !noBetReason && ["High","Medium"].includes(tier?.level);
 
       return { g, m, pick: pickHome ? g.homeTeam : g.awayTeam, rawEdge, isBet, tier, chaos, noisy, noBetReason, conflict };
     }).filter(Boolean);
