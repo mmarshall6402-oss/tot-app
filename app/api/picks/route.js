@@ -184,11 +184,11 @@ const computeProb = (g, m) => {
   // --- WEIGHTED SUM ---
   const raw =
     0.50 +                           // baseline
-    starterEdge  * 0.25 * 0.22 +    // 25% weight (0.22 is prob-space scalar)
-    teamStrength * 0.30 +            // 30% weight (already in prob-space)
-    bullpenEdge  * 0.20 / 0.06 * 0.04 + // 20% weight (normalize to ~4% max impact)
-    offenseEdge  * 0.15 / offWeight * offWeight + // 15% weight
-    contextPenalty * 0.10 / 0.04 * 0.02 + // 10% weight
+    starterEdge  * 0.055 +          // 25% weight scaled to prob-space
+    teamStrength * 0.30 +            // 30% weight
+    bullpenEdge  * 0.20 +            // 20% weight (already clamped ±0.06)
+    offenseEdge  * 0.15 +            // 15% weight
+    contextPenalty * 0.10 +          // 10% weight
     0.02;                            // home field
 
   // HARD CAP: real MLB edges don't produce 75% win probs often
