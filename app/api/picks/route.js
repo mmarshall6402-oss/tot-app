@@ -228,6 +228,8 @@ const detectConflict = (g, m, pickHome) => {
 // CHAOS GATE
 // ─────────────────────────────
 const chaosGate = (g, m, pf) => {
+  // Rockies on the road = always chaos, never bet
+  if (/rockies|colorado/i.test(g.awayTeam || "")) return "Rockies road game";
   if (pf === "coors") return "Coors Field";
 
   const hKnown = !!(m.homePitcher?.name && m.homePitcher.name !== "TBD");
