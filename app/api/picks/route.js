@@ -42,10 +42,13 @@ const TEAM_RATING = {
   "red sox":   2,
   guardians:   2,
   // Above average
-  padres:      1,
+  padres:      2,
   brewers:     1,
   orioles:     1,
   mariners:    1,
+  rays:         2,
+  cardinals:   -1,
+  diamondbacks: 0,
   rangers:     1,
   twins:       1,
   // Below average
@@ -226,15 +229,18 @@ const detectConflict = (g, m, pickHome) => {
 // ─────────────────────────────
 const chaosGate = (g, m, pf) => {
   if (pf === "coors") return "Coors Field";
-  if (/rockies|colorado/i.test(g.awayTeam || "")) return "Rockies road game";
+
   const hKnown = !!(m.homePitcher?.name && m.homePitcher.name !== "TBD");
   const aKnown = !!(m.awayPitcher?.name && m.awayPitcher.name !== "TBD");
   if (!hKnown && !aKnown) return "both starters TBD";
+
   const hWhip = num(m.homePitcher?.whip, LEAGUE.WHIP);
   const aWhip = num(m.awayPitcher?.whip, LEAGUE.WHIP);
   if (hWhip > 1.65 && aWhip > 1.65) return "both high-WHIP chaos";
+
   return null;
 };
+
 // ─────────────────────────────
 // NO-BET SUPPRESSOR
 // ─────────────────────────────
