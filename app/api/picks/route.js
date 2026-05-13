@@ -70,7 +70,7 @@ async function processGame(game, mlbGames) {
   const hf = mlb?.homeForm;
   const af = mlb?.awayForm;
   const homePStr = homePitcher ? `${homePitcher.name} (${homePitcher.wins}-${homePitcher.losses}, ${homePitcher.era} ERA, ${homePitcher.whip} WHIP)` : "TBD";
-  const awayPStr = awayPitcher ? `${awayPitcher.name} (${awayPitcher.wins}-${awayPitcher.losses}, ${awayPitcher.era} ERA, ${awayPitcher.whip} WHIP)` : "TBD";
+  const awayPStr = awayPitcher ? `${awayPitcher.name} (${awayPitcher.wins}-${awayPitcher.losses}, ${awayPitcher.era} ERA, ${awayPitcher.whip} WHIP)` : "N/A";
   const homeFormStr = hf ? `${hf.avg} AVG, ${hf.ops} OPS, ${hf.homeRuns} HR, ${hf.runs} R in ${hf.gamesPlayed} games` : "N/A";
   const awayFormStr = af ? `${af.avg} AVG, ${af.ops} OPS, ${af.homeRuns} HR, ${af.runs} R in ${af.gamesPlayed} games` : "N/A";
 
@@ -159,12 +159,14 @@ export async function GET(request) {
     ]);
 
     const mlbGames = mlbRes?.games || [];
-    const results = [];
 
-    for (const game of oddsGames) {
-      const result = await processGame(game, mlbGames);
-      if (result) results.push(result);
-      await new Promise(r => setTimeout(r, 200));
+    // Run all Claude calls in parallel instead of sequentially
+    const settled = await Promise.allSettled(
+      oddsGames.map(game => processGame(game, mlbGames))
+    );
+    const results = [];
+    for (const s of settled) {
+      if (s.status === "fulfilled" && s.value) results.push(s.value);
     }
 
     // Store in Supabase so next request is instant
