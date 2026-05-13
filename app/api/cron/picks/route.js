@@ -1,25 +1,13 @@
-// app/api/picks/route.js
+// app/api/cron/picks/route.js
 import { createClient } from "@supabase/supabase-js";
-import { fetchMLBOdds } from "../../../lib/odds.js";
-import { calculateEdge, getConfidenceTier } from "../../../lib/edge.js";
+import { fetchMLBOdds } from "../../../../lib/odds.js";
+import { calculateEdge, getConfidenceTier } from "../../../../lib/edge.js";
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY // use service role for server-side writes
 );
-
-// In-memory fallback cache (10 min TTL) for same serverless instance
-const memCache = new Map();
-const TTL = 1000 * 60 * 10;
-
-const getMemCached = async (key, fn) => {
-  const hit = memCache.get(key);
-  if (hit && Date.now() - hit.time < TTL) return hit.data;
-  const data = await fn();
-  memCache.set(key, { data, time: Date.now() });
-  return data;
-};
 
 function getModelProb(mlb) {
   if (!mlb) return 0.52;
@@ -130,31 +118,30 @@ Return ONLY valid JSON no markdown:
 }
 
 export async function GET(request) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const date = searchParams.get("date") || new Date().toISOString().split("T")[0];
+  // Verify this is a legitimate cron call from Vercel
+  const authHeader = request.headers.get("authorization");
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
-    // Step 1: Try Supabase cache first
-    const { data: cached } = await supabase
+  try {
+    const date = new Date().toISOString().split("T")[0];
+
+    // Check if picks already generated today
+    const { data: existing } = await supabase
       .from("picks_cache")
-      .select("picks, generated_at")
+      .select("id")
       .eq("date", date)
       .single();
 
-    if (cached?.picks?.length) {
-      return Response.json({
-        picks: cached.picks,
-        cached: true,
-        generated_at: cached.generated_at,
-      });
+    if (existing) {
+      return Response.json({ message: "Picks already cached for today", date });
     }
 
-    // Step 2: Fall back to live compute + cache result
+    // Generate picks
     const [oddsGames, mlbRes] = await Promise.all([
-      getMemCached("odds", fetchMLBOdds),
-      getMemCached(`mlb_${date}`, async () =>
-        fetch(`${BASE_URL}/api/mlb?date=${date}`).then(r => r.json())
-      ),
+      fetchMLBOdds(),
+      fetch(`${BASE_URL}/api/mlb?date=${date}`).then(r => r.json()),
     ]);
 
     const mlbGames = mlbRes?.games || [];
@@ -166,14 +153,14 @@ export async function GET(request) {
       await new Promise(r => setTimeout(r, 200));
     }
 
-    // Store in Supabase so next request is instant
-    if (results.length) {
-      await supabase
-        .from("picks_cache")
-        .upsert({ date, picks: results, generated_at: new Date().toISOString() }, { onConflict: "date" });
-    }
+    // Store in Supabase
+    const { error } = await supabase
+      .from("picks_cache")
+      .upsert({ date, picks: results, generated_at: new Date().toISOString() }, { onConflict: "date" });
 
-    return Response.json({ picks: results, cached: false });
+    if (error) throw new Error(error.message);
+
+    return Response.json({ message: "Picks generated and cached", date, count: results.length });
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });
   }
