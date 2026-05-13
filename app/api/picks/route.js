@@ -2,6 +2,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { fetchMLBOdds } from "../../../lib/odds.js";
 import { calculateEdge, getConfidenceTier } from "../../../lib/edge.js";
+import { getModelProbability } from "../../../lib/probability.js";
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 const supabase = createClient(
@@ -61,7 +62,7 @@ async function callClaude(prompt) {
 
 async function processGame(game, mlbGames) {
   const mlb = matchMLB(game, mlbGames);
-  const modelProb = getModelProb(mlb);
+  const modelProb = await getModelProbability(game);
   const edge = calculateEdge(modelProb, game.homeImplied);
   const pick = edge >= 0 ? game.homeTeam : game.awayTeam;
   const homePitcher = mlb?.homePitcher;

@@ -1,6 +1,6 @@
 const MLB = "https://statsapi.mlb.com/api/v1";
 const CURRENT_SEASON = 2026;
-const FALLBACK_SEASON = 2025;
+const FALLBACK_SEASON = 2026;
 
 function getPastDate(days) {
   const d = new Date();
