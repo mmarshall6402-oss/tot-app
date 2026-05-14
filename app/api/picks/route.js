@@ -131,6 +131,46 @@ Return ONLY valid JSON no markdown:
   }
 }
 
+const ODDS_CACHE_KEY = "__odds__";
+const ODDS_TTL_MS = 1000 * 60 * 15; // 15 min
+
+async function fetchOddsWithCache() {
+  // 1. Try live API
+  try {
+    const games = await fetchMLBOdds();
+    if (games?.length) {
+      // Persist to Supabase so the next cold instance can use it
+      supabase
+        .from("picks_cache")
+        .upsert({ date: ODDS_CACHE_KEY, picks: games, generated_at: new Date().toISOString() }, { onConflict: "date" })
+        .then(() => {}).catch(() => {});
+      return games;
+    }
+  } catch (e) {
+    console.warn("[odds] live fetch failed:", e.message);
+  }
+
+  // 2. Fall back to Supabase-cached odds
+  const { data } = await supabase
+    .from("picks_cache")
+    .select("picks, generated_at")
+    .eq("date", ODDS_CACHE_KEY)
+    .single();
+
+  if (data?.picks?.length) {
+    const age = Date.now() - new Date(data.generated_at).getTime();
+    if (age < ODDS_TTL_MS) {
+      console.warn("[odds] using Supabase-cached odds, age:", Math.round(age / 1000) + "s");
+      return data.picks;
+    }
+    // Stale but better than nothing
+    console.warn("[odds] Supabase odds stale but serving anyway");
+    return data.picks;
+  }
+
+  return [];
+}
+
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -147,13 +187,15 @@ export async function GET(request) {
     }
 
     const [oddsGames, mlbRes] = await Promise.all([
-      getMemCached("odds", fetchMLBOdds),
-      getMemCached(`mlb_${date}`, async () =>
-        fetch(`${BASE_URL}/api/mlb?date=${date}`).then(r => r.json())
-      ),
+      fetchOddsWithCache(),
+      fetch(`${BASE_URL}/api/mlb?date=${date}`).then(r => r.json()).catch(() => ({ games: [] })),
     ]);
 
     const mlbGames = mlbRes?.games || [];
+
+    if (!oddsGames.length) {
+      return Response.json({ picks: [], cached: false, notice: "odds unavailable" });
+    }
 
     const settled = await Promise.allSettled(
       oddsGames.map(game => processGame(game, mlbGames))
@@ -163,7 +205,6 @@ export async function GET(request) {
       if (s.status === "fulfilled" && s.value) results.push(s.value);
     }
 
-    // Sort by edge descending so highest-value picks come first
     results.sort((a, b) => b.edge - a.edge);
 
     if (results.length) {
