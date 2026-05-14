@@ -1,7 +1,6 @@
-// app/api/picks/route.js
 import { createClient } from "@supabase/supabase-js";
 import { fetchMLBOdds } from "../../../lib/odds.js";
-import { calculateEdge, getConfidenceTier } from "../../../lib/edge.js";
+import { calculateEdge, BET_THRESHOLD, getConfidenceTier } from "../../../lib/edge.js";
 import { getModelProbability } from "../../../lib/probability.js";
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -10,7 +9,6 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
 
-// In-memory fallback cache (10 min TTL) for same serverless instance
 const memCache = new Map();
 const TTL = 1000 * 60 * 10;
 
@@ -21,16 +19,6 @@ const getMemCached = async (key, fn) => {
   memCache.set(key, { data, time: Date.now() });
   return data;
 };
-
-function getModelProb(mlb) {
-  if (!mlb) return 0.52;
-  const homeOps = parseFloat(mlb.homeForm?.ops) || 0.720;
-  const awayOps = parseFloat(mlb.awayForm?.ops) || 0.720;
-  const homeEra = parseFloat(mlb.homePitcher?.era) || 4.50;
-  const awayEra = parseFloat(mlb.awayPitcher?.era) || 4.50;
-  const raw = (homeOps - awayOps) * 0.4 + (awayEra - homeEra) / 10 * 0.4 + 0.03;
-  return Math.min(0.75, Math.max(0.25, 0.5 + raw));
-}
 
 function matchMLB(game, mlbGames) {
   return mlbGames.find(g => {
@@ -62,9 +50,15 @@ async function callClaude(prompt) {
 
 async function processGame(game, mlbGames) {
   const mlb = matchMLB(game, mlbGames);
-  const modelProb = await getModelProbability(game);
-  const edge = calculateEdge(modelProb, game.homeImplied);
-  const pick = edge >= 0 ? game.homeTeam : game.awayTeam;
+
+  // Synchronous: uses Elo + pre-fetched mlb data, no extra API calls
+  const modelProb = getModelProbability(game, mlb);
+  const rawEdge = calculateEdge(modelProb, game.homeImplied);
+  // Positive rawEdge → home has value; negative → away has value
+  const pick = rawEdge >= 0 ? game.homeTeam : game.awayTeam;
+  const edgePct = Math.abs(rawEdge) * 100;
+  const isBet = edgePct >= BET_THRESHOLD * 100;
+
   const homePitcher = mlb?.homePitcher;
   const awayPitcher = mlb?.awayPitcher;
   const hf = mlb?.homeForm;
@@ -78,6 +72,7 @@ async function processGame(game, mlbGames) {
 
 Game: ${game.awayTeam} @ ${game.homeTeam}
 Home odds: ${game.homeOdds > 0 ? "+" : ""}${game.homeOdds} | Away odds: ${game.awayOdds > 0 ? "+" : ""}${game.awayOdds}
+Model edge: ${edgePct.toFixed(1)}% on ${pick}
 Home pitcher: ${homePStr}
 Away pitcher: ${awayPStr}
 ${game.homeTeam} last 10: ${homeFormStr}
@@ -106,26 +101,32 @@ Return ONLY valid JSON no markdown:
     try { breakdown = JSON.parse(clean); } catch {}
     if (homePitcher) breakdown.pitcher_home = homePStr;
     if (awayPitcher) breakdown.pitcher_away = awayPStr;
+
     const tier = breakdown.tier?.level
       ? {
           label: breakdown.tier.level === "High" ? "🔥 Value Pick" : breakdown.tier.level === "Medium" ? "✅ Solid Pick" : "👀 Lean",
           level: breakdown.tier.level,
           emoji: breakdown.tier.level === "High" ? "🔥" : breakdown.tier.level === "Medium" ? "✅" : "👀",
         }
-      : getConfidenceTier(edge) || { label: "👀 Lean", level: "Low", emoji: "👀" };
+      : getConfidenceTier(edgePct / 100) || { label: "👀 Lean", level: "Low", emoji: "👀" };
 
     return {
       id: game.id, homeTeam: game.homeTeam, awayTeam: game.awayTeam,
       commenceTime: game.commenceTime, homeOdds: game.homeOdds, awayOdds: game.awayOdds,
-      pick: breakdown.pick || pick, tier, breakdown,
+      pick: breakdown.pick || pick,
+      edge: edgePct,
+      isBet,
+      tier, breakdown,
       liveScore: mlb ? { status: mlb.status, homeScore: mlb.homeScore, awayScore: mlb.awayScore, inning: mlb.inning, inningHalf: mlb.inningHalf } : null,
     };
   } catch {
+    const tier = getConfidenceTier(edgePct / 100) || { label: "👀 Lean", level: "Low", emoji: "👀" };
     return {
       id: game.id, homeTeam: game.homeTeam, awayTeam: game.awayTeam,
       commenceTime: game.commenceTime, homeOdds: game.homeOdds, awayOdds: game.awayOdds,
-      pick, tier: getConfidenceTier(edge) || { label: "👀 Lean", level: "Low", emoji: "👀" },
-      breakdown: { pitcher_home: homePStr, pitcher_away: awayPStr }, liveScore: null,
+      pick, edge: edgePct, isBet, tier,
+      breakdown: { pitcher_home: homePStr, pitcher_away: awayPStr },
+      liveScore: null,
     };
   }
 }
@@ -135,7 +136,6 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const date = searchParams.get("date") || new Date().toISOString().split("T")[0];
 
-    // Step 1: Try Supabase cache first
     const { data: cached } = await supabase
       .from("picks_cache")
       .select("picks, generated_at")
@@ -143,14 +143,9 @@ export async function GET(request) {
       .single();
 
     if (cached?.picks?.length) {
-      return Response.json({
-        picks: cached.picks,
-        cached: true,
-        generated_at: cached.generated_at,
-      });
+      return Response.json({ picks: cached.picks, cached: true, generated_at: cached.generated_at });
     }
 
-    // Step 2: Fall back to live compute + cache result
     const [oddsGames, mlbRes] = await Promise.all([
       getMemCached("odds", fetchMLBOdds),
       getMemCached(`mlb_${date}`, async () =>
@@ -160,7 +155,6 @@ export async function GET(request) {
 
     const mlbGames = mlbRes?.games || [];
 
-    // Run all Claude calls in parallel instead of sequentially
     const settled = await Promise.allSettled(
       oddsGames.map(game => processGame(game, mlbGames))
     );
@@ -169,7 +163,9 @@ export async function GET(request) {
       if (s.status === "fulfilled" && s.value) results.push(s.value);
     }
 
-    // Store in Supabase so next request is instant
+    // Sort by edge descending so highest-value picks come first
+    results.sort((a, b) => b.edge - a.edge);
+
     if (results.length) {
       await supabase
         .from("picks_cache")
