@@ -1,0 +1,37 @@
+# Offline ML research — not needed in production
+scripts/
+data/gamelogs/
+data/odds/
+data/archive/
+data/sbr_*.json
+data/sbr_*_unresolved.json
+data/merged_*.json
+data/unmatched_*.json
+data/pitcher_era.json
+data/pitcher_fip.json
+data/ump_run_env.json
+data/clv_report.json
+data/calibrated.json
+data/features.json
+data/merged_test.json
+
+# Retrosheet raw files
+gl2018.txt
+gl2019.txt
+gl2020.txt
+gl2021.txt
+gl2022.txt
+gl2023.txt
+gl2024.txt
+gl2018.zip
+gl2019.zip
+gl2020.zip
+gl2021.zip
+gl2022.zip
+gl2023.zip
+gl2024.zip
+parse.js
+elo.js
+scraper.js
+
+# data/elo_ratings.json and data/games.json are KEPT — used at runtime
