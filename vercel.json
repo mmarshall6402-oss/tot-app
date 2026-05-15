@@ -4,5 +4,9 @@
       "path": "/api/cron/picks",
       "schedule": "0 11 * * *"
     }
-  ]
+  ],
+  "functions": {
+    "app/api/picks/route.js": { "maxDuration": 60 },
+    "app/api/cron/picks/route.js": { "maxDuration": 300 }
+  }
 }
