@@ -21,15 +21,35 @@ const getMemCached = async (key, fn) => {
   return data;
 };
 
-function matchMLB(game, mlbGames) {
-  return mlbGames.find(g => {
-    const hw = game.homeTeam?.split(" ").pop()?.toLowerCase();
-    const aw = game.awayTeam?.split(" ").pop()?.toLowerCase();
-    return g.homeTeam?.toLowerCase().includes(hw) && g.awayTeam?.toLowerCase().includes(aw);
-  });
-}
 
-async function callClaude(prompt) {
+// Single Claude call for all games — avoids rate limits and function timeout
+async function callClaudeBatch(gameContexts) {
+  const prompt = `You are a sharp MLB betting analyst. Be direct, honest, no hype.
+Analyze these games and return a JSON array — one object per game, in the same order.
+
+${gameContexts.map((g, i) => `
+GAME ${i + 1}: ${g.awayTeam} @ ${g.homeTeam}
+  Odds: home ${g.homeOdds > 0 ? "+" : ""}${g.homeOdds} / away ${g.awayOdds > 0 ? "+" : ""}${g.awayOdds}
+  Pick: ${g.pick} | True edge: ${g.trueEdgePct}% | Verdict: ${g.verdict} | Variance: ${g.variance}
+  Flags: ${g.flags || "none"}
+  Park: ${g.parkFactor > 0 ? "+" : ""}${g.parkFactor} runs
+  Home SP: ${g.homePStr}
+  Away SP: ${g.awayPStr}
+  ${g.homeTeam} last 10: ${g.homeFormStr}
+  ${g.awayTeam} last 10: ${g.awayFormStr}`).join("\n")}
+
+Return ONLY a valid JSON array, no markdown. Each element:
+{
+  "preview": "2 sentences. Name pitchers. Lead with sharpest reason to bet or fade. Flag unreliable stats.",
+  "form_home": "1 sentence on home team form with numbers, or 'no data'",
+  "form_away": "1 sentence on away team form with numbers, or 'no data'",
+  "what_decides": "1 sentence — single factor that tips this game",
+  "what_to_sweat": "1 sentence — biggest risk",
+  "honest_lean": "1-2 sentences blunt take. Say if edge is real or noise.",
+  "score_range": "e.g. 5-3",
+  "tier": { "level": "High" }
+}`;
+
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -40,115 +60,57 @@ async function callClaude(prompt) {
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
-        max_tokens: 600,
+        max_tokens: 4096,
         messages: [{ role: "user", content: prompt }],
       }),
     });
     const data = await res.json();
-    return data.content?.[0]?.text || "{}";
-  } catch { return "{}"; }
+    const text = data.content?.[0]?.text || "[]";
+    const clean = text.replace(/```json|```/g, "").trim();
+    return JSON.parse(clean);
+  } catch { return []; }
 }
 
-async function processGame(game, mlbGames) {
-  const mlb = matchMLB(game, mlbGames);
-
-  // Synchronous: uses Elo + pre-fetched mlb data, no extra API calls
+function buildPick(game, mlb, breakdown) {
   const modelProb = getModelProbability(game, mlb);
-  const rawEdge = calculateEdge(modelProb, game.homeImplied);
-  // Positive rawEdge → home has value; negative → away has value
-  const pick = rawEdge >= 0 ? game.homeTeam : game.awayTeam;
-  const edgePct = Math.abs(rawEdge) * 100;
-  const isBet = edgePct >= BET_THRESHOLD * 100;
+  const rawEdge   = calculateEdge(modelProb, game.homeImplied);
+  const pick      = rawEdge >= 0 ? game.homeTeam : game.awayTeam;
+  const edgePct   = Math.abs(rawEdge) * 100;
+  const isBet     = edgePct >= BET_THRESHOLD * 100;
 
   const homePitcher = mlb?.homePitcher;
   const awayPitcher = mlb?.awayPitcher;
-  const hf = mlb?.homeForm;
-  const af = mlb?.awayForm;
+  const filter    = applyFilterLayer(pick, { ...game, source: game.source }, mlb, modelProb);
+  const filteredIsBet = isBet && (filter.verdict === "CLEAN" || filter.verdict === "SOFT");
+
+  const tier = breakdown?.tier?.level
+    ? {
+        label: breakdown.tier.level === "High" ? "🔥 Value Pick" : breakdown.tier.level === "Medium" ? "✅ Solid Pick" : "👀 Lean",
+        level: breakdown.tier.level,
+        emoji: breakdown.tier.level === "High" ? "🔥" : breakdown.tier.level === "Medium" ? "✅" : "👀",
+      }
+    : getConfidenceTier(edgePct / 100) || { label: "👀 Lean", level: "Low", emoji: "👀" };
+
   const ipStr = (p) => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";
   const homePStr = homePitcher ? `${homePitcher.name} (${homePitcher.wins}-${homePitcher.losses}, ${homePitcher.era} ERA, ${homePitcher.whip} WHIP${ipStr(homePitcher)})` : "TBD";
   const awayPStr = awayPitcher ? `${awayPitcher.name} (${awayPitcher.wins}-${awayPitcher.losses}, ${awayPitcher.era} ERA, ${awayPitcher.whip} WHIP${ipStr(awayPitcher)})` : "N/A";
-  const homeFormStr = hf ? `${hf.avg} AVG, ${hf.ops} OPS, ${hf.homeRuns} HR, ${hf.runs} R in ${hf.gamesPlayed} games` : "no data";
-  const awayFormStr = af ? `${af.avg} AVG, ${af.ops} OPS, ${af.homeRuns} HR, ${af.runs} R in ${af.gamesPlayed} games` : "no data";
 
-  // Run filter before Claude so the prompt includes honest context
-  const preFilter = applyFilterLayer(pick, { ...game, source: game.source }, mlb, modelProb);
-  const flagSummary = preFilter.flags.length
-    ? preFilter.flags.map(f => f.replace(/_/g, " ").toLowerCase()).join(", ")
-    : "none";
+  return {
+    id: game.id, homeTeam: game.homeTeam, awayTeam: game.awayTeam,
+    commenceTime: game.commenceTime, homeOdds: game.homeOdds, awayOdds: game.awayOdds,
+    pick, edge: edgePct, isBet: filteredIsBet, tier,
+    breakdown: { ...(breakdown || {}), pitcher_home: homePStr, pitcher_away: awayPStr },
+    filter,
+    liveScore: mlb ? { status: mlb.status, homeScore: mlb.homeScore, awayScore: mlb.awayScore, inning: mlb.inning, inningHalf: mlb.inningHalf } : null,
+  };
+}
 
-  const prompt = `You are a sharp MLB betting analyst. Be direct, specific, honest. No hype.
-
-Game: ${game.awayTeam} @ ${game.homeTeam}
-Home odds: ${game.homeOdds > 0 ? "+" : ""}${game.homeOdds} | Away odds: ${game.awayOdds > 0 ? "+" : ""}${game.awayOdds}
-Model pick: ${pick} | Raw edge: ${edgePct.toFixed(1)}%
-Filter verdict: ${preFilter.verdict} | True edge (sharp-adjusted): ${preFilter.trueEdgePct}% | Variance: ${preFilter.variance}
-Risk flags: ${flagSummary}
-Park factor: ${preFilter.parkFactor > 0 ? "+" : ""}${preFilter.parkFactor} runs (${game.homeTeam} home park)
-Home pitcher: ${homePStr}
-Away pitcher: ${awayPStr}
-${game.homeTeam} last 10: ${homeFormStr}
-${game.awayTeam} last 10: ${awayFormStr}
-
-IMPORTANT: If filter verdict is TRAP or PASS, explain why honestly. If flags mention small_sample or era_whip_mismatch, flag the stat as unreliable.
-
-Return ONLY valid JSON no markdown:
-{
-  "pick": "${pick}",
-  "pitcher_home": "${homePStr}",
-  "pitcher_away": "${awayPStr}",
-  "preview": "2 sentences. Name the pitchers. Lead with the sharpest reason to bet or fade.",
-  "form_home": "1 sentence on ${game.homeTeam} recent form with numbers (or 'no data available')",
-  "form_away": "1 sentence on ${game.awayTeam} recent form with numbers (or 'no data available')",
-  "what_decides": "1 sentence — the single factor that tips this game",
-  "what_to_sweat": "1 sentence — biggest risk if you take ${pick}",
-  "honest_lean": "1-2 sentences blunt take. Mention if edge is fake or real. Like texting a sharp friend.",
-  "score_range": "e.g. 5-3",
-  "tier": { "level": "High | Medium | Low" }
-}`;
-
-  try {
-    const text = await callClaude(prompt);
-    const clean = text.replace(/```json|```/g, "").trim();
-    let breakdown = {};
-    try { breakdown = JSON.parse(clean); } catch {}
-    if (homePitcher) breakdown.pitcher_home = homePStr;
-    if (awayPitcher) breakdown.pitcher_away = awayPStr;
-
-    const tier = breakdown.tier?.level
-      ? {
-          label: breakdown.tier.level === "High" ? "🔥 Value Pick" : breakdown.tier.level === "Medium" ? "✅ Solid Pick" : "👀 Lean",
-          level: breakdown.tier.level,
-          emoji: breakdown.tier.level === "High" ? "🔥" : breakdown.tier.level === "Medium" ? "✅" : "👀",
-        }
-      : getConfidenceTier(edgePct / 100) || { label: "👀 Lean", level: "Low", emoji: "👀" };
-
-    const finalPick = breakdown.pick || pick;
-    const filter = finalPick === pick ? preFilter : applyFilterLayer(finalPick, { ...game, source: game.source }, mlb, modelProb);
-
-    // isBet requires both raw edge AND filter verdict
-    const filteredIsBet = isBet && (filter.verdict === "CLEAN" || filter.verdict === "SOFT");
-
-    return {
-      id: game.id, homeTeam: game.homeTeam, awayTeam: game.awayTeam,
-      commenceTime: game.commenceTime, homeOdds: game.homeOdds, awayOdds: game.awayOdds,
-      pick: finalPick,
-      edge: edgePct,
-      isBet: filteredIsBet,
-      tier, breakdown, filter,
-      liveScore: mlb ? { status: mlb.status, homeScore: mlb.homeScore, awayScore: mlb.awayScore, inning: mlb.inning, inningHalf: mlb.inningHalf } : null,
-    };
-  } catch {
-    const tier = getConfidenceTier(edgePct / 100) || { label: "👀 Lean", level: "Low", emoji: "👀" };
-    const filter = applyFilterLayer(pick, { ...game, source: game.source }, mlb, modelProb);
-    const filteredIsBet = isBet && (filter.verdict === "CLEAN" || filter.verdict === "SOFT");
-    return {
-      id: game.id, homeTeam: game.homeTeam, awayTeam: game.awayTeam,
-      commenceTime: game.commenceTime, homeOdds: game.homeOdds, awayOdds: game.awayOdds,
-      pick, edge: edgePct, isBet: filteredIsBet, tier, filter,
-      breakdown: { pitcher_home: homePStr, pitcher_away: awayPStr },
-      liveScore: null,
-    };
-  }
+function matchMLBGame(game, mlbGames) {
+  return mlbGames.find(g => {
+    const hw = game.homeTeam?.split(" ").pop()?.toLowerCase();
+    const aw = game.awayTeam?.split(" ").pop()?.toLowerCase();
+    return g.homeTeam?.toLowerCase().includes(hw) && g.awayTeam?.toLowerCase().includes(aw);
+  });
 }
 
 const ODDS_CACHE_KEY = "__odds__";
@@ -217,16 +179,42 @@ export async function GET(request) {
       return Response.json({ picks: [], cached: false, notice: "odds unavailable" });
     }
 
-    // Sequential with 1.5s gap — 9 games × 1.5s = ~13s, well within 25 RPM org limit
-    // Parallel was hitting 50 RPM cap (9 simultaneous calls)
-    const results = [];
-    for (const game of oddsGames) {
-      try {
-        const pick = await processGame(game, mlbGames);
-        if (pick) results.push(pick);
-      } catch {}
-      await new Promise(r => setTimeout(r, 1500));
-    }
+    // Build game contexts for batch Claude call
+    const gameContexts = oddsGames.map(game => {
+      const mlb = matchMLBGame(game, mlbGames);
+      const modelProb = getModelProbability(game, mlb);
+      const rawEdge   = calculateEdge(modelProb, game.homeImplied);
+      const pick      = rawEdge >= 0 ? game.homeTeam : game.awayTeam;
+      const edgePct   = Math.abs(rawEdge) * 100;
+      const filter    = applyFilterLayer(pick, { ...game, source: game.source }, mlb, modelProb);
+      const hf = mlb?.homeForm;
+      const af = mlb?.awayForm;
+      const ipStr = (p) => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";
+      const hp = mlb?.homePitcher;
+      const ap = mlb?.awayPitcher;
+      return {
+        game, mlb,
+        pick, edgePct,
+        homePStr: hp ? `${hp.name} (${hp.wins}-${hp.losses}, ${hp.era} ERA, ${hp.whip} WHIP${ipStr(hp)})` : "TBD",
+        awayPStr: ap ? `${ap.name} (${ap.wins}-${ap.losses}, ${ap.era} ERA, ${ap.whip} WHIP${ipStr(ap)})` : "N/A",
+        homeFormStr: hf ? `${hf.avg} AVG, ${hf.ops} OPS, ${hf.homeRuns} HR, ${hf.runs} R` : "no data",
+        awayFormStr: af ? `${af.avg} AVG, ${af.ops} OPS, ${af.homeRuns} HR, ${af.runs} R` : "no data",
+        homeTeam: game.homeTeam, awayTeam: game.awayTeam,
+        homeOdds: game.homeOdds, awayOdds: game.awayOdds,
+        trueEdgePct: filter.trueEdgePct,
+        verdict: filter.verdict,
+        variance: filter.variance,
+        flags: filter.flags.map(f => f.replace(/_/g, " ").toLowerCase()).join(", ") || "none",
+        parkFactor: filter.parkFactor,
+      };
+    });
+
+    // One Claude call for all games — avoids rate limits and timeout
+    const breakdowns = await callClaudeBatch(gameContexts);
+
+    const results = gameContexts.map((ctx, i) =>
+      buildPick(ctx.game, ctx.mlb, breakdowns[i] || {})
+    ).filter(Boolean);
 
     results.sort((a, b) => b.edge - a.edge);
 
