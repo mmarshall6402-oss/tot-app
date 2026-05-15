@@ -98,6 +98,7 @@ export async function POST(request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const supabase = getSupabase();
   const body = await request.json();
   const { action } = body;
 

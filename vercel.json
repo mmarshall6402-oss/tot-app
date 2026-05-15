@@ -3,10 +3,15 @@
     {
       "path": "/api/cron/picks",
       "schedule": "0 11 * * *"
+    },
+    {
+      "path": "/api/cron/resolve",
+      "schedule": "0 6 * * *"
     }
   ],
   "functions": {
     "app/api/picks/route.js": { "maxDuration": 60 },
-    "app/api/cron/picks/route.js": { "maxDuration": 300 }
+    "app/api/cron/picks/route.js": { "maxDuration": 300 },
+    "app/api/cron/resolve/route.js": { "maxDuration": 60 }
   }
 }

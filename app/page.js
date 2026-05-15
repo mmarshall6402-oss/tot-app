@@ -118,6 +118,7 @@ export default function ToT() {
   const [carouselIdx, setCarouselIdx] = useState(0);
   const weekDates = getWeekDates();
   const [selectedDate, setSelectedDate] = useState(weekDates[0]);
+  const [steals, setSteals] = useState(null);
 
   useEffect(() => {
     createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY).auth.getSession().then(({ data: { session } }) => setUser(session?.user ?? null));
@@ -134,12 +135,22 @@ export default function ToT() {
   useEffect(() => {
     if (!user) return;
     if (activeTab === "picks") fetchPicks(selectedDate);
+    if (activeTab === "steals") fetchSteals(selectedDate);
     if (activeTab === "tracker") fetchSaved();
   }, [user, activeTab, selectedDate]);
 
   useEffect(() => {
     if (user) fetchSaved();
   }, [user]);
+
+  const fetchSteals = async (date) => {
+    setSteals(null);
+    try {
+      const res = await fetch(`/api/steals?date=${date}`);
+      const data = await res.json();
+      setSteals(data.steals || []);
+    } catch (e) { setSteals([]); }
+  };
 
   const fetchPicks = async (date) => {
     setLoading(true);
@@ -343,7 +354,7 @@ export default function ToT() {
         </div>
       </div>
 
-      {activeTab === "picks" && (
+      {(activeTab === "picks" || activeTab === "steals") && (
         <div style={S.dateScroll}>
           {weekDates.map(date => (
             <button
@@ -615,11 +626,123 @@ export default function ToT() {
         )}
 
         {activeTab === "steals" && (
-          <div style={S.center}>
-            <div style={{ fontSize: 32 }}>🔥</div>
-            <div style={{ color: "#fff", fontWeight: 700, marginTop: 8 }}>Steals coming soon</div>
-            <div style={{ color: "#333", fontSize: 13, marginTop: 4 }}>Highest edge bets — coming next</div>
-          </div>
+          steals === null ? (
+            <div style={S.center}>
+              <div style={S.spinner} />
+              <div style={{ color: "#333", fontSize: 13, marginTop: 12 }}>Scanning for CLEAN bets…</div>
+            </div>
+          ) : steals.length === 0 ? (
+            <div style={S.center}>
+              <div style={{ fontSize: 32 }}>🔒</div>
+              <div style={{ color: "#fff", fontWeight: 700, marginTop: 8 }}>No CLEAN bets {fmtDateLabel(selectedDate)}</div>
+              <div style={{ color: "#333", fontSize: 13, marginTop: 4 }}>All conditions must pass — discipline wins long-term</div>
+            </div>
+          ) : (
+            <>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#00FF87", letterSpacing: 2, marginBottom: 4 }}>
+                {steals.length} CLEAN BET{steals.length !== 1 ? "S" : ""} — ALL CONDITIONS PASSED
+              </div>
+              {steals.map(pick => {
+                const f = pick.filter || {};
+                const b = pick.breakdown || {};
+                const isSaved = saving[pick.id] === "saved";
+                const pickOdds = pick.pick === pick.homeTeam ? pick.homeOdds : pick.awayOdds;
+                const decOdds = pickOdds > 0 ? 1 + pickOdds / 100 : 1 + 100 / Math.abs(pickOdds);
+                const edgeFrac = (f.trueEdgePct || 0) / 100;
+                const kB = decOdds - 1;
+                const kP = edgeFrac + (1 / decOdds);
+                const kellyPct = (Math.max(0, (kB * kP - (1 - kP)) / kB) * 25).toFixed(1);
+                return (
+                  <div key={pick.id} style={{ ...S.card, borderColor: "rgba(0,255,135,0.35)" }}>
+                    <div style={S.cardTop}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                          <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, background: "rgba(0,255,135,0.12)", color: "#00FF87", border: "1px solid rgba(0,255,135,0.3)" }}>
+                            BET
+                          </span>
+                          <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: "#555" }}>
+                            +{(f.trueEdgePct || 0).toFixed(1)}% edge
+                          </span>
+                          <span style={{ fontSize: 10, color: "#00FF87", opacity: 0.7 }}>
+                            {f.confidence}/10 conf
+                          </span>
+                        </div>
+                        <div style={S.cardMatchup}>{pick.awayTeam} @ {pick.homeTeam}</div>
+                        <div style={S.cardMeta}>
+                          {fmtGameTime(pick.commenceTime)} · Take <span style={{ color: "#00FF87", fontWeight: 700 }}>{pick.pick}</span> {fmtOdds(pickOdds)}
+                        </div>
+                      </div>
+                      <button
+                        style={{ ...S.saveBtn, background: isSaved ? "#00FF87" : "transparent", color: isSaved ? "#000" : "#00FF87", borderColor: "#00FF87" }}
+                        onClick={() => savePick(pick)}
+                      >
+                        {isSaved ? "✓ Saved" : "+ Save"}
+                      </button>
+                    </div>
+                    <div style={S.pitchRow}>
+                      <div style={S.pitchBox}><div style={S.pitchLabel}>HOME SP</div><div style={S.pitchName}>{b.pitcher_home || "TBD"}</div></div>
+                      <div style={S.pitchVs}>VS</div>
+                      <div style={{ ...S.pitchBox, textAlign: "right" }}><div style={S.pitchLabel}>AWAY SP</div><div style={S.pitchName}>{b.pitcher_away || "TBD"}</div></div>
+                    </div>
+                    <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                      <div style={S.statBox}>
+                        <div style={S.statLabel}>WIN PROB</div>
+                        <div style={S.statVal}>{f.trueWinProbPct}%</div>
+                      </div>
+                      <div style={S.statBox}>
+                        <div style={S.statLabel}>MKT IMPLIED</div>
+                        <div style={S.statVal}>{f.sharpImpliedPct}%</div>
+                      </div>
+                      <div style={S.statBox}>
+                        <div style={S.statLabel}>VARIANCE</div>
+                        <div style={{ ...S.statVal, color: "#00FF87" }}>{f.variance}</div>
+                      </div>
+                      {f.uncertaintyPct != null && (
+                        <div style={S.statBox}>
+                          <div style={S.statLabel}>UNCERTAINTY</div>
+                          <div style={{ ...S.statVal, color: f.uncertaintyPct > 10 ? "#FF4D4D" : f.uncertaintyPct > 6 ? "#FFD600" : "#00FF87" }}>±{f.uncertaintyPct}%</div>
+                        </div>
+                      )}
+                    </div>
+                    {parseFloat(kellyPct) > 0 && (
+                      <div style={{ marginTop: 8, fontSize: 11, color: "#00FF87", fontFamily: "'JetBrains Mono',monospace" }}>
+                        25% Kelly: <strong>{kellyPct}%</strong> of bankroll
+                      </div>
+                    )}
+                    {b.preview && <div style={S.preview}>{b.preview}</div>}
+                  </div>
+                );
+              })}
+
+              {/* Parlay Cards */}
+              {steals.length >= 2 && (
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#333", letterSpacing: 1.5, marginBottom: 10 }}>PARLAY CARDS</div>
+                  {[
+                    { label: "SAFE", legs: steals.slice(0, 2), color: "#00FF87" },
+                    { label: "BALANCED", legs: steals.slice(0, 3), color: "#FFD600" },
+                    { label: "AGGRESSIVE", legs: steals.slice(0, 4), color: "#FF4D4D" },
+                  ].filter(c => c.legs.length >= 2).map(card => (
+                    <div key={card.label} style={{ background: "#080808", border: `1px solid ${card.color}22`, borderRadius: 12, padding: "12px 14px", marginBottom: 8 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: card.color, letterSpacing: 1 }}>{card.label} — {card.legs.length}-LEG</span>
+                        <span style={{ fontSize: 10, color: "#333" }}>CLEAN picks only</span>
+                      </div>
+                      {card.legs.map((leg, i) => (
+                        <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: i < card.legs.length - 1 ? "1px solid #111" : "none" }}>
+                          <span style={{ fontSize: 12, fontFamily: "'JetBrains Mono',monospace" }}>{leg.awayTeam} @ {leg.homeTeam}</span>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ fontSize: 11, color: "#00FF87", fontWeight: 700 }}>{leg.pick}</span>
+                            <span style={{ fontSize: 11, color: "#444", fontFamily: "'JetBrains Mono',monospace" }}>+{(leg.filter?.trueEdgePct || 0).toFixed(1)}%</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )
         )}
 
         {activeTab === "tracker" && (

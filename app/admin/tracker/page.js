@@ -134,21 +134,12 @@ export default function AdminTracker() {
         {tab === "overview" && (
           <div>
             {data?.allTime?.settled > 0 && (
-            <div style={{ background: '#080808', border: '1px solid #1a1a1a', borderRadius: 12, padding: '14px 16px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ fontSize: 11, color: '#333', letterSpacing: 1.5, fontWeight: 700 }}>ALL-TIME RECORD</div>
-              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 18, fontWeight: 700 }}>{data.allTime.wins}W <span style={{ color: '#333' }}>-</span> {data.allTime.losses}L</span>
-                <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 16, fontWeight: 700, color: data.allTime.winPct >= 55 ? '#00FF87' : data.allTime.winPct >= 52.4 ? '#FFD600' : '#FF4D4D' }}>{data.allTime.winPct}%</span>
-                <span style={{ fontSize: 11, color: '#444' }}>{data.allTime.settled} settled</span>
-              </div>
-            </div>
-          )}
-          {data?.allTime?.settled > 0 && (
             <div style={{ background: '#080808', border: '1px solid #00FF87', borderRadius: 12, padding: '14px 16px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 11, color: '#333', letterSpacing: 1.5, fontWeight: 700 }}>ALL-TIME RECORD</span>
+              <div style={{ fontSize: 11, color: '#333', letterSpacing: 1.5, fontWeight: 700 }}>ALL-TIME RECORD</div>
               <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                 <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 20, fontWeight: 700 }}>{data.allTime.wins}W - {data.allTime.losses}L</span>
                 <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 16, fontWeight: 700, color: data.allTime.winPct >= 55 ? '#00FF87' : data.allTime.winPct >= 52.4 ? '#FFD600' : '#FF4D4D' }}>{data.allTime.winPct}%</span>
+                <span style={{ fontSize: 11, color: '#444' }}>{data.allTime.settled} settled</span>
               </div>
             </div>
           )}
@@ -257,11 +248,10 @@ export default function AdminTracker() {
               </div>
             ))}
             {resolveMsg && <div style={{ fontSize: 13, color: "#00FF87", marginTop: 12 }}>{resolveMsg}</div>}
-            <div style={{ ...S.sectionLabel, marginTop: 20 }}>AUTO-RESOLVE (coming soon)</div>
-            <div style={{ fontSize: 12, color: "#333", lineHeight: 1.6 }}>
-              Set up a Vercel cron job to auto-resolve nightly:<br />
-              vercel.json → crons: [&#123; "path": "/api/admin/tracker", "schedule": "0 6 * * *" &#125;]<br />
-              Then add action=resolve+date=yesterday to the cron POST body.
+            <div style={{ ...S.sectionLabel, marginTop: 20 }}>AUTO-RESOLVE</div>
+            <div style={{ fontSize: 12, color: "#444", lineHeight: 1.6 }}>
+              Cron runs nightly at 6 AM UTC via <code style={{ color: "#00FF87" }}>/api/cron/resolve</code>.<br />
+              Resolves yesterday's pending picks automatically.
             </div>
           </div>
         )}
