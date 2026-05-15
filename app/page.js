@@ -488,6 +488,65 @@ export default function ToT() {
                 {isOpen && (
                   <div style={{ animation: "fadeUp 0.2s ease" }}>
                     <div style={S.expDivider} />
+                    {/* Sharp filter panel */}
+                    {pick.filter && (() => {
+                      const f = pick.filter;
+                      const vColor = { CLEAN: "#00FF87", SOFT: "#FFD600", TRAP: "#FF4D4D", PASS: "#555" }[f.verdict] || "#555";
+                      const vBg    = { CLEAN: "rgba(0,255,135,0.07)", SOFT: "rgba(255,214,0,0.07)", TRAP: "rgba(255,77,77,0.07)", PASS: "rgba(50,50,50,0.07)" }[f.verdict] || "transparent";
+                      const flagLabels = {
+                        SMALL_SAMPLE: "small sample",
+                        ERA_WHIP_MISMATCH: "ERA/WHIP mismatch — luck regression risk",
+                        HIGH_ERA: "ERA > 5.5 — unstable",
+                        HR_INFLATION_RISK: "HR-inflated ERA (park sensitive)",
+                        LOW_K_HIGH_WHIP: "low K rate + high WHIP — no margin for error",
+                        NO_PITCHER_DATA: "no pitcher data",
+                      };
+                      const cleanFlags = (f.flags || []).map(raw => {
+                        const side = raw.startsWith("HOME_SP_") ? "Home SP" : "Away SP";
+                        const key  = raw.replace(/^(HOME|AWAY)_SP_/, "");
+                        return `${side}: ${flagLabels[key] || key.toLowerCase()}`;
+                      });
+                      return (
+                        <div style={{ ...S.expSection, background: vBg, borderRadius: 10, padding: 12, border: `1px solid ${vColor}22`, marginBottom: 8 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{ fontSize: 10, fontWeight: 800, color: vColor, letterSpacing: 1.5 }}>{f.verdict}</span>
+                              {f.isSquareLine && <span style={{ fontSize: 9, color: "#444", letterSpacing: 1 }}>SOFT LINE</span>}
+                            </div>
+                            <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: vColor }}>{f.trueEdgePct > 0 ? "+" : ""}{f.trueEdgePct}% true edge</span>
+                          </div>
+                          <div style={{ display: "flex", gap: 16, marginBottom: cleanFlags.length ? 8 : 0 }}>
+                            <div>
+                              <div style={{ fontSize: 9, color: "#444", letterSpacing: 1 }}>VARIANCE</div>
+                              <div style={{ fontSize: 11, color: f.variance === "HIGH" ? "#FF4D4D" : f.variance === "MED" ? "#FFD600" : "#00FF87", fontWeight: 700 }}>{f.variance}</div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 9, color: "#444", letterSpacing: 1 }}>WIN PROB</div>
+                              <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: "#fff" }}>{f.trueWinProbPct}%</div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 9, color: "#444", letterSpacing: 1 }}>MKT IMPLIED</div>
+                              <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: "#fff" }}>{f.sharpImpliedPct}%</div>
+                            </div>
+                            {f.parkFactor !== 0 && (
+                              <div>
+                                <div style={{ fontSize: 9, color: "#444", letterSpacing: 1 }}>PARK</div>
+                                <div style={{ fontSize: 11, color: f.parkFactor > 0.3 ? "#FF4D4D" : f.parkFactor < -0.3 ? "#00FF87" : "#888" }}>
+                                  {f.parkFactor > 0 ? "+" : ""}{f.parkFactor}R
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          {cleanFlags.length > 0 && (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                              {cleanFlags.map((flag, i) => (
+                                <span key={i} style={{ fontSize: 10, color: "#FF4D4D", background: "rgba(255,77,77,0.1)", padding: "2px 6px", borderRadius: 4 }}>⚠ {flag}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                     <div style={S.expSection}>
                       <div style={S.expLabel}>RECENT FORM</div>
                       <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>

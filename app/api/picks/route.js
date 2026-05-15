@@ -64,33 +64,44 @@ async function processGame(game, mlbGames) {
   const awayPitcher = mlb?.awayPitcher;
   const hf = mlb?.homeForm;
   const af = mlb?.awayForm;
-  const homePStr = homePitcher ? `${homePitcher.name} (${homePitcher.wins}-${homePitcher.losses}, ${homePitcher.era} ERA, ${homePitcher.whip} WHIP)` : "TBD";
-  const awayPStr = awayPitcher ? `${awayPitcher.name} (${awayPitcher.wins}-${awayPitcher.losses}, ${awayPitcher.era} ERA, ${awayPitcher.whip} WHIP)` : "N/A";
-  const homeFormStr = hf ? `${hf.avg} AVG, ${hf.ops} OPS, ${hf.homeRuns} HR, ${hf.runs} R in ${hf.gamesPlayed} games` : "N/A";
-  const awayFormStr = af ? `${af.avg} AVG, ${af.ops} OPS, ${af.homeRuns} HR, ${af.runs} R in ${af.gamesPlayed} games` : "N/A";
+  const ipStr = (p) => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";
+  const homePStr = homePitcher ? `${homePitcher.name} (${homePitcher.wins}-${homePitcher.losses}, ${homePitcher.era} ERA, ${homePitcher.whip} WHIP${ipStr(homePitcher)})` : "TBD";
+  const awayPStr = awayPitcher ? `${awayPitcher.name} (${awayPitcher.wins}-${awayPitcher.losses}, ${awayPitcher.era} ERA, ${awayPitcher.whip} WHIP${ipStr(awayPitcher)})` : "N/A";
+  const homeFormStr = hf ? `${hf.avg} AVG, ${hf.ops} OPS, ${hf.homeRuns} HR, ${hf.runs} R in ${hf.gamesPlayed} games` : "no data";
+  const awayFormStr = af ? `${af.avg} AVG, ${af.ops} OPS, ${af.homeRuns} HR, ${af.runs} R in ${af.gamesPlayed} games` : "no data";
+
+  // Run filter before Claude so the prompt includes honest context
+  const preFilter = applyFilterLayer(pick, { ...game, source: game.source }, mlb, modelProb);
+  const flagSummary = preFilter.flags.length
+    ? preFilter.flags.map(f => f.replace(/_/g, " ").toLowerCase()).join(", ")
+    : "none";
 
   const prompt = `You are a sharp MLB betting analyst. Be direct, specific, honest. No hype.
 
 Game: ${game.awayTeam} @ ${game.homeTeam}
 Home odds: ${game.homeOdds > 0 ? "+" : ""}${game.homeOdds} | Away odds: ${game.awayOdds > 0 ? "+" : ""}${game.awayOdds}
-Model edge: ${edgePct.toFixed(1)}% on ${pick}
+Model pick: ${pick} | Raw edge: ${edgePct.toFixed(1)}%
+Filter verdict: ${preFilter.verdict} | True edge (sharp-adjusted): ${preFilter.trueEdgePct}% | Variance: ${preFilter.variance}
+Risk flags: ${flagSummary}
+Park factor: ${preFilter.parkFactor > 0 ? "+" : ""}${preFilter.parkFactor} runs (${game.homeTeam} home park)
 Home pitcher: ${homePStr}
 Away pitcher: ${awayPStr}
 ${game.homeTeam} last 10: ${homeFormStr}
 ${game.awayTeam} last 10: ${awayFormStr}
-Lean: ${pick}
+
+IMPORTANT: If filter verdict is TRAP or PASS, explain why honestly. If flags mention small_sample or era_whip_mismatch, flag the stat as unreliable.
 
 Return ONLY valid JSON no markdown:
 {
   "pick": "${pick}",
   "pitcher_home": "${homePStr}",
   "pitcher_away": "${awayPStr}",
-  "preview": "2 sentences. Mention pitchers by name. Most important thing to know.",
-  "form_home": "1 sentence on ${game.homeTeam} form with real numbers",
-  "form_away": "1 sentence on ${game.awayTeam} form with real numbers",
-  "what_decides": "1 sentence on what decides this game",
-  "what_to_sweat": "1 sentence biggest risk taking ${pick}",
-  "honest_lean": "1-2 sentences. Blunt. Like texting a friend.",
+  "preview": "2 sentences. Name the pitchers. Lead with the sharpest reason to bet or fade.",
+  "form_home": "1 sentence on ${game.homeTeam} recent form with numbers (or 'no data available')",
+  "form_away": "1 sentence on ${game.awayTeam} recent form with numbers (or 'no data available')",
+  "what_decides": "1 sentence — the single factor that tips this game",
+  "what_to_sweat": "1 sentence — biggest risk if you take ${pick}",
+  "honest_lean": "1-2 sentences blunt take. Mention if edge is fake or real. Like texting a sharp friend.",
   "score_range": "e.g. 5-3",
   "tier": { "level": "High | Medium | Low" }
 }`;
@@ -112,7 +123,7 @@ Return ONLY valid JSON no markdown:
       : getConfidenceTier(edgePct / 100) || { label: "👀 Lean", level: "Low", emoji: "👀" };
 
     const finalPick = breakdown.pick || pick;
-    const filter = applyFilterLayer(finalPick, { ...game, source: game.source }, mlb, modelProb);
+    const filter = finalPick === pick ? preFilter : applyFilterLayer(finalPick, { ...game, source: game.source }, mlb, modelProb);
 
     // isBet requires both raw edge AND filter verdict
     const filteredIsBet = isBet && (filter.verdict === "CLEAN" || filter.verdict === "SOFT");

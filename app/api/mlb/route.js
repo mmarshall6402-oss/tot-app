@@ -109,6 +109,7 @@ export async function GET(request) {
           wins: stats?.wins ?? 0,
           losses: stats?.losses ?? 0,
           strikeoutsPer9: stats?.strikeoutsPer9Inn ?? null,
+          inningsPitched: stats?.inningsPitched ?? null,
         };
       };
 
