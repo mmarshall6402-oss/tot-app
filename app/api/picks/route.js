@@ -5,9 +5,10 @@ import { getModelProbability } from "../../../lib/probability.js";
 import { applyFilterLayer, buildParlayCards } from "../../../lib/filter.js";
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+// Server-side route — use service role key to bypass RLS on picks_cache reads
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
 
 const memCache = new Map();
