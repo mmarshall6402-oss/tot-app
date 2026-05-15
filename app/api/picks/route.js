@@ -179,42 +179,13 @@ export async function GET(request) {
       return Response.json({ picks: [], cached: false, notice: "odds unavailable" });
     }
 
-    // Build game contexts for batch Claude call
-    const gameContexts = oddsGames.map(game => {
+    // Fast path: build picks without Claude (must complete in <10s on Vercel free tier).
+    // Claude breakdowns are added by the daily cron job (/api/cron/picks) which
+    // pre-warms the Supabase cache. On cache hit above, full breakdowns are served.
+    const results = oddsGames.map(game => {
       const mlb = matchMLBGame(game, mlbGames);
-      const modelProb = getModelProbability(game, mlb);
-      const rawEdge   = calculateEdge(modelProb, game.homeImplied);
-      const pick      = rawEdge >= 0 ? game.homeTeam : game.awayTeam;
-      const edgePct   = Math.abs(rawEdge) * 100;
-      const filter    = applyFilterLayer(pick, { ...game, source: game.source }, mlb, modelProb);
-      const hf = mlb?.homeForm;
-      const af = mlb?.awayForm;
-      const ipStr = (p) => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";
-      const hp = mlb?.homePitcher;
-      const ap = mlb?.awayPitcher;
-      return {
-        game, mlb,
-        pick, edgePct,
-        homePStr: hp ? `${hp.name} (${hp.wins}-${hp.losses}, ${hp.era} ERA, ${hp.whip} WHIP${ipStr(hp)})` : "TBD",
-        awayPStr: ap ? `${ap.name} (${ap.wins}-${ap.losses}, ${ap.era} ERA, ${ap.whip} WHIP${ipStr(ap)})` : "N/A",
-        homeFormStr: hf ? `${hf.avg} AVG, ${hf.ops} OPS, ${hf.homeRuns} HR, ${hf.runs} R` : "no data",
-        awayFormStr: af ? `${af.avg} AVG, ${af.ops} OPS, ${af.homeRuns} HR, ${af.runs} R` : "no data",
-        homeTeam: game.homeTeam, awayTeam: game.awayTeam,
-        homeOdds: game.homeOdds, awayOdds: game.awayOdds,
-        trueEdgePct: filter.trueEdgePct,
-        verdict: filter.verdict,
-        variance: filter.variance,
-        flags: filter.flags.map(f => f.replace(/_/g, " ").toLowerCase()).join(", ") || "none",
-        parkFactor: filter.parkFactor,
-      };
-    });
-
-    // One Claude call for all games — avoids rate limits and timeout
-    const breakdowns = await callClaudeBatch(gameContexts);
-
-    const results = gameContexts.map((ctx, i) =>
-      buildPick(ctx.game, ctx.mlb, breakdowns[i] || {})
-    ).filter(Boolean);
+      return buildPick(game, mlb, null);
+    }).filter(Boolean);
 
     results.sort((a, b) => b.edge - a.edge);
 
