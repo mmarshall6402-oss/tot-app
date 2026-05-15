@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { fetchMLBOdds } from "../../../lib/odds.js";
 import { calculateEdge, BET_THRESHOLD, getConfidenceTier } from "../../../lib/edge.js";
 import { getModelProbability } from "../../../lib/probability.js";
+import { applyFilterLayer, buildParlayCards } from "../../../lib/filter.js";
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 const supabase = createClient(
@@ -110,21 +111,29 @@ Return ONLY valid JSON no markdown:
         }
       : getConfidenceTier(edgePct / 100) || { label: "👀 Lean", level: "Low", emoji: "👀" };
 
+    const finalPick = breakdown.pick || pick;
+    const filter = applyFilterLayer(finalPick, { ...game, source: game.source }, mlb, modelProb);
+
+    // isBet requires both raw edge AND filter verdict
+    const filteredIsBet = isBet && (filter.verdict === "CLEAN" || filter.verdict === "SOFT");
+
     return {
       id: game.id, homeTeam: game.homeTeam, awayTeam: game.awayTeam,
       commenceTime: game.commenceTime, homeOdds: game.homeOdds, awayOdds: game.awayOdds,
-      pick: breakdown.pick || pick,
+      pick: finalPick,
       edge: edgePct,
-      isBet,
-      tier, breakdown,
+      isBet: filteredIsBet,
+      tier, breakdown, filter,
       liveScore: mlb ? { status: mlb.status, homeScore: mlb.homeScore, awayScore: mlb.awayScore, inning: mlb.inning, inningHalf: mlb.inningHalf } : null,
     };
   } catch {
     const tier = getConfidenceTier(edgePct / 100) || { label: "👀 Lean", level: "Low", emoji: "👀" };
+    const filter = applyFilterLayer(pick, { ...game, source: game.source }, mlb, modelProb);
+    const filteredIsBet = isBet && (filter.verdict === "CLEAN" || filter.verdict === "SOFT");
     return {
       id: game.id, homeTeam: game.homeTeam, awayTeam: game.awayTeam,
       commenceTime: game.commenceTime, homeOdds: game.homeOdds, awayOdds: game.awayOdds,
-      pick, edge: edgePct, isBet, tier,
+      pick, edge: edgePct, isBet: filteredIsBet, tier, filter,
       breakdown: { pitcher_home: homePStr, pitcher_away: awayPStr },
       liveScore: null,
     };
@@ -207,13 +216,15 @@ export async function GET(request) {
 
     results.sort((a, b) => b.edge - a.edge);
 
+    const { safeCard, balancedCard, aggressiveCard } = buildParlayCards(results);
+
     if (results.length) {
       await supabase
         .from("picks_cache")
         .upsert({ date, picks: results, generated_at: new Date().toISOString() }, { onConflict: "date" });
     }
 
-    return Response.json({ picks: results, cached: false });
+    return Response.json({ picks: results, safeCard, balancedCard, aggressiveCard, cached: false });
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });
   }
