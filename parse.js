@@ -57,19 +57,28 @@ function parseGameLog(filepath) {
       awayScore,
       homeScore,
       homeWon: homeScore > awayScore,
+      awaySpId:   fields[101]?.replace(/"/g, '').trim() || null,
+      awaySp:     fields[102]?.replace(/"/g, '').trim() || null,
+      homeSpId:   fields[103]?.replace(/"/g, '').trim() || null,
+      homeSp:     fields[104]?.replace(/"/g, '').trim() || null,
+      hpUmpId:    fields[79]?.replace(/"/g, '').trim() || null,
+      hpUmp:      fields[80]?.replace(/"/g, '').trim() || null,
     });
   }
 
   return games;
 }
 
-// parse all 3 years
-const games2022 = parseGameLog('./gl2022.txt');
-const games2023 = parseGameLog('./gl2023.txt');
-const games2024 = parseGameLog('./gl2024.txt');
-
-const allGames = [...games2022, ...games2023, ...games2024]
-  .sort((a, b) => a.date.localeCompare(b.date));
+// parse all years — 2018-2021 in data/gamelogs/, 2022-2024 in root
+const allGames = [
+  './data/gamelogs/gl2018.txt',
+  './data/gamelogs/gl2019.txt',
+  './data/gamelogs/gl2020.txt',
+  './data/gamelogs/gl2021.txt',
+  './gl2022.txt',
+  './gl2023.txt',
+  './gl2024.txt',
+].flatMap(parseGameLog).sort((a, b) => a.date.localeCompare(b.date));
 
 console.log(`Total games loaded: ${allGames.length}`);
 console.log('Sample:', allGames[0]);
