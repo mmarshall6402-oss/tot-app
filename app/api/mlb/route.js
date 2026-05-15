@@ -191,7 +191,7 @@ export async function GET(request) {
         return {
           name:           pitcher.fullName,
           id:             pitcher.id,
-          hand:           homePHand,   // filled below per pitcher
+          hand:           null,  // set correctly per-pitcher after buildPitcher calls below
           era:            stats?.era          ?? null,
           whip:           stats?.whip         ?? null,
           wins:           stats?.wins         ?? 0,

@@ -66,14 +66,14 @@ Return ONLY a JSON array, no markdown. Each element:
   } catch { return []; }
 }
 
-function buildPick(game, mlb, breakdown) {
+function buildPick(game, mlb, breakdown, precomputedFilter) {
   const modelProb = getModelProbability(game, mlb);
   const rawEdge   = calculateEdge(modelProb, game.homeImplied);
   const pick      = rawEdge >= 0 ? game.homeTeam : game.awayTeam;
   const edgePct   = Math.abs(rawEdge) * 100;
   const isBet     = edgePct >= BET_THRESHOLD * 100;
-  const filter    = applyFilterLayer(pick, { ...game, source: game.source }, mlb, modelProb);
-  const filteredIsBet = isBet && (filter.verdict === "CLEAN" || filter.verdict === "SOFT");
+  const filter    = precomputedFilter || applyFilterLayer(pick, { ...game, source: game.source }, mlb, modelProb);
+  const filteredIsBet = isBet && filter.verdict === "CLEAN";
 
   const tier = breakdown?.tier?.level
     ? {
@@ -141,6 +141,7 @@ export async function GET(request) {
         awayFormStr: af ? `${af.avg} AVG, ${af.ops} OPS, ${af.homeRuns} HR, ${af.runs} R` : "no data",
         homeTeam: game.homeTeam, awayTeam: game.awayTeam,
         homeOdds: game.homeOdds, awayOdds: game.awayOdds,
+        filter,  // pass through to avoid recomputing in buildPick
         trueEdgePct: filter.trueEdgePct, verdict: filter.verdict,
         variance: filter.variance, parkFactor: filter.parkFactor,
         flags: filter.flags.map(f => f.replace(/_/g, " ").toLowerCase()).join(", ") || "none",
@@ -149,8 +150,9 @@ export async function GET(request) {
 
     const breakdowns = await callClaudeBatch(gameContexts);
 
+    // Pass precomputed filter to buildPick — avoids computing applyFilterLayer twice per game
     const results = gameContexts.map((ctx, i) =>
-      buildPick(ctx.game, ctx.mlb, breakdowns[i] || {})
+      buildPick(ctx.game, ctx.mlb, breakdowns[i] || {}, ctx.filter)
     ).filter(Boolean);
 
     results.sort((a, b) => b.edge - a.edge);
