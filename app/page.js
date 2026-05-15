@@ -525,6 +525,18 @@ export default function ToT() {
                               <div style={{ fontSize: 9, color: "#444", letterSpacing: 1 }}>MKT IMPLIED</div>
                               <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: "#fff" }}>{f.sharpImpliedPct}%</div>
                             </div>
+                            {f.uncertaintyPct != null && (
+                              <div>
+                                <div style={{ fontSize: 9, color: "#444", letterSpacing: 1 }}>UNCERTAINTY</div>
+                                <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: f.uncertaintyPct > 10 ? "#FF4D4D" : f.uncertaintyPct > 6 ? "#FFD600" : "#00FF87" }}>±{f.uncertaintyPct}%</div>
+                              </div>
+                            )}
+                            {f.snr != null && (
+                              <div>
+                                <div style={{ fontSize: 9, color: "#444", letterSpacing: 1 }}>SNR</div>
+                                <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: f.snr >= 1.5 ? "#00FF87" : f.snr >= 1.0 ? "#FFD600" : "#FF4D4D" }}>{f.snr}×</div>
+                              </div>
+                            )}
                             {f.parkFactor !== 0 && (
                               <div>
                                 <div style={{ fontSize: 9, color: "#444", letterSpacing: 1 }}>PARK</div>
