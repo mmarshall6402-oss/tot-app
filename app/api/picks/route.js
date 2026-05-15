@@ -217,12 +217,15 @@ export async function GET(request) {
       return Response.json({ picks: [], cached: false, notice: "odds unavailable" });
     }
 
-    const settled = await Promise.allSettled(
-      oddsGames.map(game => processGame(game, mlbGames))
-    );
+    // Sequential with 1.5s gap — 9 games × 1.5s = ~13s, well within 25 RPM org limit
+    // Parallel was hitting 50 RPM cap (9 simultaneous calls)
     const results = [];
-    for (const s of settled) {
-      if (s.status === "fulfilled" && s.value) results.push(s.value);
+    for (const game of oddsGames) {
+      try {
+        const pick = await processGame(game, mlbGames);
+        if (pick) results.push(pick);
+      } catch {}
+      await new Promise(r => setTimeout(r, 1500));
     }
 
     results.sort((a, b) => b.edge - a.edge);
