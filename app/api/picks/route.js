@@ -168,7 +168,17 @@ export async function GET(request) {
       .single();
 
     if (cached?.picks?.length) {
-      return Response.json({ picks: cached.picks, cached: true, generated_at: cached.generated_at });
+      // Always fetch fresh live scores — analysis is cached but scores must be current
+      const mlbRes = await fetch(`${BASE_URL}/api/mlb?date=${date}`).then(r => r.json()).catch(() => ({ games: [] }));
+      const mlbGames = mlbRes?.games || [];
+      const picks = mlbGames.length
+        ? cached.picks.map(pick => {
+            const mlb = matchMLBGame(pick, mlbGames);
+            if (!mlb) return pick;
+            return { ...pick, liveScore: { status: mlb.status, homeScore: mlb.homeScore, awayScore: mlb.awayScore, inning: mlb.inning, inningHalf: mlb.inningHalf } };
+          })
+        : cached.picks;
+      return Response.json({ picks, cached: true, generated_at: cached.generated_at });
     }
 
     const [oddsGames, mlbRes] = await Promise.all([
