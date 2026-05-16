@@ -119,12 +119,39 @@ export default function ToT() {
   const weekDates = getWeekDates();
   const [selectedDate, setSelectedDate] = useState(weekDates[0]);
   const [steals, setSteals] = useState(null);
+  const [isPro, setIsPro] = useState(null);
+  const [checkingOut, setCheckingOut] = useState(false);
 
   useEffect(() => {
     createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY).auth.getSession().then(({ data: { session } }) => setUser(session?.user ?? null));
     const { data: { subscription } } = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY).auth.onAuthStateChange((_e, s) => setUser(s?.user ?? null));
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!user) { setIsPro(null); return; }
+    getSupabase()
+      .from("subscriptions")
+      .select("status")
+      .eq("user_id", user.id)
+      .single()
+      .then(({ data }) => setIsPro(["active", "trialing"].includes(data?.status ?? "")));
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("checkout") !== "success") return;
+    window.history.replaceState({}, "", "/");
+    let attempts = 0;
+    const poll = setInterval(async () => {
+      attempts++;
+      const { data } = await getSupabase().from("subscriptions").select("status").eq("user_id", user.id).single();
+      if (["active", "trialing"].includes(data?.status)) { setIsPro(true); clearInterval(poll); }
+      if (attempts >= 6) clearInterval(poll);
+    }, 2000);
+    return () => clearInterval(poll);
+  }, [user?.id]);
 
   useEffect(() => {
     fetch("/api/free-pick").then(r => r.json()).then(d => setFreePick(d.pick || null)).catch(() => {});
@@ -142,6 +169,30 @@ export default function ToT() {
   useEffect(() => {
     if (user) fetchSaved();
   }, [user]);
+
+  const startCheckout = async (plan) => {
+    setCheckingOut(plan);
+    try {
+      const res = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan, userId: user.id, email: user.email }),
+      });
+      const { url } = await res.json();
+      if (url) window.location.href = url;
+    } catch (e) {}
+    setCheckingOut(false);
+  };
+
+  const manageBilling = async () => {
+    const res = await fetch("/api/stripe/portal", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: user.id }),
+    });
+    const { url } = await res.json();
+    if (url) window.location.href = url;
+  };
 
   const fetchSteals = async (date) => {
     setSteals(null);
@@ -297,6 +348,56 @@ export default function ToT() {
     </div>
   );
 
+  if (isPro === null) return (
+    <div style={{ minHeight: "100vh", background: "#000", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <style>{css}</style>
+      <div style={S.spinner} />
+    </div>
+  );
+
+  if (!isPro) return (
+    <div style={S.page}>
+      <style>{css}</style>
+      <div style={{ width: "100%", maxWidth: 460 }}>
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <div style={S.logo}>T<span style={{ color: "#00FF87" }}>|</span>T <span style={{ color: "#333", fontFamily: "'Space Grotesk',sans-serif", fontSize: 18, fontWeight: 400 }}>Pro</span></div>
+          <div style={{ color: "#444", fontSize: 13, marginTop: 8 }}>Sharp MLB picks. Every condition. No noise.</div>
+        </div>
+        <div style={{ marginBottom: 28 }}>
+          {[
+            "All daily picks with full model breakdown",
+            "Steals — only bets passing every condition",
+            "Parlay builder from CLEAN picks only",
+            "Pick tracker + personal win rate",
+            "Sharp filter: confidence, variance, edge per game",
+          ].map((f, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: "1px solid #0d0d0d" }}>
+              <span style={{ color: "#00FF87", fontSize: 14, flexShrink: 0 }}>✓</span>
+              <span style={{ fontSize: 13, color: "#888" }}>{f}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+          <button onClick={() => startCheckout("monthly")} disabled={!!checkingOut} style={{ flex: 1, background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 14, padding: "18px 14px", cursor: "pointer", textAlign: "center" }}>
+            <div style={{ fontSize: 10, color: "#555", letterSpacing: 1, marginBottom: 6 }}>MONTHLY</div>
+            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 28, fontWeight: 700, color: "#fff" }}>$29</div>
+            <div style={{ fontSize: 12, color: "#444", marginTop: 4 }}>per month</div>
+            {checkingOut === "monthly" && <div style={{ color: "#555", fontSize: 11, marginTop: 6 }}>Redirecting…</div>}
+          </button>
+          <button onClick={() => startCheckout("annual")} disabled={!!checkingOut} style={{ flex: 1, background: "#0a1a0f", border: "1px solid rgba(0,255,135,0.3)", borderRadius: 14, padding: "18px 14px", cursor: "pointer", textAlign: "center", position: "relative" }}>
+            <div style={{ position: "absolute", top: -11, left: "50%", transform: "translateX(-50%)", background: "#00FF87", color: "#000", fontSize: 10, fontWeight: 800, padding: "3px 10px", borderRadius: 20, letterSpacing: 0.5, whiteSpace: "nowrap" }}>SAVE 43%</div>
+            <div style={{ fontSize: 10, color: "#00FF87", letterSpacing: 1, marginBottom: 6 }}>ANNUAL</div>
+            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 28, fontWeight: 700, color: "#00FF87" }}>$199</div>
+            <div style={{ fontSize: 12, color: "#555", marginTop: 4 }}>per year · $16.58/mo</div>
+            {checkingOut === "annual" && <div style={{ color: "#00FF87", fontSize: 11, marginTop: 6 }}>Redirecting…</div>}
+          </button>
+        </div>
+        <div style={{ fontSize: 11, color: "#1a1a1a", textAlign: "center", marginBottom: 20 }}>Cancel anytime · Secure payment via Stripe</div>
+        <button style={{ ...S.primaryBtn, background: "transparent", border: "1px solid #111", color: "#333" }} onClick={signOut}>Sign out</button>
+      </div>
+    </div>
+  );
+
   return (
     <div style={S.app}>
       <style>{css}</style>
@@ -316,6 +417,7 @@ export default function ToT() {
             <AccuracyPanel savedPicks={savedPicks} />
             <div style={{ flex: 1 }} />
             <div style={S.drawerLine} />
+            <div style={{ ...S.drawerItem, color: "#555" }} onClick={manageBilling}>⚡ Manage Billing</div>
             <div style={{ ...S.drawerItem, color: "#FF4D4D" }} onClick={signOut}>Sign Out</div>
           </div>
         </div>
