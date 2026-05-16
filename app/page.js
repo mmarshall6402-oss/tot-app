@@ -377,6 +377,13 @@ export default function ToT() {
             {authMode === "signin" ? "Sign up" : "Sign in"}
           </span>
         </div>
+        <div style={{ fontSize: 10, color: "#222", textAlign: "center", lineHeight: 1.7, marginTop: 4 }}>
+          For entertainment only · Not gambling advice · 21+
+          {" · "}
+          <a href="/terms" style={{ color: "#222" }}>Terms</a>
+          {" · "}
+          <a href="/privacy" style={{ color: "#222" }}>Privacy</a>
+        </div>
       </div>
     </div>
   );
@@ -619,19 +626,6 @@ export default function ToT() {
                       </div>
                       <span style={{ fontSize: 10, color: isBet ? t.color : "#333", fontFamily: "'JetBrains Mono',monospace", flexShrink: 0 }}>{edge.toFixed(1)}%</span>
                     </div>
-                    {ls?.status === "Live" && (
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
-                        <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#FF4D4D", animation: "pulse 1s infinite" }} />
-                        <span style={{ fontSize: 12, color: "#FF4D4D", fontWeight: 700 }}>LIVE</span>
-                        <span style={{ fontSize: 14, fontWeight: 700 }}>{pick.awayTeam} {ls.awayScore} · {pick.homeTeam} {ls.homeScore}</span>
-                        <span style={{ fontSize: 11, color: "#444" }}>{ls.inningHalf} {ls.inning}</span>
-                      </div>
-                    )}
-                    {ls?.status === "Final" && (
-                      <div style={{ fontSize: 12, color: "#444", marginTop: 4 }}>
-                        Final: {pick.awayTeam} {ls.awayScore} · {pick.homeTeam} {ls.homeScore}
-                      </div>
-                    )}
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end", flexShrink: 0 }}>
                     <button
@@ -1012,6 +1006,16 @@ export default function ToT() {
             </>
         )}
       </div>
+
+      <div style={S.legal}>
+        For entertainment only · Not gambling advice · Must be 21+ in a legal jurisdiction
+        {" · "}
+        <a href="/terms" style={{ color: "#222", textDecoration: "underline" }}>Terms</a>
+        {" · "}
+        <a href="/privacy" style={{ color: "#222", textDecoration: "underline" }}>Privacy</a>
+        <br />
+        Problem gambling? Call <span style={{ color: "#333" }}>1-800-GAMBLER</span>
+      </div>
     </div>
   );
 }
@@ -1104,4 +1108,5 @@ const S = {
   statVal: { fontSize: 14, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace" },
   trashBtn: { background: "transparent", border: "none", fontSize: 16, cursor: "pointer", padding: 4, opacity: 0.5 },
   resultBtn: { flex: 1, padding: "8px", borderRadius: 8, border: "1px solid", fontSize: 13, fontWeight: 700 },
+  legal: { padding: "14px 20px", borderTop: "1px solid #0a0a0a", textAlign: "center", fontSize: 10, color: "#1a1a1a", lineHeight: 1.9 },
 };
