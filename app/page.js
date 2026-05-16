@@ -380,7 +380,7 @@ export default function ToT() {
         <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
           <button onClick={() => startCheckout("monthly")} disabled={!!checkingOut} style={{ flex: 1, background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 14, padding: "18px 14px", cursor: "pointer", textAlign: "center" }}>
             <div style={{ fontSize: 10, color: "#555", letterSpacing: 1, marginBottom: 6 }}>MONTHLY</div>
-            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 28, fontWeight: 700, color: "#fff" }}>$29</div>
+            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 28, fontWeight: 700, color: "#fff" }}>$2</div>
             <div style={{ fontSize: 12, color: "#444", marginTop: 4 }}>per month</div>
             {checkingOut === "monthly" && <div style={{ color: "#555", fontSize: 11, marginTop: 6 }}>Redirecting…</div>}
           </button>
@@ -388,7 +388,7 @@ export default function ToT() {
             <div style={{ position: "absolute", top: -11, left: "50%", transform: "translateX(-50%)", background: "#00FF87", color: "#000", fontSize: 10, fontWeight: 800, padding: "3px 10px", borderRadius: 20, letterSpacing: 0.5, whiteSpace: "nowrap" }}>SAVE 43%</div>
             <div style={{ fontSize: 10, color: "#00FF87", letterSpacing: 1, marginBottom: 6 }}>ANNUAL</div>
             <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 28, fontWeight: 700, color: "#00FF87" }}>$199</div>
-            <div style={{ fontSize: 12, color: "#555", marginTop: 4 }}>per year · $16.58/mo</div>
+            <div style={{ fontSize: 12, color: "#555", marginTop: 4 }}>per year</div>
             {checkingOut === "annual" && <div style={{ color: "#00FF87", fontSize: 11, marginTop: 6 }}>Redirecting…</div>}
           </button>
         </div>
