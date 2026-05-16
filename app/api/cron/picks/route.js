@@ -73,7 +73,7 @@ function buildPick(game, mlb, breakdown, precomputedFilter) {
   const edgePct   = Math.abs(rawEdge) * 100;
   const isBet     = edgePct >= BET_THRESHOLD * 100;
   const filter    = precomputedFilter || applyFilterLayer(pick, { ...game, source: game.source }, mlb, modelProb);
-  const filteredIsBet = isBet;
+  const filteredIsBet = ["CLEAN", "BET"].includes(filter.verdict);
 
   const tier = breakdown?.tier?.level
     ? {

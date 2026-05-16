@@ -82,7 +82,7 @@ function buildPick(game, mlb, breakdown) {
   const homePitcher = mlb?.homePitcher;
   const awayPitcher = mlb?.awayPitcher;
   const filter    = applyFilterLayer(pick, { ...game, source: game.source }, mlb, modelProb);
-  const filteredIsBet = isBet;
+  const filteredIsBet = ["CLEAN", "BET"].includes(filter.verdict);
 
   const tier = breakdown?.tier?.level
     ? {
