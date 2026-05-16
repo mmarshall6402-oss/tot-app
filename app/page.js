@@ -133,6 +133,8 @@ export default function ToT() {
 
   useEffect(() => {
     if (!user) { setIsPro(null); return; }
+    const admins = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "").split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
+    if (admins.includes(user.email?.toLowerCase())) { setIsPro(true); return; }
     getSupabase()
       .from("subscriptions")
       .select("status")
