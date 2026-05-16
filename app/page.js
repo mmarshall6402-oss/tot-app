@@ -626,6 +626,19 @@ export default function ToT() {
                       </div>
                       <span style={{ fontSize: 10, color: isBet ? t.color : "#333", fontFamily: "'JetBrains Mono',monospace", flexShrink: 0 }}>{edge.toFixed(1)}%</span>
                     </div>
+                    {ls?.status === "Live" && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
+                        <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#FF4D4D", animation: "pulse 1s infinite" }} />
+                        <span style={{ fontSize: 12, color: "#FF4D4D", fontWeight: 700 }}>LIVE</span>
+                        <span style={{ fontSize: 14, fontWeight: 700 }}>{pick.awayTeam} {ls.awayScore} · {pick.homeTeam} {ls.homeScore}</span>
+                        <span style={{ fontSize: 11, color: "#444" }}>{ls.inningHalf} {ls.inning}</span>
+                      </div>
+                    )}
+                    {ls?.status === "Final" && (
+                      <div style={{ fontSize: 12, color: "#444", marginTop: 4 }}>
+                        Final: {pick.awayTeam} {ls.awayScore} · {pick.homeTeam} {ls.homeScore}
+                      </div>
+                    )}
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end", flexShrink: 0 }}>
                     <button
