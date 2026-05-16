@@ -121,6 +121,9 @@ export default function ToT() {
   const [steals, setSteals] = useState(null);
   const [isPro, setIsPro] = useState(null);
   const [checkingOut, setCheckingOut] = useState(false);
+  const [modelRecord, setModelRecord] = useState(null);
+  const [unitSize, setUnitSize] = useState(10);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY).auth.getSession().then(({ data: { session } }) => setUser(session?.user ?? null));
@@ -155,6 +158,7 @@ export default function ToT() {
 
   useEffect(() => {
     fetch("/api/free-pick").then(r => r.json()).then(d => setFreePick(d.pick || null)).catch(() => {});
+    fetch("/api/model-record").then(r => r.json()).then(d => setModelRecord(d)).catch(() => {});
     const t = setInterval(() => setCarouselIdx(i => i + 1), 3000);
     return () => clearInterval(t);
   }, []);
@@ -192,6 +196,16 @@ export default function ToT() {
     });
     const { url } = await res.json();
     if (url) window.location.href = url;
+  };
+
+  const copySteals = () => {
+    if (!steals?.length) return;
+    const lines = steals.map(p => {
+      const o = p.pick === p.homeTeam ? p.homeOdds : p.awayOdds;
+      return `${p.awayTeam} @ ${p.homeTeam} — Take ${p.pick} (${fmtOdds(o)}) | Edge: +${(p.filter?.trueEdgePct || 0).toFixed(1)}%`;
+    });
+    const text = `ToT CLEAN Bets — ${new Date().toLocaleDateString()}\n\n${lines.join("\n")}`;
+    navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   };
 
   const fetchSteals = async (date) => {
@@ -286,6 +300,23 @@ export default function ToT() {
   const losses = savedPicks.filter(p => p.result === "loss").length;
   const total = savedPicks.filter(p => p.result !== "pending").length;
   const winPct = total > 0 ? Math.round((wins / total) * 100) : 0;
+
+  const pnl = savedPicks.filter(p => p.result !== "pending").reduce((sum, p) => {
+    if (p.result === "win") {
+      const o = p.odds;
+      return sum + (o > 0 ? unitSize * o / 100 : unitSize * 100 / Math.abs(o));
+    }
+    return sum - unitSize;
+  }, 0);
+
+  const settledByDate = [...savedPicks]
+    .filter(p => p.result !== "pending")
+    .sort((a, b) => new Date(b.commence_time) - new Date(a.commence_time));
+  let streakLen = 0, streakType = null;
+  if (settledByDate.length) {
+    streakType = settledByDate[0].result;
+    for (const p of settledByDate) { if (p.result === streakType) streakLen++; else break; }
+  }
 
   if (!user) return (
     <div style={S.page}>
@@ -503,6 +534,28 @@ export default function ToT() {
       </div>
 
       <div style={S.content}>
+        {activeTab === "picks" && modelRecord?.total > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0 4px", flexWrap: "wrap" }}>
+            <span style={{ fontSize: 10, color: "#333", letterSpacing: 1 }}>MODEL RECORD</span>
+            <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, fontWeight: 700, color: modelRecord.pct >= 55 ? "#00FF87" : modelRecord.pct >= 50 ? "#FFD600" : "#FF4D4D" }}>
+              {modelRecord.wins}-{modelRecord.losses}
+            </span>
+            <span style={{ fontSize: 11, color: "#444" }}>({modelRecord.pct}%)</span>
+            <span style={{ fontSize: 10, color: "#222" }}>all-time</span>
+          </div>
+        )}
+
+        {activeTab === "picks" && picks?.length > 0 && (
+          <div style={{ display: "flex", gap: 12, padding: "6px 0", borderBottom: "1px solid #0d0d0d", marginBottom: 4 }}>
+            <span style={{ fontSize: 11, color: "#333" }}>{picks.length} games</span>
+            <span style={{ fontSize: 11, color: "#00FF87" }}>{picks.filter(p => p.isBet).length} BET</span>
+            <span style={{ fontSize: 11, color: "#444" }}>{picks.filter(p => !p.isBet).length} PASS</span>
+            {picks.filter(p => p.filter?.verdict === "CLEAN").length > 0 && (
+              <span style={{ fontSize: 11, color: "#00FF87", fontWeight: 700 }}>⚡ {picks.filter(p => p.filter?.verdict === "CLEAN").length} CLEAN</span>
+            )}
+          </div>
+        )}
+
         {activeTab === "picks" && (
           picks === null ? (
             <div style={S.center}>
@@ -556,6 +609,13 @@ export default function ToT() {
                     <div style={S.cardMatchup}>{pick.awayTeam} @ {pick.homeTeam}</div>
                     <div style={S.cardMeta}>
                       {fmtGameTime(pick.commenceTime)} · Take <span style={{ color: isBet ? betColor : "#aaa", fontWeight: 700 }}>{pick.pick}</span>
+                      {isBet && <span style={{ color: "#444", fontFamily: "'JetBrains Mono',monospace" }}> · {pick.pick === pick.homeTeam ? fmtOdds(pick.homeOdds) : fmtOdds(pick.awayOdds)}</span>}
+                    </div>
+                    <div style={{ marginTop: 7, display: "flex", alignItems: "center", gap: 7 }}>
+                      <div style={{ flex: 1, height: 3, background: "#111", borderRadius: 2 }}>
+                        <div style={{ height: "100%", borderRadius: 2, width: `${Math.min(100, edge * 6)}%`, background: isBet ? t.color : "#222", transition: "width 0.5s ease" }} />
+                      </div>
+                      <span style={{ fontSize: 10, color: isBet ? t.color : "#333", fontFamily: "'JetBrains Mono',monospace", flexShrink: 0 }}>{edge.toFixed(1)}%</span>
                     </div>
                     {ls?.status === "Live" && (
                       <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
@@ -741,8 +801,16 @@ export default function ToT() {
             </div>
           ) : (
             <>
-              <div style={{ fontSize: 10, fontWeight: 700, color: "#00FF87", letterSpacing: 2, marginBottom: 4 }}>
-                {steals.length} CLEAN BET{steals.length !== 1 ? "S" : ""} — ALL CONDITIONS PASSED
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "#00FF87", letterSpacing: 2 }}>
+                  {steals.length} CLEAN BET{steals.length !== 1 ? "S" : ""} — ALL CONDITIONS PASSED
+                </div>
+                <button
+                  onClick={copySteals}
+                  style={{ fontSize: 11, color: copied ? "#00FF87" : "#333", background: "transparent", border: "1px solid #1a1a1a", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontFamily: "'JetBrains Mono',monospace" }}
+                >
+                  {copied ? "✓ Copied" : "Copy"}
+                </button>
               </div>
               {steals.map(pick => {
                 const f = pick.filter || {};
@@ -807,8 +875,15 @@ export default function ToT() {
                       )}
                     </div>
                     {parseFloat(kellyPct) > 0 && (
-                      <div style={{ marginTop: 8, fontSize: 11, color: "#00FF87", fontFamily: "'JetBrains Mono',monospace" }}>
-                        25% Kelly: <strong>{kellyPct}%</strong> of bankroll
+                      <div style={{ marginTop: 10, background: "#050505", border: "1px solid #1a1a1a", borderRadius: 8, padding: "8px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <div>
+                          <div style={{ fontSize: 9, color: "#333", letterSpacing: 1 }}>SUGGESTED STAKE</div>
+                          <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 14, fontWeight: 700, color: "#00FF87" }}>{kellyPct}% of bankroll</div>
+                        </div>
+                        <div style={{ textAlign: "right" }}>
+                          <div style={{ fontSize: 9, color: "#333", letterSpacing: 1 }}>25% KELLY</div>
+                          <div style={{ fontSize: 11, color: "#555" }}>disciplined sizing</div>
+                        </div>
                       </div>
                     )}
                     {b.preview && <div style={S.preview}>{b.preview}</div>}
@@ -824,11 +899,23 @@ export default function ToT() {
                     { label: "SAFE", legs: steals.slice(0, 2), color: "#00FF87" },
                     { label: "BALANCED", legs: steals.slice(0, 3), color: "#FFD600" },
                     { label: "AGGRESSIVE", legs: steals.slice(0, 4), color: "#FF4D4D" },
-                  ].filter(c => c.legs.length >= 2).map(card => (
+                  ].filter(c => c.legs.length >= 2).map(card => {
+                    const comboDec = card.legs.reduce((acc, leg) => {
+                      const o = leg.pick === leg.homeTeam ? leg.homeOdds : leg.awayOdds;
+                      return acc * (o > 0 ? 1 + o / 100 : 1 + 100 / Math.abs(o));
+                    }, 1);
+                    const comboAmerican = comboDec >= 2
+                      ? `+${Math.round((comboDec - 1) * 100)}`
+                      : `${Math.round(-100 / (comboDec - 1))}`;
+                    const payout10 = ((comboDec - 1) * 10).toFixed(0);
+                    return (
                     <div key={card.label} style={{ background: "#080808", border: `1px solid ${card.color}22`, borderRadius: 12, padding: "12px 14px", marginBottom: 8 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                         <span style={{ fontSize: 11, fontWeight: 800, color: card.color, letterSpacing: 1 }}>{card.label} — {card.legs.length}-LEG</span>
-                        <span style={{ fontSize: 10, color: "#333" }}>CLEAN picks only</span>
+                        <div style={{ textAlign: "right" }}>
+                          <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, fontWeight: 700, color: card.color }}>{comboAmerican}</div>
+                          <div style={{ fontSize: 10, color: "#333" }}>${payout10} profit on $10</div>
+                        </div>
                       </div>
                       {card.legs.map((leg, i) => (
                         <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: i < card.legs.length - 1 ? "1px solid #111" : "none" }}>
@@ -840,7 +927,8 @@ export default function ToT() {
                         </div>
                       ))}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </>
@@ -849,10 +937,40 @@ export default function ToT() {
 
         {activeTab === "tracker" && (
           <>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
-                <div style={S.statCard}><div style={{ ...S.statVal, color: "#00FF87", fontSize: 22 }}>{wins}</div><div style={S.statLabel}>Wins</div></div>
-                <div style={S.statCard}><div style={{ ...S.statVal, color: "#FF4D4D", fontSize: 22 }}>{losses}</div><div style={S.statLabel}>Losses</div></div>
-                <div style={S.statCard}><div style={{ ...S.statVal, fontSize: 22 }}>{winPct}%</div><div style={S.statLabel}>Win Rate</div></div>
+              {/* ROI header */}
+              <div style={{ background: "#080808", border: "1px solid #1a1a1a", borderRadius: 14, padding: "16px 16px 12px", marginBottom: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 10, color: "#333", letterSpacing: 1, marginBottom: 4 }}>PROFIT / LOSS</div>
+                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 28, fontWeight: 700, color: pnl >= 0 ? "#00FF87" : "#FF4D4D" }}>
+                      {pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}
+                    </div>
+                    <div style={{ fontSize: 11, color: "#333", marginTop: 2 }}>flat ${unitSize}/bet · {total} settled</div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: 10, color: "#333", letterSpacing: 1, marginBottom: 4 }}>UNIT SIZE</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <span style={{ fontSize: 13, color: "#555" }}>$</span>
+                      <input
+                        type="number"
+                        value={unitSize}
+                        onChange={e => setUnitSize(Math.max(1, parseInt(e.target.value) || 10))}
+                        style={{ width: 60, background: "#111", border: "1px solid #222", borderRadius: 6, color: "#fff", fontSize: 14, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, padding: "4px 8px", textAlign: "right" }}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
+                  <div style={S.statCard}><div style={{ ...S.statVal, color: "#00FF87", fontSize: 18 }}>{wins}</div><div style={S.statLabel}>Wins</div></div>
+                  <div style={S.statCard}><div style={{ ...S.statVal, color: "#FF4D4D", fontSize: 18 }}>{losses}</div><div style={S.statLabel}>Losses</div></div>
+                  <div style={S.statCard}><div style={{ ...S.statVal, fontSize: 18 }}>{total > 0 ? winPct : "—"}%</div><div style={S.statLabel}>Win Rate</div></div>
+                  <div style={S.statCard}>
+                    <div style={{ ...S.statVal, fontSize: 18, color: streakType === "win" ? "#00FF87" : streakType === "loss" ? "#FF4D4D" : "#333" }}>
+                      {streakLen > 0 ? `${streakType === "win" ? "W" : "L"}${streakLen}` : "—"}
+                    </div>
+                    <div style={S.statLabel}>Streak</div>
+                  </div>
+                </div>
               </div>
               {savedPicks.length === 0 ? (
                 <div style={S.center}>

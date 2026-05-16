@@ -1,7 +1,4 @@
-// app/api/stripe/webhook/route.js
-// Stripe sends events here. We sync subscription status to Supabase.
-
-import { stripe } from "../../../../lib/stripe.js";
+import { getStripe } from "../../../../lib/stripe.js";
 import { createClient } from "@supabase/supabase-js";
 
 const getSupabase = () => createClient(
@@ -10,6 +7,7 @@ const getSupabase = () => createClient(
 );
 
 export async function POST(request) {
+  const stripe = getStripe();
   const body = await request.text();
   const sig  = request.headers.get("stripe-signature");
 

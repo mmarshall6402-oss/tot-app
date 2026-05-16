@@ -8,7 +8,7 @@ import { getModelProbability } from "../../../../lib/probability.js";
 import { applyFilterLayer, buildParlayCards } from "../../../../lib/filter.js";
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-const supabase = createClient(
+const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
@@ -108,6 +108,7 @@ export async function GET(request) {
   try {
     const date = new Date().toISOString().split("T")[0];
 
+    const supabase = getSupabase();
     const { data: existing } = await supabase
       .from("picks_cache")
       .select("id")

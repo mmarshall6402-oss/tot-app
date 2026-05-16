@@ -1,7 +1,4 @@
-// app/api/stripe/portal/route.js
-// Opens the Stripe Customer Portal so users can manage / cancel their subscription.
-
-import { stripe } from "../../../../lib/stripe.js";
+import { getStripe } from "../../../../lib/stripe.js";
 import { createClient } from "@supabase/supabase-js";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -12,6 +9,7 @@ const getSupabase = () => createClient(
 );
 
 export async function POST(request) {
+  const stripe = getStripe();
   const { userId } = await request.json();
 
   const { data } = await getSupabase()

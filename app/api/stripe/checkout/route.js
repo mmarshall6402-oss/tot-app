@@ -1,11 +1,9 @@
-// app/api/stripe/checkout/route.js
-// Creates a Stripe Checkout session for monthly or annual subscription.
-
-import { stripe, PRICES } from "../../../../lib/stripe.js";
+import { getStripe, PRICES } from "../../../../lib/stripe.js";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
 export async function POST(request) {
+  const stripe = getStripe();
   const { plan, userId, email } = await request.json();
 
   if (!PRICES[plan]) {
