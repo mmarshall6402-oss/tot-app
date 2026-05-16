@@ -160,6 +160,7 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const date = searchParams.get("date") || new Date().toISOString().split("T")[0];
+    const bust = searchParams.get("bust") === "1";
 
     const { data: cached } = await supabase
       .from("picks_cache")
@@ -167,7 +168,7 @@ export async function GET(request) {
       .eq("date", date)
       .single();
 
-    if (cached?.picks?.length) {
+    if (!bust && cached?.picks?.length) {
       // Always fetch fresh live scores — analysis is cached but scores must be current
       const mlbRes = await fetch(`${BASE_URL}/api/mlb?date=${date}`).then(r => r.json()).catch(() => ({ games: [] }));
       const mlbGames = mlbRes?.games || [];

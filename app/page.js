@@ -219,11 +219,10 @@ export default function ToT() {
     } catch (e) { setSteals([]); }
   };
 
-  const fetchPicks = async (date) => {
+  const fetchPicks = async (date, bust = false) => {
     setLoading(true);
-
     try {
-      const res = await fetch(`/api/picks?date=${date}`);
+      const res = await fetch(`/api/picks?date=${date}${bust ? "&bust=1" : ""}`);
       const data = await res.json();
       setPicks(data.picks || []);
     } catch (e) { console.error("picks error", e); setPicks([]); }
@@ -538,6 +537,11 @@ export default function ToT() {
                 {s2 === "confidence" ? "🎯" : "🕐"}
               </button>
             ))}
+            <button
+              style={{ ...S.sortBtn, fontSize: 13 }}
+              onClick={() => fetchPicks(selectedDate, true)}
+              title="Refresh picks"
+            >↺</button>
           </div>
         )}
       </div>
