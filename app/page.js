@@ -385,10 +385,10 @@ export default function ToT() {
             {checkingOut === "monthly" && <div style={{ color: "#555", fontSize: 11, marginTop: 6 }}>Redirecting…</div>}
           </button>
           <button onClick={() => startCheckout("annual")} disabled={!!checkingOut} style={{ flex: 1, background: "#0a1a0f", border: "1px solid rgba(0,255,135,0.3)", borderRadius: 14, padding: "18px 14px", cursor: "pointer", textAlign: "center", position: "relative" }}>
-            <div style={{ position: "absolute", top: -11, left: "50%", transform: "translateX(-50%)", background: "#00FF87", color: "#000", fontSize: 10, fontWeight: 800, padding: "3px 10px", borderRadius: 20, letterSpacing: 0.5, whiteSpace: "nowrap" }}>BEST VALUE</div>
+            <div style={{ position: "absolute", top: -11, left: "50%", transform: "translateX(-50%)", background: "#00FF87", color: "#000", fontSize: 10, fontWeight: 800, padding: "3px 10px", borderRadius: 20, letterSpacing: 0.5, whiteSpace: "nowrap" }}>2 MONTHS FREE</div>
             <div style={{ fontSize: 10, color: "#00FF87", letterSpacing: 1, marginBottom: 6 }}>ANNUAL</div>
-            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 28, fontWeight: 700, color: "#00FF87" }}>$44.99</div>
-            <div style={{ fontSize: 12, color: "#555", marginTop: 4 }}>per year · $3.75/mo</div>
+            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 28, fontWeight: 700, color: "#00FF87" }}>$19.99</div>
+            <div style={{ fontSize: 12, color: "#555", marginTop: 4 }}>per year · $1.67/mo</div>
             {checkingOut === "annual" && <div style={{ color: "#00FF87", fontSize: 11, marginTop: 6 }}>Redirecting…</div>}
           </button>
         </div>
