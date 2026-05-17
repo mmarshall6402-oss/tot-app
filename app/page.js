@@ -231,6 +231,12 @@ export default function ToT() {
 
   const fetchSaved = async () => {
     setLoading(activeTab === "tracker");
+    // Auto-resolve any pending picks whose games are finished
+    await fetch("/api/tracker/resolve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: user.id }),
+    }).catch(() => {});
     const { data } = await getSupabase().from("saved_picks").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
     setSavedPicks(data || []);
     setLoading(false);
