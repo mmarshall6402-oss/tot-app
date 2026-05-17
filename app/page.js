@@ -125,6 +125,7 @@ export default function ToT() {
   const [modelRecord, setModelRecord] = useState(null);
   const [unitSize, setUnitSize] = useState(10);
   const [copied, setCopied] = useState(false);
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
 
   useEffect(() => {
     createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY).auth.getSession().then(({ data: { session } }) => setUser(session?.user ?? null));
@@ -164,6 +165,16 @@ export default function ToT() {
     fetch("/api/model-record").then(r => r.json()).then(d => setModelRecord(d)).catch(() => {});
     const t = setInterval(() => setCarouselIdx(i => i + 1), 3000);
     return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const isStandalone = window.navigator.standalone;
+    const dismissed = localStorage.getItem("tot-pwa-dismissed");
+    if (isIOS && !isStandalone && !dismissed) {
+      const timer = setTimeout(() => setShowInstallPrompt(true), 1500);
+      return () => clearTimeout(timer);
+    }
   }, []);
 
   useEffect(() => {
@@ -447,6 +458,44 @@ export default function ToT() {
   return (
     <div style={S.app}>
       <style>{css}</style>
+
+      {showInstallPrompt && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+          onClick={() => setShowInstallPrompt(false)}>
+          <div style={{ width: "100%", maxWidth: 480, background: "#0d0d0d", borderRadius: "20px 20px 0 0", padding: "24px 24px 36px", border: "1px solid #1a1a1a" }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 18 }}>
+              <div style={{ width: 52, height: 52, background: "#000", borderRadius: 12, border: "1px solid #1a1a1a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontFamily: "monospace", fontWeight: 700, color: "#fff", flexShrink: 0 }}>
+                T<span style={{ color: "#00FF87" }}>|</span>T
+              </div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 16, color: "#fff" }}>Install ToT Picks</div>
+                <div style={{ fontSize: 13, color: "#555", marginTop: 2 }}>Add to your home screen for the best experience</div>
+              </div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 22 }}>
+              {[
+                { num: 1, icon: "⬆️", text: <>Tap the <strong style={{ color: "#fff" }}>Share</strong> button at the bottom of your browser</> },
+                { num: 2, icon: "➕", text: <>Tap <strong style={{ color: "#fff" }}>"Add to Home Screen"</strong></> },
+                { num: 3, icon: "✅", text: <>Tap <strong style={{ color: "#fff" }}>"Add"</strong> to confirm</> },
+              ].map(({ num, icon, text }) => (
+                <div key={num} style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#1a1a1a", border: "1px solid #222", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#00FF87", flexShrink: 0 }}>{num}</div>
+                  <div style={{ fontSize: 14, color: "#888", lineHeight: 1.4 }}>{text}</div>
+                </div>
+              ))}
+            </div>
+            <button style={{ width: "100%", background: "#00FF87", color: "#000", border: "none", borderRadius: 12, padding: "14px 0", fontWeight: 800, fontSize: 15, cursor: "pointer", marginBottom: 12 }}
+              onClick={() => setShowInstallPrompt(false)}>
+              Got it
+            </button>
+            <div style={{ textAlign: "center", fontSize: 13, color: "#333", cursor: "pointer" }}
+              onClick={() => { localStorage.setItem("tot-pwa-dismissed", "1"); setShowInstallPrompt(false); }}>
+              Don't show again
+            </div>
+          </div>
+        </div>
+      )}
 
       {drawerOpen && (
         <div style={S.overlay} onClick={() => setDrawerOpen(false)}>

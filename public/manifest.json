@@ -1,0 +1,18 @@
+{
+  "name": "ToT Picks",
+  "short_name": "ToT",
+  "description": "MLB picks powered by edge analytics",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#00FF87",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
