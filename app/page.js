@@ -11,25 +11,26 @@ function fmtGameTime(iso) {
   return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
 }
 
-function fmtDateLabel(dateStr) {
-  const d = new Date(dateStr + "T12:00:00");
-  const today = new Date();
-  const tomorrow = new Date();
-  tomorrow.setDate(today.getDate() + 1);
-  if (d.toDateString() === today.toDateString()) return "Today";
-  if (d.toDateString() === tomorrow.toDateString()) return "Tomorrow";
-  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-}
-
 function getWeekDates() {
   const dates = [];
   const today = new Date();
-  for (let i = 0; i < 7; i++) {
+  for (let i = -1; i < 7; i++) {
     const d = new Date(today);
     d.setDate(today.getDate() + i);
     dates.push(d.toISOString().split("T")[0]);
   }
   return dates;
+}
+
+function fmtDateLabel(dateStr) {
+  const d = new Date(dateStr + "T12:00:00");
+  const today = new Date();
+  const yesterday = new Date(); yesterday.setDate(today.getDate() - 1);
+  const tomorrow  = new Date(); tomorrow.setDate(today.getDate() + 1);
+  if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
+  if (d.toDateString() === today.toDateString())     return "Today";
+  if (d.toDateString() === tomorrow.toDateString())  return "Tomorrow";
+  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
 
 const TIER = {
@@ -596,10 +597,19 @@ export default function ToT() {
             const ls      = pick.liveScore;
             const isSaved = saving[pick.id] === "saved";
 
+            // Compute result if game is final
+            let pickResult = null;
+            if (ls?.status === "Final" && ls.homeScore !== null && ls.awayScore !== null) {
+              const homeWon = ls.homeScore > ls.awayScore;
+              const pickedHome = pick.pick === pick.homeTeam;
+              pickResult = (homeWon === pickedHome) ? "win" : "loss";
+            }
+
             // BET/PASS colors
             const betColor  = "#00FF87";
             const passColor = "#333";
-            const cardBorder = isOpen ? (isBet ? betColor : "#2a2a2a") : (isBet ? "rgba(0,255,135,0.25)" : "#1a1a1a");
+            const resultBorderColor = pickResult === "win" ? "#00FF87" : pickResult === "loss" ? "#FF4D4D" : null;
+            const cardBorder = resultBorderColor || (isOpen ? (isBet ? betColor : "#2a2a2a") : (isBet ? "rgba(0,255,135,0.25)" : "#1a1a1a"));
 
             return (
               <div key={pick.id} style={{ ...S.card, borderColor: cardBorder }}>
@@ -645,8 +655,20 @@ export default function ToT() {
                       </div>
                     )}
                     {ls?.status === "Final" && (
-                      <div style={{ fontSize: 12, color: "#444", marginTop: 4 }}>
-                        Final: {pick.awayTeam} {ls.awayScore} · {pick.homeTeam} {ls.homeScore}
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+                        {pickResult && (
+                          <span style={{
+                            fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5,
+                            background: pickResult === "win" ? "rgba(0,255,135,0.12)" : "rgba(255,77,77,0.12)",
+                            color: pickResult === "win" ? "#00FF87" : "#FF4D4D",
+                            border: `1px solid ${pickResult === "win" ? "rgba(0,255,135,0.3)" : "rgba(255,77,77,0.3)"}`,
+                          }}>
+                            {pickResult === "win" ? "WIN" : "LOSS"}
+                          </span>
+                        )}
+                        <span style={{ fontSize: 12, color: "#444" }}>
+                          Final · {pick.awayTeam} {ls.awayScore} – {pick.homeTeam} {ls.homeScore}
+                        </span>
                       </div>
                     )}
                   </div>
