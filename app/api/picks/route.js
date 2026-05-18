@@ -84,15 +84,25 @@ Return ONLY a valid JSON array, no markdown. Each element:
 }
 
 function buildPick(game, mlb, breakdown) {
-  const modelProb = getModelProbability(game, mlb);
-  const rawEdge   = calculateEdge(modelProb, game.homeImplied);
-  const pick      = rawEdge >= 0 ? game.homeTeam : game.awayTeam;
-  const edgePct   = Math.abs(rawEdge) * 100;
-  const isBet     = edgePct >= BET_THRESHOLD * 100;
+  const modelProbRaw = getModelProbability(game, mlb);
+
+  // Market calibration: the market already prices in most public information.
+  // Our model provides ~20% incremental signal on top of market pricing.
+  // This shrinks raw edges to realistic MLB magnitudes (1–8%) and prevents
+  // data corruption from inflating phantom edges to 20–40%.
+  const homeImplied  = game.homeImplied || 0.5;
+  const modelProb    = homeImplied + (modelProbRaw - homeImplied) * 0.20;
+
+  const rawEdge  = calculateEdge(modelProb, homeImplied);
+  const pick     = rawEdge >= 0 ? game.homeTeam : game.awayTeam;
+  // Hard cap: >8% displayed edge almost never exists in liquid MLB markets
+  const edgePct  = Math.min(Math.abs(rawEdge) * 100, 8.0);
+  const isBet    = edgePct >= BET_THRESHOLD * 100;
 
   const homePitcher = mlb?.homePitcher;
   const awayPitcher = mlb?.awayPitcher;
-  const filter    = applyFilterLayer(pick, { ...game, source: game.source }, mlb, modelProb);
+  // Filter uses RAW model probability — it has its own shrinkFactor calibration
+  const filter    = applyFilterLayer(pick, { ...game, source: game.source }, mlb, modelProbRaw);
   const filteredIsBet = ["CLEAN", "BET"].includes(filter.verdict);
 
   const tier = breakdown?.tier?.level
@@ -118,11 +128,25 @@ function buildPick(game, mlb, breakdown) {
 }
 
 function matchMLBGame(game, mlbGames) {
-  return mlbGames.find(g => {
-    const hw = game.homeTeam?.split(" ").pop()?.toLowerCase();
-    const aw = game.awayTeam?.split(" ").pop()?.toLowerCase();
-    return g.homeTeam?.toLowerCase().includes(hw) && g.awayTeam?.toLowerCase().includes(aw);
-  });
+  const lastWord = s => (s || "").trim().split(" ").pop().toLowerCase();
+  const cityWord = s => (s || "").trim().split(" ")[0].toLowerCase(); // "Detroit", "New", "Los"
+
+  // Primary: match on last word of team name (e.g. "tigers", "guardians")
+  let match = mlbGames.find(g =>
+    g.homeTeam?.toLowerCase().includes(lastWord(game.homeTeam)) &&
+    g.awayTeam?.toLowerCase().includes(lastWord(game.awayTeam))
+  );
+
+  // Fallback: match on second-to-last word (catches "Red Sox" vs "White Sox" ambiguity)
+  if (!match) {
+    match = mlbGames.find(g => {
+      const hw = game.homeTeam?.trim().split(" ").slice(-2).join(" ").toLowerCase();
+      const aw = game.awayTeam?.trim().split(" ").slice(-2).join(" ").toLowerCase();
+      return g.homeTeam?.toLowerCase().includes(hw) && g.awayTeam?.toLowerCase().includes(aw);
+    });
+  }
+
+  return match || null;
 }
 
 const ODDS_CACHE_KEY = "__odds__";

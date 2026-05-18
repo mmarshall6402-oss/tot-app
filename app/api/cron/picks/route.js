@@ -14,11 +14,22 @@ const getSupabase = () => createClient(
 );
 
 function matchMLBGame(game, mlbGames) {
-  return mlbGames.find(g => {
-    const hw = game.homeTeam?.split(" ").pop()?.toLowerCase();
-    const aw = game.awayTeam?.split(" ").pop()?.toLowerCase();
-    return g.homeTeam?.toLowerCase().includes(hw) && g.awayTeam?.toLowerCase().includes(aw);
-  });
+  const lastWord = s => (s || "").trim().split(" ").pop().toLowerCase();
+
+  let match = mlbGames.find(g =>
+    g.homeTeam?.toLowerCase().includes(lastWord(game.homeTeam)) &&
+    g.awayTeam?.toLowerCase().includes(lastWord(game.awayTeam))
+  );
+
+  if (!match) {
+    match = mlbGames.find(g => {
+      const hw = game.homeTeam?.trim().split(" ").slice(-2).join(" ").toLowerCase();
+      const aw = game.awayTeam?.trim().split(" ").slice(-2).join(" ").toLowerCase();
+      return g.homeTeam?.toLowerCase().includes(hw) && g.awayTeam?.toLowerCase().includes(aw);
+    });
+  }
+
+  return match || null;
 }
 
 async function callClaudeBatch(gameContexts) {
@@ -77,12 +88,19 @@ Return ONLY a JSON array, no markdown. Each element:
 }
 
 function buildPick(game, mlb, breakdown, precomputedFilter) {
-  const modelProb = getModelProbability(game, mlb);
-  const rawEdge   = calculateEdge(modelProb, game.homeImplied);
-  const pick      = rawEdge >= 0 ? game.homeTeam : game.awayTeam;
-  const edgePct   = Math.abs(rawEdge) * 100;
-  const isBet     = edgePct >= BET_THRESHOLD * 100;
-  const filter    = precomputedFilter || applyFilterLayer(pick, { ...game, source: game.source }, mlb, modelProb);
+  const modelProbRaw = getModelProbability(game, mlb);
+
+  // Market calibration: model provides ~20% incremental signal over efficient market pricing.
+  // Shrinks raw edges to realistic MLB magnitudes and dampens data-corruption artifacts.
+  const homeImplied = game.homeImplied || 0.5;
+  const modelProb   = homeImplied + (modelProbRaw - homeImplied) * 0.20;
+
+  const rawEdge  = calculateEdge(modelProb, homeImplied);
+  const pick     = rawEdge >= 0 ? game.homeTeam : game.awayTeam;
+  const edgePct  = Math.min(Math.abs(rawEdge) * 100, 8.0); // hard cap at 8%
+  const isBet    = edgePct >= BET_THRESHOLD * 100;
+  // Filter uses RAW model probability — it has its own shrinkFactor calibration
+  const filter    = precomputedFilter || applyFilterLayer(pick, { ...game, source: game.source }, mlb, modelProbRaw);
   const filteredIsBet = ["CLEAN", "BET"].includes(filter.verdict);
 
   const tier = breakdown?.tier?.level
@@ -134,11 +152,13 @@ export async function GET(request) {
 
     // Build game contexts for batch Claude call
     const gameContexts = oddsGames.map(game => {
-      const mlb = matchMLBGame(game, mlbGames);
-      const modelProb = getModelProbability(game, mlb);
-      const rawEdge   = calculateEdge(modelProb, game.homeImplied);
-      const pick      = rawEdge >= 0 ? game.homeTeam : game.awayTeam;
-      const filter    = applyFilterLayer(pick, { ...game, source: game.source }, mlb, modelProb);
+      const mlb           = matchMLBGame(game, mlbGames);
+      const modelProbRaw  = getModelProbability(game, mlb);
+      const homeImplied   = game.homeImplied || 0.5;
+      const modelProb     = homeImplied + (modelProbRaw - homeImplied) * 0.20;
+      const rawEdge       = calculateEdge(modelProb, homeImplied);
+      const pick          = rawEdge >= 0 ? game.homeTeam : game.awayTeam;
+      const filter        = applyFilterLayer(pick, { ...game, source: game.source }, mlb, modelProbRaw);
       const hf = mlb?.homeForm;
       const af = mlb?.awayForm;
       const ipStr = (p) => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";
