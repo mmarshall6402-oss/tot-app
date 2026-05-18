@@ -834,6 +834,25 @@ export default function ToT() {
                               </div>
                             </div>
                           )}
+                          {/* Confidence breakdown — why score is X/10 */}
+                          {(f.confidenceReasons || []).length > 0 && (
+                            <div style={{ marginTop: 8 }}>
+                              <div style={{ fontSize: 9, color: "#444", letterSpacing: 1, marginBottom: 4 }}>CONFIDENCE BREAKDOWN</div>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+                                {f.confidenceReasons.map((r, i) => {
+                                  const isPos = r.startsWith("+");
+                                  return (
+                                    <span key={i} style={{
+                                      fontSize: 10,
+                                      color: isPos ? "#00FF87" : "#FF6B6B",
+                                      background: isPos ? "rgba(0,255,135,0.06)" : "rgba(255,77,77,0.06)",
+                                      padding: "2px 6px", borderRadius: 4,
+                                    }}>{r}</span>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
                           {/* Clean pick celebration */}
                           {isClean && (
                             <div style={{ marginTop: 4, fontSize: 10, color: "#00FF87" }}>✓ All conditions passed — disciplined bet</div>
