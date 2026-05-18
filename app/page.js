@@ -118,7 +118,7 @@ export default function ToT() {
   const [freePick, setFreePick] = useState(null);
   const [carouselIdx, setCarouselIdx] = useState(0);
   const weekDates = getWeekDates();
-  const [selectedDate, setSelectedDate] = useState(weekDates[0]);
+  const [selectedDate, setSelectedDate] = useState(weekDates[1]); // default to Today; Yesterday is tab[0]
   const [steals, setSteals] = useState(null);
   const [isPro, setIsPro] = useState(null);
   const [checkingOut, setCheckingOut] = useState(false);
