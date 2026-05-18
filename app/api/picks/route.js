@@ -25,7 +25,18 @@ const getMemCached = async (key, fn) => {
 
 // Single Claude call for all games — avoids rate limits and function timeout
 async function callClaudeBatch(gameContexts) {
-  const prompt = `You are a sharp MLB betting analyst. Be direct, honest, no hype.
+  const prompt = `You are a sharp MLB betting analyst. Be direct, honest, no hype. You understand that MLB has enormous variance and even strong edges lose frequently.
+
+RULES — never violate these:
+- Do NOT lead with pitcher ERA comparison as the main reason to bet. Pitching is one factor among many.
+- Do NOT treat a SP ERA/WHIP mismatch as the decisive edge unless sample size is large (50+ IP).
+- Flag any pitcher with under 40 IP as "small sample — stats not stable."
+- Bullpens finish ~40% of outs. Always note bullpen state if data is provided.
+- Offensive strength (OPS, run production) matters equally to pitching. Note it.
+- Edge % is a model estimate, NOT a calibrated probability. Never present it as precise.
+- MLB variance is extreme. Every pick can lose regardless of edge. Say so when honest_lean is written.
+- Do NOT treat "Value Pick" tier as guaranteed — it means the model sees edge, not a lock.
+
 Analyze these games and return a JSON array — one object per game, in the same order.
 
 ${gameContexts.map((g, i) => `
@@ -41,12 +52,12 @@ GAME ${i + 1}: ${g.awayTeam} @ ${g.homeTeam}
 
 Return ONLY a valid JSON array, no markdown. Each element:
 {
-  "preview": "2 sentences. Name pitchers. Lead with sharpest reason to bet or fade. Flag unreliable stats.",
-  "form_home": "1 sentence on home team form with numbers, or 'no data'",
-  "form_away": "1 sentence on away team form with numbers, or 'no data'",
-  "what_decides": "1 sentence — single factor that tips this game",
-  "what_to_sweat": "1 sentence — biggest risk",
-  "honest_lean": "1-2 sentences blunt take. Say if edge is real or noise.",
+  "preview": "2 sentences. Name pitchers but don't make SP the only story. Lead with the strongest signal — offense, bullpen, or edge. Flag small samples.",
+  "form_home": "1 sentence on home team offense with OPS/runs numbers, or 'no data'",
+  "form_away": "1 sentence on away team offense with OPS/runs numbers, or 'no data'",
+  "what_decides": "1 sentence — single factor (could be bullpen, lineup depth, park, SP — pick the real one)",
+  "what_to_sweat": "1 sentence — biggest risk to this pick losing, including MLB variance",
+  "honest_lean": "1-2 sentences blunt take. Say if edge is thin noise or real signal. Remind that all MLB picks carry variance.",
   "score_range": "e.g. 5-3",
   "tier": { "level": "High" }
 }`;
