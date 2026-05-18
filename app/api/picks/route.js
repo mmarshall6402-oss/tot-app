@@ -6,7 +6,7 @@ import { applyFilterLayer, buildParlayCards } from "../../../lib/filter.js";
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 // Server-side route — use service role key to bypass RLS on picks_cache reads
-const supabase = createClient(
+const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
@@ -118,6 +118,7 @@ const ODDS_CACHE_KEY = "__odds__";
 const ODDS_TTL_MS = 1000 * 60 * 15; // 15 min
 
 async function fetchOddsWithCache() {
+  const supabase = getSupabase();
   // 1. Try live API
   try {
     const games = await fetchMLBOdds();
@@ -155,6 +156,7 @@ async function fetchOddsWithCache() {
 }
 
 export async function GET(request) {
+  const supabase = getSupabase();
   try {
     const { searchParams } = new URL(request.url);
     const date = searchParams.get("date") || new Date().toISOString().split("T")[0];
