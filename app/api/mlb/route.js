@@ -135,12 +135,40 @@ async function fetchStandings() {
   } catch { return {}; }
 }
 
-// ─── GET handler ──────────────────────────────────────────────────────────────
+// Recent starts game log — last N starts weighted more than full-season ERA
+async function fetchPitcherRecentStarts(pitcherId, numStarts = 5) {
+  if (!pitcherId) return null;
+  try {
+    const r = await fetch(`${MLB}/people/${pitcherId}/stats?stats=gameLog&group=pitching&season=${CURRENT_SEASON}`);
+    const d = await r.json();
+    const splits = d?.stats?.[0]?.splits || [];
+    // Only include starts (>=1 IP typically means a start, not a relief app)
+    const starts = splits.filter(s => parseIP(s.stat?.inningsPitched) >= 2.0).slice(-numStarts);
+    if (starts.length < 2) return null;
+    const tot = starts.reduce((acc, s) => ({
+      ip: acc.ip + parseIP(s.stat.inningsPitched),
+      er: acc.er + parseInt(s.stat.earnedRuns  || 0),
+      h:  acc.h  + parseInt(s.stat.hits        || 0),
+      bb: acc.bb + parseInt(s.stat.baseOnBalls || 0),
+      k:  acc.k  + parseInt(s.stat.strikeOuts  || 0),
+      bf: acc.bf + parseInt(s.stat.battersFaced || 0),
+    }), { ip: 0, er: 0, h: 0, bb: 0, k: 0, bf: 0 });
+    if (tot.ip < 6) return null;
+    return {
+      era:    parseFloat(((tot.er / tot.ip) * 9).toFixed(2)),
+      whip:   parseFloat(((tot.h + tot.bb) / tot.ip).toFixed(2)),
+      kBBPct: tot.bf > 0 ? parseFloat(((tot.k - tot.bb) / tot.bf * 100).toFixed(1)) : null,
+      ip:     parseFloat(tot.ip.toFixed(1)),
+      numStarts: starts.length,
+    };
+  } catch { return null; }
+}
 
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const date    = searchParams.get("date") || new Date().toISOString().split("T")[0];
+    const past7   = getPastDate(7);
     const past10  = getPastDate(10);
     const past14  = getPastDate(14);
 
@@ -166,9 +194,11 @@ export async function GET(request) {
         homePStats, awayPStats,
         homePHand,  awayPHand,
         homeForm,   awayForm,
-        homeRolling, awayRolling,
+        homeRolling7, awayRolling7,
+        homeRolling14, awayRolling14,
         homeSeason,  awaySeason,
         homeSplits,  awaySplits,
+        homeRecentStarts, awayRecentStarts,
       ] = await Promise.all([
         fetchPitcherStats(homePitcher?.id),
         fetchPitcherStats(awayPitcher?.id),
@@ -176,40 +206,44 @@ export async function GET(request) {
         fetchPitcherHand(awayPitcher?.id),
         fetchTeamHitting(homeId, past10, date),
         fetchTeamHitting(awayId, past10, date),
+        fetchRollingPitching(homeId, past7,  date),
+        fetchRollingPitching(awayId, past7,  date),
         fetchRollingPitching(homeId, past14, date),
         fetchRollingPitching(awayId, past14, date),
         fetchSeasonPitching(homeId),
         fetchSeasonPitching(awayId),
         fetchTeamHandednessSplits(homeId),
         fetchTeamHandednessSplits(awayId),
+        fetchPitcherRecentStarts(homePitcher?.id),
+        fetchPitcherRecentStarts(awayPitcher?.id),
       ]);
 
-      const buildPitcher = (pitcher, stats) => {
+      const buildPitcher = (pitcher, stats, recentStarts) => {
         if (!pitcher) return null;
         const adv = advancedPitcherMetrics(stats);
         const savant = savantMap.get(pitcher.id) || null;
         return {
           name:           pitcher.fullName,
           id:             pitcher.id,
-          hand:           null,  // set correctly per-pitcher after buildPitcher calls below
+          hand:           null,
           era:            stats?.era          ?? null,
           whip:           stats?.whip         ?? null,
           wins:           stats?.wins         ?? 0,
           losses:         stats?.losses       ?? 0,
           strikeoutsPer9: stats?.strikeoutsPer9Inn ?? null,
           inningsPitched: stats?.inningsPitched    ?? null,
-          // Advanced
           kBBPct:         adv.kBBPct,
           xFip:           adv.xFip,
-          // Statcast
           hardHitPct:     savant?.hardHitPct  ?? null,
           barrelPct:      savant?.barrelPct   ?? null,
           avgExitVelo:    savant?.avgExitVelo ?? null,
+          // Recent starts (last 5): more predictive than season avg alone
+          recentStarts:   recentStarts ?? null,
         };
       };
 
-      const homePitcherObj = buildPitcher(homePitcher, homePStats);
-      const awayPitcherObj = buildPitcher(awayPitcher, awayPStats);
+      const homePitcherObj = buildPitcher(homePitcher, homePStats, homeRecentStarts);
+      const awayPitcherObj = buildPitcher(awayPitcher, awayPStats, awayRecentStarts);
       if (homePitcherObj) homePitcherObj.hand = homePHand;
       if (awayPitcherObj) awayPitcherObj.hand = awayPHand;
 
@@ -222,11 +256,15 @@ export async function GET(request) {
         ? (homePHand === "L" ? awaySplits.vsLeft : awaySplits.vsRight) ?? null
         : null;
 
-      // Prefer rolling 14d bullpen; fall back to season aggregate
-      const buildBullpen = (rolling, season) => {
-        const src = (rolling?.ip ?? 0) >= 5 ? rolling : season;
+      // Prefer 7-day bullpen (most current) → 14-day → season aggregate
+      const buildBullpen = (r7, r14, season) => {
+        const src = (r7?.ip ?? 0) >= 4 ? r7 : (r14?.ip ?? 0) >= 8 ? r14 : season;
         if (!src) return null;
-        return { era: src.era ?? null, whip: src.whip ?? null, k9: src.k9 ?? null, isRolling: src === rolling };
+        return {
+          era: src.era ?? null, whip: src.whip ?? null, k9: src.k9 ?? null,
+          isRolling: src === r7 || src === r14,
+          window: src === r7 ? 7 : src === r14 ? 14 : null,
+        };
       };
 
       return {
@@ -243,8 +281,8 @@ export async function GET(request) {
         homePitcher:  homePitcherObj,
         awayPitcher:  awayPitcherObj,
         homeForm, awayForm,
-        homeBullpen:  buildBullpen(homeRolling, homeSeason),
-        awayBullpen:  buildBullpen(awayRolling, awaySeason),
+        homeBullpen:  buildBullpen(homeRolling7, homeRolling14, homeSeason),
+        awayBullpen:  buildBullpen(awayRolling7, awayRolling14, awaySeason),
         homeStandings: standings[homeId] ?? null,
         awayStandings: standings[awayId] ?? null,
         // Lineup vs handedness (null until lineups post ~90 min before game)
