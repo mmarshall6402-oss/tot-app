@@ -11,13 +11,20 @@ function fmtGameTime(iso) {
   return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
 }
 
+function localDateStr(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function getWeekDates() {
   const dates = [];
   const today = new Date();
   for (let i = -1; i < 7; i++) {
     const d = new Date(today);
     d.setDate(today.getDate() + i);
-    dates.push(d.toISOString().split("T")[0]);
+    dates.push(localDateStr(d));
   }
   return dates;
 }
