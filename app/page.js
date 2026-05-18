@@ -316,8 +316,11 @@ export default function ToT() {
 
   const sorted = [...(picks || [])].sort((a, b) => {
     if (sortBy === "confidence") {
-      const o = { High: 3, Medium: 2, Low: 1 };
-      return (o[b.tier?.level] || 0) - (o[a.tier?.level] || 0);
+      const vRank = { CLEAN: 3, BET: 2, PASS: 1, TRAP: 0 };
+      const va = vRank[a.filter?.verdict] ?? (a.isBet ? 2 : 1);
+      const vb = vRank[b.filter?.verdict] ?? (b.isBet ? 2 : 1);
+      if (vb !== va) return vb - va;
+      return (b.edge || 0) - (a.edge || 0);
     }
     return new Date(a.commenceTime) - new Date(b.commenceTime);
   });
@@ -671,25 +674,31 @@ export default function ToT() {
               <div key={pick.id} style={{ ...S.card, borderColor: cardBorder }}>
                 <div style={S.cardTop}>
                   <div style={{ flex: 1 }}>
-                    {/* BET / PASS indicator */}
+                    {/* Verdict badge row */}
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                      <span style={{
-                        fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6,
-                        letterSpacing: 1.5,
-                        background: isBet ? "rgba(0,255,135,0.12)" : "rgba(50,50,50,0.5)",
-                        color: isBet ? betColor : passColor,
-                        border: `1px solid ${isBet ? "rgba(0,255,135,0.3)" : "#222"}`,
-                      }}>
-                        {isBet ? "BET" : "PASS"}
-                      </span>
-                      {/* Confidence % — edge as a simple signal */}
+                      {pick.filter?.verdict === "CLEAN" ? (
+                        <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, background: "rgba(0,255,135,0.15)", color: "#00FF87", border: "1px solid rgba(0,255,135,0.5)" }}>
+                          ⚡ CLEAN
+                        </span>
+                      ) : (
+                        <span style={{
+                          fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5,
+                          background: isBet ? "rgba(0,255,135,0.08)" : "rgba(50,50,50,0.5)",
+                          color: isBet ? betColor : passColor,
+                          border: `1px solid ${isBet ? "rgba(0,255,135,0.2)" : "#222"}`,
+                        }}>
+                          {isBet ? "BET" : "PASS"}
+                        </span>
+                      )}
                       <span style={{ fontSize: 11, color: isBet ? "#555" : "#333", fontFamily: "'JetBrains Mono',monospace" }}>
                         {edge.toFixed(1)}% edge
                       </span>
-                      {/* Tier as subtle secondary label */}
-                      <span style={{ fontSize: 10, color: isBet ? t.color : "#333", opacity: 0.7 }}>
-                        {t.label}
-                      </span>
+                      {/* Tier label only on BET/CLEAN picks — meaningless on PASS */}
+                      {isBet && (
+                        <span style={{ fontSize: 10, color: t.color, opacity: 0.7 }}>
+                          {t.label}
+                        </span>
+                      )}
                     </div>
                     <div style={S.cardMatchup}>{pick.awayTeam} @ {pick.homeTeam}</div>
                     <div style={S.cardMeta}>
