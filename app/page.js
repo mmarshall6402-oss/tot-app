@@ -118,7 +118,7 @@ export default function ToT() {
   const [savedPicks, setSavedPicks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("picks");
-  const [sortBy, setSortBy] = useState("confidence");
+  const [sortBy, setSortBy] = useState("edge");
   const [expanded, setExpanded] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [saving, setSaving] = useState({});
@@ -219,13 +219,18 @@ export default function ToT() {
   };
 
   const manageBilling = async () => {
-    const res = await fetch("/api/stripe/portal", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: user.id }),
-    });
-    const { url } = await res.json();
-    if (url) window.location.href = url;
+    try {
+      const res = await fetch("/api/stripe/portal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id }),
+      });
+      const data = await res.json();
+      if (data.url) { window.location.href = data.url; return; }
+      alert(data.error || "Billing portal unavailable. Contact support.");
+    } catch (e) {
+      alert("Could not open billing portal. Try again later.");
+    }
   };
 
   const copySteals = () => {
@@ -324,14 +329,9 @@ export default function ToT() {
   };
 
   const sorted = [...(picks || [])].sort((a, b) => {
-    if (sortBy === "confidence") {
-      const vRank = { CLEAN: 3, BET: 2, PASS: 1, TRAP: 0 };
-      const va = vRank[a.filter?.verdict] ?? (a.isBet ? 2 : 1);
-      const vb = vRank[b.filter?.verdict] ?? (b.isBet ? 2 : 1);
-      if (vb !== va) return vb - va;
-      return (b.edge || 0) - (a.edge || 0);
-    }
-    return new Date(a.commenceTime) - new Date(b.commenceTime);
+    if (sortBy === "time") return new Date(a.commenceTime) - new Date(b.commenceTime);
+    // Default: sort by edge descending (highest edge first)
+    return (b.edge || 0) - (a.edge || 0);
   });
 
   // Tracker stats — push = stake returned, doesn't count for win/loss rate
@@ -650,13 +650,13 @@ export default function ToT() {
         </div>
         {activeTab === "picks" && (
           <div style={{ display: "flex", gap: 4 }}>
-            {["confidence", "time"].map(s2 => (
+            {["edge", "time"].map(s2 => (
               <button
                 key={s2}
                 style={{ ...S.sortBtn, background: sortBy === s2 ? "#00FF87" : "transparent", color: sortBy === s2 ? "#000" : "#444" }}
                 onClick={() => setSortBy(s2)}
               >
-                {s2 === "confidence" ? "🎯" : "🕐"}
+                {s2 === "edge" ? "📈" : "🕐"}
               </button>
             ))}
             <button
@@ -944,6 +944,52 @@ export default function ToT() {
             );
           })
         )}
+
+        {/* Parlay Builder — shown at the bottom of the Picks tab when 2+ BET picks exist */}
+        {activeTab === "picks" && picks !== null && (() => {
+          const betPicks = sorted.filter(p => p.isBet && p.homeOdds != null);
+          if (betPicks.length < 2) return null;
+          return (
+            <div style={{ marginTop: 4 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#333", letterSpacing: 1.5, marginBottom: 10 }}>PARLAY BUILDER</div>
+              {[
+                { label: "SAFE", legs: betPicks.slice(0, 2), color: "#00FF87" },
+                { label: "BALANCED", legs: betPicks.slice(0, 3), color: "#FFD600" },
+                { label: "AGGRESSIVE", legs: betPicks.slice(0, 4), color: "#FF4D4D" },
+              ].filter(c => c.legs.length >= 2).map(card => {
+                const comboDec = card.legs.reduce((acc, leg) => {
+                  const o = leg.pick === leg.homeTeam ? leg.homeOdds : leg.awayOdds;
+                  if (!o) return acc;
+                  return acc * (o > 0 ? 1 + o / 100 : 1 + 100 / Math.abs(o));
+                }, 1);
+                const comboAmerican = comboDec >= 2
+                  ? `+${Math.round((comboDec - 1) * 100)}`
+                  : `${Math.round(-100 / (comboDec - 1))}`;
+                const payout10 = ((comboDec - 1) * 10).toFixed(0);
+                return (
+                  <div key={card.label} style={{ background: "#080808", border: `1px solid ${card.color}22`, borderRadius: 12, padding: "12px 14px", marginBottom: 8 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: card.color, letterSpacing: 1 }}>{card.label} — {card.legs.length}-LEG</span>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, fontWeight: 700, color: card.color }}>{comboAmerican}</div>
+                        <div style={{ fontSize: 10, color: "#333" }}>${payout10} profit on $10</div>
+                      </div>
+                    </div>
+                    {card.legs.map((leg, i) => (
+                      <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: i < card.legs.length - 1 ? "1px solid #111" : "none" }}>
+                        <span style={{ fontSize: 12, fontFamily: "'JetBrains Mono',monospace" }}>{leg.awayTeam} @ {leg.homeTeam}</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 11, color: leg.filter?.verdict === "CLEAN" ? "#00FF87" : "#FFD600", fontWeight: 700 }}>{leg.pick}</span>
+                          <span style={{ fontSize: 11, color: "#444", fontFamily: "'JetBrains Mono',monospace" }}>{leg.edge.toFixed(1)}% edge</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
 
         {activeTab === "steals" && (
           steals === null ? (
