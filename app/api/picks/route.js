@@ -180,17 +180,60 @@ export async function GET(request) {
       .single();
 
     if (!bust && cached?.picks?.length) {
-      // Always fetch fresh live scores — analysis is cached but scores must be current
+      // Fetch fresh MLB data — update live scores AND pitcher strings (starters may post after cache)
       const mlbRes = await fetch(`${BASE_URL}/api/mlb?date=${date}`).then(r => r.json()).catch(() => ({ games: [] }));
       const mlbGames = mlbRes?.games || [];
+      const ipStr = (p) => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";
       const picks = mlbGames.length
         ? cached.picks.map(pick => {
             const mlb = matchMLBGame(pick, mlbGames);
             if (!mlb) return pick;
-            return { ...pick, liveScore: { status: mlb.status, homeScore: mlb.homeScore, awayScore: mlb.awayScore, inning: mlb.inning, inningHalf: mlb.inningHalf } };
+            const homePStr = mlb.homePitcher ? `${mlb.homePitcher.name} (${mlb.homePitcher.wins}-${mlb.homePitcher.losses}, ${mlb.homePitcher.era} ERA, ${mlb.homePitcher.whip} WHIP${ipStr(mlb.homePitcher)})` : null;
+            const awayPStr = mlb.awayPitcher ? `${mlb.awayPitcher.name} (${mlb.awayPitcher.wins}-${mlb.awayPitcher.losses}, ${mlb.awayPitcher.era} ERA, ${mlb.awayPitcher.whip} WHIP${ipStr(mlb.awayPitcher)})` : null;
+            return {
+              ...pick,
+              liveScore: { status: mlb.status, homeScore: mlb.homeScore, awayScore: mlb.awayScore, inning: mlb.inning, inningHalf: mlb.inningHalf },
+              breakdown: {
+                ...pick.breakdown,
+                pitcher_home: homePStr || pick.breakdown?.pitcher_home,
+                pitcher_away: awayPStr || pick.breakdown?.pitcher_away,
+              },
+            };
           })
         : cached.picks;
       return Response.json({ picks, cached: true, generated_at: cached.generated_at });
+    }
+
+    const today = new Date().toISOString().split("T")[0];
+
+    // Past date with no cache — build results from MLB API directly (odds aren't available for past dates)
+    if (date < today) {
+      const mlbRes = await fetch(`${BASE_URL}/api/mlb?date=${date}`).then(r => r.json()).catch(() => ({ games: [] }));
+      const mlbGames = mlbRes?.games || [];
+      if (mlbGames.length) {
+        const ipStr = (p) => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";
+        const results = mlbGames.map(g => {
+          const modelProb = getModelProbability({ homeTeam: g.homeTeam, awayTeam: g.awayTeam, homeImplied: 0.5, commenceTime: g.commenceTime }, g);
+          const pick = modelProb >= 0.5 ? g.homeTeam : g.awayTeam;
+          return {
+            id: String(g.gameId),
+            homeTeam: g.homeTeam, awayTeam: g.awayTeam,
+            commenceTime: g.commenceTime,
+            homeOdds: null, awayOdds: null,
+            pick, edge: Math.abs(modelProb - 0.5) * 100,
+            isBet: false,
+            tier: { label: "📋 Result", level: "Low", emoji: "📋" },
+            breakdown: {
+              pitcher_home: g.homePitcher ? `${g.homePitcher.name} (${g.homePitcher.wins}-${g.homePitcher.losses}, ${g.homePitcher.era} ERA${ipStr(g.homePitcher)})` : "TBD",
+              pitcher_away: g.awayPitcher ? `${g.awayPitcher.name} (${g.awayPitcher.wins}-${g.awayPitcher.losses}, ${g.awayPitcher.era} ERA${ipStr(g.awayPitcher)})` : "N/A",
+            },
+            filter: null,
+            liveScore: { status: g.status, homeScore: g.homeScore, awayScore: g.awayScore, inning: g.inning, inningHalf: g.inningHalf },
+          };
+        });
+        return Response.json({ picks: results, cached: false, pastDate: true });
+      }
+      return Response.json({ picks: [], cached: false, notice: "no data for this date" });
     }
 
     const [oddsGames, mlbRes] = await Promise.all([
