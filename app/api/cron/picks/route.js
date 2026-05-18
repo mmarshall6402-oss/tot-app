@@ -14,20 +14,36 @@ const getSupabase = () => createClient(
 );
 
 function matchMLBGame(game, mlbGames) {
-  const lastWord = s => (s || "").trim().split(" ").pop().toLowerCase();
+  const norm = s => (s || "").toLowerCase().trim();
+  const lastWord = s => norm(s).split(" ").pop();
+  const timeClose = (t1, t2) => {
+    if (!t1 || !t2) return true;
+    return Math.abs(new Date(t1) - new Date(t2)) < 6 * 3_600_000;
+  };
 
+  // 1. Exact normalized full name (most reliable)
   let match = mlbGames.find(g =>
-    g.homeTeam?.toLowerCase().includes(lastWord(game.homeTeam)) &&
-    g.awayTeam?.toLowerCase().includes(lastWord(game.awayTeam))
+    norm(g.homeTeam) === norm(game.homeTeam) &&
+    norm(g.awayTeam) === norm(game.awayTeam) &&
+    timeClose(g.commenceTime, game.commenceTime)
   );
+  if (match) return match;
 
-  if (!match) {
-    match = mlbGames.find(g => {
-      const hw = game.homeTeam?.trim().split(" ").slice(-2).join(" ").toLowerCase();
-      const aw = game.awayTeam?.trim().split(" ").slice(-2).join(" ").toLowerCase();
-      return g.homeTeam?.toLowerCase().includes(hw) && g.awayTeam?.toLowerCase().includes(aw);
-    });
-  }
+  // 2. Last-word substring with time guard
+  match = mlbGames.find(g =>
+    norm(g.homeTeam).includes(lastWord(game.homeTeam)) &&
+    norm(g.awayTeam).includes(lastWord(game.awayTeam)) &&
+    timeClose(g.commenceTime, game.commenceTime)
+  );
+  if (match) return match;
+
+  // 3. Two-word suffix (Red Sox / White Sox / Blue Jays) with time guard
+  match = mlbGames.find(g => {
+    const hw = norm(game.homeTeam).split(" ").slice(-2).join(" ");
+    const aw = norm(game.awayTeam).split(" ").slice(-2).join(" ");
+    return norm(g.homeTeam).includes(hw) && norm(g.awayTeam).includes(aw) &&
+      timeClose(g.commenceTime, game.commenceTime);
+  });
 
   return match || null;
 }
@@ -51,7 +67,12 @@ GAME ${i + 1}: ${g.awayTeam} @ ${g.homeTeam}
   Odds: home ${g.homeOdds > 0 ? "+" : ""}${g.homeOdds} / away ${g.awayOdds > 0 ? "+" : ""}${g.awayOdds}
   Pick: ${g.pick} | True edge: ${g.trueEdgePct}% | Verdict: ${g.verdict} | Variance: ${g.variance}
   Flags: ${g.flags || "none"} | Park: ${g.parkFactor > 0 ? "+" : ""}${g.parkFactor} runs
-  Home SP: ${g.homePStr} | Away SP: ${g.awayPStr}
+  ${g.homeTeam} SP: ${g.homePStr}
+  ${g.awayTeam} SP: ${g.awayPStr}
+  ${g.homeTeam} bullpen: ${g.homeBullpenStr}
+  ${g.awayTeam} bullpen: ${g.awayBullpenStr}
+  ${g.homeTeam} record: ${g.homeRecordStr} | lineup vs pitcher: ${g.homeLineupStr}
+  ${g.awayTeam} record: ${g.awayRecordStr} | lineup vs pitcher: ${g.awayLineupStr}
   ${g.homeTeam} last 10: ${g.homeFormStr}
   ${g.awayTeam} last 10: ${g.awayFormStr}`).join("\n")}
 
@@ -161,18 +182,33 @@ export async function GET(request) {
       const filter        = applyFilterLayer(pick, { ...game, source: game.source }, mlb, modelProbRaw);
       const hf = mlb?.homeForm;
       const af = mlb?.awayForm;
+      const hb = mlb?.homeBullpen;
+      const ab = mlb?.awayBullpen;
+      const hs = mlb?.homeStandings;
+      const as_ = mlb?.awayStandings;
+      const hlo = mlb?.homeLineupOpsVsPitcher;
+      const alo = mlb?.awayLineupOpsVsPitcher;
       const ipStr = (p) => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";
       const hp = mlb?.homePitcher;
       const ap = mlb?.awayPitcher;
+      const bullStr = b => b
+        ? `${b.era} ERA, ${b.whip ?? "?"} WHIP, K/9 ${b.k9 ?? "?"}${b.isRolling ? ` (${b.window}d rolling)` : " (season)"}`
+        : "no data";
       return {
         game, mlb, pick,
         homePStr: hp ? `${hp.name} (${hp.wins}-${hp.losses}, ${hp.era} ERA, ${hp.whip} WHIP${ipStr(hp)})` : "TBD",
         awayPStr: ap ? `${ap.name} (${ap.wins}-${ap.losses}, ${ap.era} ERA, ${ap.whip} WHIP${ipStr(ap)})` : "N/A",
         homeFormStr: hf ? `${hf.avg} AVG, ${hf.ops} OPS, ${hf.homeRuns} HR, ${hf.runs} R` : "no data",
         awayFormStr: af ? `${af.avg} AVG, ${af.ops} OPS, ${af.homeRuns} HR, ${af.runs} R` : "no data",
+        homeBullpenStr: bullStr(hb),
+        awayBullpenStr: bullStr(ab),
+        homeRecordStr: hs ? `${hs.wins}-${hs.losses}` : "no data",
+        awayRecordStr: as_ ? `${as_.wins}-${as_.losses}` : "no data",
+        homeLineupStr: hlo != null ? `${parseFloat(hlo).toFixed(3)} OPS vs pitcher hand` : "not posted",
+        awayLineupStr: alo != null ? `${parseFloat(alo).toFixed(3)} OPS vs pitcher hand` : "not posted",
         homeTeam: game.homeTeam, awayTeam: game.awayTeam,
         homeOdds: game.homeOdds, awayOdds: game.awayOdds,
-        filter,  // pass through to avoid recomputing in buildPick
+        filter,
         trueEdgePct: filter.trueEdgePct, verdict: filter.verdict,
         variance: filter.variance, parkFactor: filter.parkFactor,
         flags: filter.flags.map(f => f.replace(/_/g, " ").toLowerCase()).join(", ") || "none",

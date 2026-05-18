@@ -22,67 +22,6 @@ const getMemCached = async (key, fn) => {
   return data;
 };
 
-
-// Single Claude call for all games — avoids rate limits and function timeout
-async function callClaudeBatch(gameContexts) {
-  const prompt = `You are a sharp MLB betting analyst. Be direct, honest, no hype. You understand that MLB has enormous variance and even strong edges lose frequently.
-
-RULES — never violate these:
-- Do NOT lead with pitcher ERA comparison as the main reason to bet. Pitching is one factor among many.
-- Do NOT treat a SP ERA/WHIP mismatch as the decisive edge unless sample size is large (50+ IP).
-- Flag any pitcher with under 40 IP as "small sample — stats not stable."
-- Bullpens finish ~40% of outs. Always note bullpen state if data is provided.
-- Offensive strength (OPS, run production) matters equally to pitching. Note it.
-- Edge % is a model estimate, NOT a calibrated probability. Never present it as precise.
-- MLB variance is extreme. Every pick can lose regardless of edge. Say so when honest_lean is written.
-- Do NOT treat "Value Pick" tier as guaranteed — it means the model sees edge, not a lock.
-
-Analyze these games and return a JSON array — one object per game, in the same order.
-
-${gameContexts.map((g, i) => `
-GAME ${i + 1}: ${g.awayTeam} @ ${g.homeTeam}
-  Odds: home ${g.homeOdds > 0 ? "+" : ""}${g.homeOdds} / away ${g.awayOdds > 0 ? "+" : ""}${g.awayOdds}
-  Pick: ${g.pick} | True edge: ${g.trueEdgePct}% | Verdict: ${g.verdict} | Variance: ${g.variance}
-  Flags: ${g.flags || "none"}
-  Park: ${g.parkFactor > 0 ? "+" : ""}${g.parkFactor} runs
-  Home SP: ${g.homePStr}
-  Away SP: ${g.awayPStr}
-  ${g.homeTeam} last 10: ${g.homeFormStr}
-  ${g.awayTeam} last 10: ${g.awayFormStr}`).join("\n")}
-
-Return ONLY a valid JSON array, no markdown. Each element:
-{
-  "preview": "2 sentences. Name pitchers but don't make SP the only story. Lead with the strongest signal — offense, bullpen, or edge. Flag small samples.",
-  "form_home": "1 sentence on home team offense with OPS/runs numbers, or 'no data'",
-  "form_away": "1 sentence on away team offense with OPS/runs numbers, or 'no data'",
-  "what_decides": "1 sentence — single factor (could be bullpen, lineup depth, park, SP — pick the real one)",
-  "what_to_sweat": "1 sentence — biggest risk to this pick losing, including MLB variance",
-  "honest_lean": "1-2 sentences blunt take. Say if edge is thin noise or real signal. Remind that all MLB picks carry variance.",
-  "score_range": "e.g. 5-3",
-  "tier": { "level": "High" }
-}`;
-
-  try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 4096,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
-    const data = await res.json();
-    const text = data.content?.[0]?.text || "[]";
-    const clean = text.replace(/```json|```/g, "").trim();
-    return JSON.parse(clean);
-  } catch { return []; }
-}
-
 function buildPick(game, mlb, breakdown) {
   const modelProbRaw = getModelProbability(game, mlb);
 
@@ -128,23 +67,38 @@ function buildPick(game, mlb, breakdown) {
 }
 
 function matchMLBGame(game, mlbGames) {
-  const lastWord = s => (s || "").trim().split(" ").pop().toLowerCase();
-  const cityWord = s => (s || "").trim().split(" ")[0].toLowerCase(); // "Detroit", "New", "Los"
+  const norm = s => (s || "").toLowerCase().trim();
+  const lastWord = s => norm(s).split(" ").pop();
+  // Reject matches where game times differ by more than 6 hours (prevents
+  // cross-game contamination when last-word matching is ambiguous).
+  const timeClose = (t1, t2) => {
+    if (!t1 || !t2) return true;
+    return Math.abs(new Date(t1) - new Date(t2)) < 6 * 3_600_000;
+  };
 
-  // Primary: match on last word of team name (e.g. "tigers", "guardians")
+  // 1. Exact normalized full name — most reliable when both APIs use official names
   let match = mlbGames.find(g =>
-    g.homeTeam?.toLowerCase().includes(lastWord(game.homeTeam)) &&
-    g.awayTeam?.toLowerCase().includes(lastWord(game.awayTeam))
+    norm(g.homeTeam) === norm(game.homeTeam) &&
+    norm(g.awayTeam) === norm(game.awayTeam) &&
+    timeClose(g.commenceTime, game.commenceTime)
   );
+  if (match) return match;
 
-  // Fallback: match on second-to-last word (catches "Red Sox" vs "White Sox" ambiguity)
-  if (!match) {
-    match = mlbGames.find(g => {
-      const hw = game.homeTeam?.trim().split(" ").slice(-2).join(" ").toLowerCase();
-      const aw = game.awayTeam?.trim().split(" ").slice(-2).join(" ").toLowerCase();
-      return g.homeTeam?.toLowerCase().includes(hw) && g.awayTeam?.toLowerCase().includes(aw);
-    });
-  }
+  // 2. Last-word substring with time guard
+  match = mlbGames.find(g =>
+    norm(g.homeTeam).includes(lastWord(game.homeTeam)) &&
+    norm(g.awayTeam).includes(lastWord(game.awayTeam)) &&
+    timeClose(g.commenceTime, game.commenceTime)
+  );
+  if (match) return match;
+
+  // 3. Two-word suffix (Red Sox / White Sox / Blue Jays) with time guard
+  match = mlbGames.find(g => {
+    const hw = norm(game.homeTeam).split(" ").slice(-2).join(" ");
+    const aw = norm(game.awayTeam).split(" ").slice(-2).join(" ");
+    return norm(g.homeTeam).includes(hw) && norm(g.awayTeam).includes(aw) &&
+      timeClose(g.commenceTime, game.commenceTime);
+  });
 
   return match || null;
 }
