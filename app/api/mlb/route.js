@@ -1,7 +1,7 @@
 import { fetchPitcherHardHit } from "../../../lib/savant.js";
 
 const MLB            = "https://statsapi.mlb.com/api/v1";
-const CURRENT_SEASON = 2026;
+const CURRENT_SEASON = new Date().getFullYear();
 
 function getPastDate(days) {
   const d = new Date();
