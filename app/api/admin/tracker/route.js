@@ -123,7 +123,7 @@ export async function POST(request) {
       result:        "pending",
     }));
 
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
       .from("model_picks")
       .upsert(rows, { onConflict: "date,game_id", ignoreDuplicates: true });
 
@@ -137,7 +137,7 @@ export async function POST(request) {
     const targetDate = date || new Date().toISOString().split("T")[0];
 
     // Fetch pending picks for this date
-    const { data: pending, error: fetchErr } = await supabase
+    const { data: pending, error: fetchErr } = await getSupabase()
       .from("model_picks")
       .select("*")
       .eq("date", targetDate)
@@ -197,7 +197,7 @@ export async function POST(request) {
 
     if (updates.length > 0) {
       for (const update of updates) {
-        await supabase
+        await getSupabase()
           .from("model_picks")
           .update({
             result:      update.result,
