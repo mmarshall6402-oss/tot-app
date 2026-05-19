@@ -125,9 +125,16 @@ export default function ToT() {
   const [freePick, setFreePick] = useState(null);
   const [carouselIdx, setCarouselIdx] = useState(0);
   const weekDates = getWeekDates();
-  const [selectedDate, setSelectedDate] = useState(weekDates[1]); // index 1 = Today (index 0 = Yesterday)
+  const [selectedDate, setSelectedDate] = useState(weekDates[1]);
   const [steals, setSteals] = useState(null);
-  const [isPro, setIsPro] = useState(null);
+  const [parlayLegs, setParlayLegs] = useState(new Set());
+  const [isPro, setIsPro] = useState(() => {
+    try {
+      const c = localStorage.getItem("tot-pro");
+      if (c) { const { v, e } = JSON.parse(c); if (Date.now() < e) return v; }
+    } catch {}
+    return null;
+  });
   const [checkingOut, setCheckingOut] = useState(false);
   const [modelRecord, setModelRecord] = useState(null);
   const [unitSize, setUnitSize] = useState(10);
@@ -154,7 +161,11 @@ export default function ToT() {
       .select("status")
       .eq("user_id", user.id)
       .single()
-      .then(({ data }) => setIsPro(["active", "trialing"].includes(data?.status ?? "")));
+      .then(({ data }) => {
+        const pro = ["active", "trialing"].includes(data?.status ?? "");
+        setIsPro(pro);
+        try { localStorage.setItem("tot-pro", JSON.stringify({ v: pro, e: Date.now() + 5 * 60 * 1000 })); } catch {}
+      });
   }, [user?.id]);
 
   // Poll for subscription after checkout redirect
@@ -167,7 +178,11 @@ export default function ToT() {
     const poll = setInterval(async () => {
       attempts++;
       const { data } = await getSupabase().from("subscriptions").select("status").eq("user_id", user.id).single();
-      if (["active", "trialing"].includes(data?.status)) { setIsPro(true); clearInterval(poll); }
+      if (["active", "trialing"].includes(data?.status)) {
+        setIsPro(true);
+        try { localStorage.setItem("tot-pro", JSON.stringify({ v: true, e: Date.now() + 5 * 60 * 1000 })); } catch {}
+        clearInterval(poll);
+      }
       if (attempts >= 6) clearInterval(poll);
     }, 2000);
     return () => clearInterval(poll);
@@ -244,12 +259,11 @@ export default function ToT() {
   };
 
   const fetchSteals = async (date) => {
-    setSteals(null);
     try {
       const res = await fetch(`/api/steals?date=${date}`);
       const data = await res.json();
       setSteals(data.steals || []);
-    } catch (e) { setSteals([]); }
+    } catch (e) { setSteals(prev => prev ?? []); }
   };
 
   const fetchPicks = async (date, bust = false) => {
@@ -257,8 +271,11 @@ export default function ToT() {
     try {
       const res = await fetch(`/api/picks?date=${date}${bust ? "&bust=1" : ""}`);
       const data = await res.json();
-      setPicks(data.picks || []);
-    } catch (e) { console.error("picks error", e); setPicks([]); }
+      const next = data.picks || [];
+      setPicks(next);
+      // Auto-select BET picks for parlay builder on fresh load
+      setParlayLegs(new Set(next.filter(p => p.isBet && p.homeOdds != null).map(p => p.id)));
+    } catch (e) { console.error("picks error", e); setPicks(prev => prev ?? []); }
     setLoading(false);
   };
 
@@ -804,6 +821,17 @@ export default function ToT() {
                     >
                       {isSaved ? "✓ Saved" : "+ Save"}
                     </button>
+                    {isBet && pick.homeOdds != null && (() => {
+                      const inParlay = parlayLegs.has(pick.id);
+                      return (
+                        <button
+                          style={{ ...S.saveBtn, background: inParlay ? "rgba(255,214,0,0.12)" : "transparent", color: inParlay ? "#FFD600" : "#333", borderColor: inParlay ? "#FFD600" : "#222" }}
+                          onClick={() => setParlayLegs(prev => { const n = new Set(prev); inParlay ? n.delete(pick.id) : n.add(pick.id); return n; })}
+                        >
+                          {inParlay ? "✓ Parlay" : "+ Parlay"}
+                        </button>
+                      );
+                    })()}
                     <button
                       style={{ ...S.expandBtn, borderColor: isOpen ? (isBet ? betColor : "#444") : "#222", color: isOpen ? (isBet ? betColor : "#444") : "#333" }}
                       onClick={() => setExpanded(isOpen ? null : pick.id)}
@@ -948,45 +976,44 @@ export default function ToT() {
           })
         )}
 
-        {/* Parlay Builder — shown at the bottom of the Picks tab when 2+ BET picks exist */}
+        {/* Parlay Builder — live, toggleable */}
         {activeTab === "picks" && picks !== null && (() => {
-          const betPicks = sorted.filter(p => p.isBet && p.homeOdds != null);
-          if (betPicks.length < 2) return null;
+          const legs = sorted.filter(p => parlayLegs.has(p.id));
+          if (legs.length < 2) return null;
+          const comboDec = legs.reduce((acc, leg) => {
+            const o = leg.pick === leg.homeTeam ? leg.homeOdds : leg.awayOdds;
+            if (!o) return acc;
+            return acc * (o > 0 ? 1 + o / 100 : 1 + 100 / Math.abs(o));
+          }, 1);
+          const comboAmerican = comboDec >= 2
+            ? `+${Math.round((comboDec - 1) * 100)}`
+            : `${Math.round(-100 / (comboDec - 1))}`;
+          const payout10 = ((comboDec - 1) * 10).toFixed(0);
+          const payout100 = ((comboDec - 1) * 100).toFixed(0);
           return (
-            <div style={{ marginTop: 4 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: "#333", letterSpacing: 1.5, marginBottom: 10 }}>PARLAY BUILDER</div>
-              {[
-                { label: "SAFE", legs: betPicks.slice(0, 2), color: "#00FF87" },
-                { label: "BALANCED", legs: betPicks.slice(0, 3), color: "#FFD600" },
-                { label: "AGGRESSIVE", legs: betPicks.slice(0, 4), color: "#FF4D4D" },
-              ].filter(c => c.legs.length >= 2).map(card => {
-                const comboDec = card.legs.reduce((acc, leg) => {
-                  const o = leg.pick === leg.homeTeam ? leg.homeOdds : leg.awayOdds;
-                  if (!o) return acc;
-                  return acc * (o > 0 ? 1 + o / 100 : 1 + 100 / Math.abs(o));
-                }, 1);
-                const comboAmerican = comboDec >= 2
-                  ? `+${Math.round((comboDec - 1) * 100)}`
-                  : `${Math.round(-100 / (comboDec - 1))}`;
-                const payout10 = ((comboDec - 1) * 10).toFixed(0);
+            <div style={{ background: "#080808", border: "1px solid rgba(255,214,0,0.2)", borderRadius: 14, padding: "14px", marginTop: 4 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 1.5 }}>PARLAY BUILDER</div>
+                  <div style={{ fontSize: 12, color: "#333", marginTop: 2 }}>{legs.length}-leg · toggle picks above</div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 20, fontWeight: 700, color: "#FFD600" }}>{comboAmerican}</div>
+                  <div style={{ fontSize: 10, color: "#333", marginTop: 2 }}>${payout10} on $10 · ${payout100} on $100</div>
+                </div>
+              </div>
+              {legs.map((leg, i) => {
+                const o = leg.pick === leg.homeTeam ? leg.homeOdds : leg.awayOdds;
                 return (
-                  <div key={card.label} style={{ background: "#080808", border: `1px solid ${card.color}22`, borderRadius: 12, padding: "12px 14px", marginBottom: 8 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                      <span style={{ fontSize: 11, fontWeight: 800, color: card.color, letterSpacing: 1 }}>{card.label} — {card.legs.length}-LEG</span>
-                      <div style={{ textAlign: "right" }}>
-                        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, fontWeight: 700, color: card.color }}>{comboAmerican}</div>
-                        <div style={{ fontSize: 10, color: "#333" }}>${payout10} profit on $10</div>
-                      </div>
+                  <div key={leg.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderTop: "1px solid #111" }}>
+                    <div>
+                      <div style={{ fontSize: 12, fontFamily: "'JetBrains Mono',monospace", color: "#aaa" }}>{leg.awayTeam} @ {leg.homeTeam}</div>
+                      <div style={{ fontSize: 11, color: "#00FF87", fontWeight: 700, marginTop: 2 }}>{leg.pick} {fmtOdds(o)}</div>
                     </div>
-                    {card.legs.map((leg, i) => (
-                      <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: i < card.legs.length - 1 ? "1px solid #111" : "none" }}>
-                        <span style={{ fontSize: 12, fontFamily: "'JetBrains Mono',monospace" }}>{leg.awayTeam} @ {leg.homeTeam}</span>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ fontSize: 11, color: leg.filter?.verdict === "CLEAN" ? "#00FF87" : "#FFD600", fontWeight: 700 }}>{leg.pick}</span>
-                          <span style={{ fontSize: 11, color: "#444", fontFamily: "'JetBrains Mono',monospace" }}>{leg.edge.toFixed(1)}% edge</span>
-                        </div>
-                      </div>
-                    ))}
+                    <button
+                      style={{ fontSize: 10, color: "#FF4D4D", background: "transparent", border: "1px solid #1a1a1a", borderRadius: 6, padding: "3px 8px", cursor: "pointer" }}
+                      onClick={() => setParlayLegs(prev => { const n = new Set(prev); n.delete(leg.id); return n; })}
+                    >✕</button>
                   </div>
                 );
               })}
