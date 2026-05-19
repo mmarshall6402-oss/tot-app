@@ -127,7 +127,9 @@ export default function ToT() {
   const weekDates = getWeekDates();
   const [selectedDate, setSelectedDate] = useState(weekDates[1]);
   const [steals, setSteals] = useState(null);
-  const [parlayLegs, setParlayLegs] = useState(new Set());
+  const [parlayLegs, setParlayLegs] = useState(new Map()); // id -> { game, teamPick }
+  const [parlayStake, setParlayStake] = useState(10);
+  const [picksDate, setPicksDate] = useState(null); // tracks which date picks were loaded for
   const [isPro, setIsPro] = useState(() => {
     try {
       const c = localStorage.getItem("tot-pro");
@@ -211,6 +213,7 @@ export default function ToT() {
   useEffect(() => {
     if (!user) return;
     if (activeTab === "picks") fetchPicks(selectedDate);
+    if (activeTab === "parlay" && picksDate !== selectedDate) fetchPicks(selectedDate);
     if (activeTab === "steals") fetchSteals(selectedDate);
     if (activeTab === "tracker") fetchSaved();
   }, [user, activeTab, selectedDate]);
@@ -273,8 +276,16 @@ export default function ToT() {
       const data = await res.json();
       const next = data.picks || [];
       setPicks(next);
-      // Auto-select BET picks for parlay builder on fresh load
-      setParlayLegs(new Set(next.filter(p => p.isBet && p.homeOdds != null).map(p => p.id)));
+      setPicksDate(prev => {
+        // Only reset parlay legs when the date changes (not on tab switch re-fetch)
+        if (prev !== date) {
+          setParlayLegs(new Map(
+            next.filter(p => p.isBet && p.homeOdds != null)
+                .map(p => [p.id, { game: p, teamPick: p.pick }])
+          ));
+        }
+        return date;
+      });
     } catch (e) { console.error("picks error", e); setPicks(prev => prev ?? []); }
     setLoading(false);
   };
@@ -353,6 +364,18 @@ export default function ToT() {
     if (vb !== va) return vb - va;
     return (b.edge || 0) - (a.edge || 0);
   });
+
+  // Parlay builder computed values
+  const parlayLegsList = [...parlayLegs.values()];
+  const parlayDec = parlayLegsList.reduce((acc, { game, teamPick }) => {
+    const o = teamPick === game.homeTeam ? game.homeOdds : game.awayOdds;
+    if (!o) return acc;
+    return acc * (o > 0 ? 1 + o / 100 : 1 + 100 / Math.abs(o));
+  }, 1);
+  const parlayAmerican = parlayLegsList.length < 2 ? "—"
+    : parlayDec >= 2 ? `+${Math.round((parlayDec - 1) * 100)}`
+    : `-${Math.round(100 / (parlayDec - 1))}`;
+  const parlayProfit = parlayLegsList.length >= 2 ? ((parlayDec - 1) * parlayStake).toFixed(2) : "0.00";
 
   // Tracker stats — push = stake returned, doesn't count for win/loss rate
   const wins    = savedPicks.filter(p => p.result === "win").length;
@@ -555,9 +578,14 @@ export default function ToT() {
             <div style={S.drawerLogo}>T<span style={{ color: "#00FF87" }}>|</span>T</div>
             <div style={S.drawerEmail}>{user.email}</div>
             <div style={S.drawerLine} />
-            {["picks", "steals", "tracker"].map(t => (
-              <div key={t} style={{ ...S.drawerItem, color: activeTab === t ? "#00FF87" : "#fff" }} onClick={() => { setActiveTab(t); setDrawerOpen(false); }}>
-                {t === "picks" ? "⚾" : t === "steals" ? "🔥" : "📊"} {t.charAt(0).toUpperCase() + t.slice(1)}
+            {[
+              { id: "picks", icon: "⚾", label: "Picks" },
+              { id: "steals", icon: "🔥", label: "Steals" },
+              { id: "parlay", icon: "🎲", label: "Parlay" },
+              { id: "tracker", icon: "📊", label: "Tracker" },
+            ].map(({ id, icon, label }) => (
+              <div key={id} style={{ ...S.drawerItem, color: activeTab === id ? "#00FF87" : "#fff" }} onClick={() => { setActiveTab(id); setDrawerOpen(false); }}>
+                {icon} {label}
               </div>
             ))}
             <div style={S.drawerLine} />
@@ -637,7 +665,7 @@ export default function ToT() {
         </div>
       </div>
 
-      {(activeTab === "picks" || activeTab === "steals") && (
+      {(activeTab === "picks" || activeTab === "steals" || activeTab === "parlay") && (
         <div style={S.dateScroll}>
           {weekDates.map(date => (
             <button
@@ -658,13 +686,18 @@ export default function ToT() {
 
       <div style={S.subNav}>
         <div style={{ display: "flex", gap: 6 }}>
-          {["picks", "steals", "tracker"].map(t => (
+          {[
+            { id: "picks", label: "Picks" },
+            { id: "steals", label: "Steals" },
+            { id: "parlay", label: "🎲 Parlay" },
+            { id: "tracker", label: "Tracker" },
+          ].map(({ id, label }) => (
             <button
-              key={t}
-              style={{ ...S.tabBtn, borderColor: activeTab === t ? "#00FF87" : "#1a1a1a", color: activeTab === t ? "#00FF87" : "#444" }}
-              onClick={() => setActiveTab(t)}
+              key={id}
+              style={{ ...S.tabBtn, borderColor: activeTab === id ? "#00FF87" : "#1a1a1a", color: activeTab === id ? "#00FF87" : "#444" }}
+              onClick={() => setActiveTab(id)}
             >
-              {t.charAt(0).toUpperCase() + t.slice(1)}
+              {label}
             </button>
           ))}
         </div>
@@ -821,12 +854,12 @@ export default function ToT() {
                     >
                       {isSaved ? "✓ Saved" : "+ Save"}
                     </button>
-                    {isBet && pick.homeOdds != null && (() => {
+                    {pick.homeOdds != null && (() => {
                       const inParlay = parlayLegs.has(pick.id);
                       return (
                         <button
                           style={{ ...S.saveBtn, background: inParlay ? "rgba(255,214,0,0.12)" : "transparent", color: inParlay ? "#FFD600" : "#333", borderColor: inParlay ? "#FFD600" : "#222" }}
-                          onClick={() => setParlayLegs(prev => { const n = new Set(prev); inParlay ? n.delete(pick.id) : n.add(pick.id); return n; })}
+                          onClick={() => setParlayLegs(prev => { const n = new Map(prev); inParlay ? n.delete(pick.id) : n.set(pick.id, { game: pick, teamPick: pick.pick }); return n; })}
                         >
                           {inParlay ? "✓ Parlay" : "+ Parlay"}
                         </button>
@@ -976,50 +1009,15 @@ export default function ToT() {
           })
         )}
 
-        {/* Parlay Builder — live, toggleable */}
-        {activeTab === "picks" && picks !== null && (() => {
-          const legs = sorted.filter(p => parlayLegs.has(p.id));
-          if (legs.length < 2) return null;
-          const comboDec = legs.reduce((acc, leg) => {
-            const o = leg.pick === leg.homeTeam ? leg.homeOdds : leg.awayOdds;
-            if (!o) return acc;
-            return acc * (o > 0 ? 1 + o / 100 : 1 + 100 / Math.abs(o));
-          }, 1);
-          const comboAmerican = comboDec >= 2
-            ? `+${Math.round((comboDec - 1) * 100)}`
-            : `${Math.round(-100 / (comboDec - 1))}`;
-          const payout10 = ((comboDec - 1) * 10).toFixed(0);
-          const payout100 = ((comboDec - 1) * 100).toFixed(0);
-          return (
-            <div style={{ background: "#080808", border: "1px solid rgba(255,214,0,0.2)", borderRadius: 14, padding: "14px", marginTop: 4 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 1.5 }}>PARLAY BUILDER</div>
-                  <div style={{ fontSize: 12, color: "#333", marginTop: 2 }}>{legs.length}-leg · toggle picks above</div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 20, fontWeight: 700, color: "#FFD600" }}>{comboAmerican}</div>
-                  <div style={{ fontSize: 10, color: "#333", marginTop: 2 }}>${payout10} on $10 · ${payout100} on $100</div>
-                </div>
-              </div>
-              {legs.map((leg, i) => {
-                const o = leg.pick === leg.homeTeam ? leg.homeOdds : leg.awayOdds;
-                return (
-                  <div key={leg.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderTop: "1px solid #111" }}>
-                    <div>
-                      <div style={{ fontSize: 12, fontFamily: "'JetBrains Mono',monospace", color: "#aaa" }}>{leg.awayTeam} @ {leg.homeTeam}</div>
-                      <div style={{ fontSize: 11, color: "#00FF87", fontWeight: 700, marginTop: 2 }}>{leg.pick} {fmtOdds(o)}</div>
-                    </div>
-                    <button
-                      style={{ fontSize: 10, color: "#FF4D4D", background: "transparent", border: "1px solid #1a1a1a", borderRadius: 6, padding: "3px 8px", cursor: "pointer" }}
-                      onClick={() => setParlayLegs(prev => { const n = new Set(prev); n.delete(leg.id); return n; })}
-                    >✕</button>
-                  </div>
-                );
-              })}
-            </div>
-          );
-        })()}
+        {activeTab === "picks" && parlayLegs.size >= 2 && (
+          <button
+            style={{ width: "100%", marginTop: 4, padding: "10px 14px", background: "rgba(255,214,0,0.06)", border: "1px solid rgba(255,214,0,0.2)", borderRadius: 12, color: "#FFD600", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}
+            onClick={() => setActiveTab("parlay")}
+          >
+            <span>🎲 {parlayLegs.size}-leg parlay ready</span>
+            <span style={{ fontSize: 11, color: "#555" }}>Open builder →</span>
+          </button>
+        )}
 
         {activeTab === "steals" && (
           steals === null ? (
@@ -1168,6 +1166,114 @@ export default function ToT() {
               )}
             </>
           )
+        )}
+
+        {activeTab === "parlay" && (
+          <>
+            {picks === null && (
+              <div style={S.center}><div style={S.spinner} /></div>
+            )}
+            {picks !== null && (
+              <>
+                {/* Header: odds + stake */}
+                <div style={{ background: "#080808", border: "1px solid rgba(255,214,0,0.2)", borderRadius: 14, padding: 16, marginBottom: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
+                    <div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 1.5, marginBottom: 4 }}>COMBINED ODDS</div>
+                      <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 28, fontWeight: 700, color: parlayLegsList.length >= 2 ? "#FFD600" : "#333" }}>{parlayAmerican}</div>
+                      <div style={{ fontSize: 11, color: "#333", marginTop: 2 }}>{parlayLegsList.length} leg{parlayLegsList.length !== 1 ? "s" : ""} selected</div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 1.5, marginBottom: 6 }}>STAKE</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <span style={{ fontSize: 13, color: "#555" }}>$</span>
+                        <input
+                          type="number"
+                          min="1"
+                          step="any"
+                          value={parlayStake}
+                          onChange={e => setParlayStake(Math.max(1, parseFloat(e.target.value) || 1))}
+                          style={{ width: 70, background: "#111", border: "1px solid #222", borderRadius: 6, color: "#fff", fontSize: 15, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, padding: "4px 8px", textAlign: "right" }}
+                        />
+                      </div>
+                      {parlayLegsList.length >= 2 && (
+                        <div style={{ marginTop: 6 }}>
+                          <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 16, fontWeight: 700, color: "#00FF87" }}>${(parseFloat(parlayProfit) + parlayStake).toFixed(2)}</div>
+                          <div style={{ fontSize: 10, color: "#555" }}>+${parlayProfit} profit</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {/* Selected legs */}
+                  {parlayLegsList.length === 0 ? (
+                    <div style={{ fontSize: 13, color: "#333", textAlign: "center", padding: "8px 0" }}>Tap any game below to add legs</div>
+                  ) : parlayLegsList.map(({ game, teamPick }) => {
+                    const o = teamPick === game.homeTeam ? game.homeOdds : game.awayOdds;
+                    return (
+                      <div key={game.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderTop: "1px solid #111" }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 11, color: "#555" }}>{game.awayTeam} @ {game.homeTeam}</div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "#FFD600" }}>{teamPick}{o != null ? ` ${fmtOdds(o)}` : ""}</div>
+                        </div>
+                        <button
+                          style={{ fontSize: 11, color: "#FF4D4D", background: "transparent", border: "1px solid #1a1a1a", borderRadius: 6, padding: "4px 10px", cursor: "pointer", flexShrink: 0 }}
+                          onClick={() => setParlayLegs(prev => { const n = new Map(prev); n.delete(game.id); return n; })}
+                        >✕</button>
+                      </div>
+                    );
+                  })}
+                  {parlayLegsList.length >= 2 && (
+                    <button
+                      style={{ width: "100%", marginTop: 10, padding: "8px 0", background: "transparent", border: "1px solid #1a1a1a", borderRadius: 8, color: "#333", fontSize: 11, cursor: "pointer" }}
+                      onClick={() => setParlayLegs(new Map())}
+                    >Clear all</button>
+                  )}
+                </div>
+
+                {/* All games */}
+                <div style={{ fontSize: 10, fontWeight: 700, color: "#333", letterSpacing: 1.5, marginBottom: 8 }}>ALL GAMES — {fmtDateLabel(selectedDate).toUpperCase()}</div>
+                {picks.length === 0 ? (
+                  <div style={{ color: "#333", fontSize: 13, textAlign: "center", padding: 24 }}>No games for this date</div>
+                ) : picks.map(game => {
+                  const leg = parlayLegs.get(game.id);
+                  const homeSel = leg?.teamPick === game.homeTeam;
+                  const awaySel = leg?.teamPick === game.awayTeam;
+                  const selectSide = (teamPick) => setParlayLegs(prev => {
+                    const n = new Map(prev);
+                    if (leg?.teamPick === teamPick) { n.delete(game.id); } else { n.set(game.id, { game, teamPick }); }
+                    return n;
+                  });
+                  return (
+                    <div key={game.id} style={{ ...S.card, borderColor: leg ? "rgba(255,214,0,0.25)" : "#1a1a1a", marginBottom: 8 }}>
+                      <div style={{ fontSize: 11, color: "#555", marginBottom: 8 }}>
+                        {fmtGameTime(game.commenceTime)}
+                        {game.isBet && <span style={{ color: "#00FF87", fontWeight: 700, marginLeft: 6 }}>BET ↑</span>}
+                      </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button
+                          style={{ flex: 1, padding: "10px 8px", borderRadius: 10, border: `1px solid ${awaySel ? "#FFD600" : "#1a1a1a"}`, background: awaySel ? "rgba(255,214,0,0.1)" : "transparent", cursor: "pointer", textAlign: "left" }}
+                          onClick={() => selectSide(game.awayTeam)}
+                        >
+                          <div style={{ fontSize: 10, color: "#555", marginBottom: 3 }}>AWAY</div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: awaySel ? "#FFD600" : "#fff" }}>{game.awayTeam.split(" ").pop()}</div>
+                          {game.awayOdds != null && <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: awaySel ? "#FFD600" : "#555", marginTop: 2 }}>{fmtOdds(game.awayOdds)}</div>}
+                        </button>
+                        <div style={{ display: "flex", alignItems: "center", fontSize: 11, color: "#222", flexShrink: 0 }}>@</div>
+                        <button
+                          style={{ flex: 1, padding: "10px 8px", borderRadius: 10, border: `1px solid ${homeSel ? "#FFD600" : "#1a1a1a"}`, background: homeSel ? "rgba(255,214,0,0.1)" : "transparent", cursor: "pointer", textAlign: "right" }}
+                          onClick={() => selectSide(game.homeTeam)}
+                        >
+                          <div style={{ fontSize: 10, color: "#555", marginBottom: 3 }}>HOME</div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: homeSel ? "#FFD600" : "#fff" }}>{game.homeTeam.split(" ").pop()}</div>
+                          {game.homeOdds != null && <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: homeSel ? "#FFD600" : "#555", marginTop: 2 }}>{fmtOdds(game.homeOdds)}</div>}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
+            )}
+          </>
         )}
 
         {activeTab === "tracker" && (
