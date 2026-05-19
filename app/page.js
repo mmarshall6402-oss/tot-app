@@ -5,7 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 
 const getSupabase = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
-const fmtOdds = (o) => (o > 0 ? `+${o}` : `${o}`);
+const fmtOdds = (o) => o == null ? "—" : (o > 0 ? `+${o}` : `${o}`);
 
 function fmtGameTime(iso) {
   return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
@@ -48,13 +48,14 @@ const TIER = {
 };
 
 function AccuracyPanel({ savedPicks }) {
+  // Exclude push from win-rate denominator (push = stake returned, no P&L impact)
   const settled = savedPicks.filter(p => p.result !== "pending");
-  const total = settled.length;
-  const wins = settled.filter(p => p.result === "win").length;
-  const winPct = total > 0 ? Math.round((wins / total) * 100) : null;
+  const decisioned = settled.filter(p => p.result !== "push");
+  const wins = decisioned.filter(p => p.result === "win").length;
+  const winPct = decisioned.length > 0 ? Math.round((wins / decisioned.length) * 100) : null;
 
   const byTier = ["High", "Medium", "Low"].map(tier => {
-    const tPicks = settled.filter(p => p.tier === tier);
+    const tPicks = decisioned.filter(p => p.tier === tier);
     const tWins = tPicks.filter(p => p.result === "win").length;
     return {
       tier,
@@ -66,7 +67,6 @@ function AccuracyPanel({ savedPicks }) {
 
   const tierColor = { High: "#00FF87", Medium: "#FFD600", Low: "#888" };
   const tierLabel = { High: "🔥 Value", Medium: "✅ Solid", Low: "👀 Lean" };
-
   const rateColor = winPct === null ? "#333" : winPct >= 55 ? "#00FF87" : winPct >= 45 ? "#FFD600" : "#FF4D4D";
 
   return (
@@ -82,7 +82,7 @@ function AccuracyPanel({ savedPicks }) {
         <div style={{ marginTop: 8, height: 3, background: "#111", borderRadius: 2 }}>
           <div style={{ height: "100%", borderRadius: 2, width: `${winPct || 0}%`, background: rateColor, transition: "width 0.6s ease" }} />
         </div>
-        <div style={{ fontSize: 11, color: "#333", marginTop: 6 }}>{total} settled pick{total !== 1 ? "s" : ""}</div>
+        <div style={{ fontSize: 11, color: "#333", marginTop: 6 }}>{decisioned.length} settled pick{decisioned.length !== 1 ? "s" : ""}</div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 10 }}>
         {byTier.map(({ tier, total: t, pct }) => (
@@ -98,7 +98,7 @@ function AccuracyPanel({ savedPicks }) {
           </div>
         ))}
       </div>
-      {total === 0 && (
+      {settled.length === 0 && (
         <div style={{ fontSize: 12, color: "#333", marginTop: 10, lineHeight: 1.6 }}>
           Save picks and mark results to see accuracy here
         </div>
@@ -118,14 +118,14 @@ export default function ToT() {
   const [savedPicks, setSavedPicks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("picks");
-  const [sortBy, setSortBy] = useState("confidence");
+  const [sortBy, setSortBy] = useState("edge");
   const [expanded, setExpanded] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [saving, setSaving] = useState({});
   const [freePick, setFreePick] = useState(null);
   const [carouselIdx, setCarouselIdx] = useState(0);
   const weekDates = getWeekDates();
-  const [selectedDate, setSelectedDate] = useState(weekDates[1]); // default to Today; Yesterday is tab[0]
+  const [selectedDate, setSelectedDate] = useState(weekDates[1]); // index 1 = Today (index 0 = Yesterday)
   const [steals, setSteals] = useState(null);
   const [isPro, setIsPro] = useState(null);
   const [checkingOut, setCheckingOut] = useState(false);
@@ -134,12 +134,17 @@ export default function ToT() {
   const [copied, setCopied] = useState(false);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
 
+  // Auth state
   useEffect(() => {
-    createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY).auth.getSession().then(({ data: { session } }) => setUser(session?.user ?? null));
-    const { data: { subscription } } = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY).auth.onAuthStateChange((_e, s) => setUser(s?.user ?? null));
+    createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+      .auth.getSession()
+      .then(({ data: { session } }) => setUser(session?.user ?? null));
+    const { data: { subscription } } = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+      .auth.onAuthStateChange((_e, s) => setUser(s?.user ?? null));
     return () => subscription.unsubscribe();
   }, []);
 
+  // Subscription check
   useEffect(() => {
     if (!user) { setIsPro(null); return; }
     const admins = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "").split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
@@ -152,6 +157,7 @@ export default function ToT() {
       .then(({ data }) => setIsPro(["active", "trialing"].includes(data?.status ?? "")));
   }, [user?.id]);
 
+  // Poll for subscription after checkout redirect
   useEffect(() => {
     if (!user) return;
     const params = new URLSearchParams(window.location.search);
@@ -167,6 +173,7 @@ export default function ToT() {
     return () => clearInterval(poll);
   }, [user?.id]);
 
+  // Load free pick, model record, start carousel
   useEffect(() => {
     fetch("/api/free-pick").then(r => r.json()).then(d => setFreePick(d.pick || null)).catch(() => {});
     fetch("/api/model-record").then(r => r.json()).then(d => setModelRecord(d)).catch(() => {});
@@ -174,6 +181,7 @@ export default function ToT() {
     return () => clearInterval(t);
   }, []);
 
+  // iOS install prompt (shown after 1.5s if not dismissed)
   useEffect(() => {
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     const isStandalone = window.navigator.standalone;
@@ -184,6 +192,7 @@ export default function ToT() {
     }
   }, []);
 
+  // Tab data fetching
   useEffect(() => {
     if (!user) return;
     if (activeTab === "picks") fetchPicks(selectedDate);
@@ -210,13 +219,18 @@ export default function ToT() {
   };
 
   const manageBilling = async () => {
-    const res = await fetch("/api/stripe/portal", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: user.id }),
-    });
-    const { url } = await res.json();
-    if (url) window.location.href = url;
+    try {
+      const res = await fetch("/api/stripe/portal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id }),
+      });
+      const data = await res.json();
+      if (data.url) { window.location.href = data.url; return; }
+      alert(data.error || "Billing portal unavailable. Contact support.");
+    } catch (e) {
+      alert("Could not open billing portal. Try again later.");
+    }
   };
 
   const copySteals = () => {
@@ -315,22 +329,24 @@ export default function ToT() {
   };
 
   const sorted = [...(picks || [])].sort((a, b) => {
-    if (sortBy === "confidence") {
-      const vRank = { CLEAN: 3, BET: 2, PASS: 1, TRAP: 0 };
-      const va = vRank[a.filter?.verdict] ?? (a.isBet ? 2 : 1);
-      const vb = vRank[b.filter?.verdict] ?? (b.isBet ? 2 : 1);
-      if (vb !== va) return vb - va;
-      return (b.edge || 0) - (a.edge || 0);
-    }
-    return new Date(a.commenceTime) - new Date(b.commenceTime);
+    if (sortBy === "time") return new Date(a.commenceTime) - new Date(b.commenceTime);
+    const vRank = { CLEAN: 3, BET: 2, PASS: 1, TRAP: 0 };
+    const va = vRank[a.filter?.verdict] ?? (a.isBet ? 2 : 1);
+    const vb = vRank[b.filter?.verdict] ?? (b.isBet ? 2 : 1);
+    if (vb !== va) return vb - va;
+    return (b.edge || 0) - (a.edge || 0);
   });
 
-  const wins = savedPicks.filter(p => p.result === "win").length;
-  const losses = savedPicks.filter(p => p.result === "loss").length;
-  const total = savedPicks.filter(p => p.result !== "pending").length;
-  const winPct = total > 0 ? Math.round((wins / total) * 100) : 0;
+  // Tracker stats — push = stake returned, doesn't count for win/loss rate
+  const wins    = savedPicks.filter(p => p.result === "win").length;
+  const losses  = savedPicks.filter(p => p.result === "loss").length;
+  const pushes  = savedPicks.filter(p => p.result === "push").length;
+  const total   = savedPicks.filter(p => p.result !== "pending").length;
+  const decisioned = wins + losses;
+  const winPct  = decisioned > 0 ? Math.round((wins / decisioned) * 100) : 0;
 
-  const pnl = savedPicks.filter(p => p.result !== "pending").reduce((sum, p) => {
+  const pnl = savedPicks.filter(p => p.result !== "pending" && p.result !== "push").reduce((sum, p) => {
+    if (!p.odds) return sum; // no odds data for past games
     if (p.result === "win") {
       const o = p.odds;
       return sum + (o > 0 ? unitSize * o / 100 : unitSize * 100 / Math.abs(o));
@@ -338,14 +354,23 @@ export default function ToT() {
     return sum - unitSize;
   }, 0);
 
+  // Current streak (skips pushes)
   const settledByDate = [...savedPicks]
-    .filter(p => p.result !== "pending")
+    .filter(p => p.result !== "pending" && p.result !== "push")
     .sort((a, b) => new Date(b.commence_time) - new Date(a.commence_time));
   let streakLen = 0, streakType = null;
   if (settledByDate.length) {
     streakType = settledByDate[0].result;
     for (const p of settledByDate) { if (p.result === streakType) streakLen++; else break; }
   }
+
+  // Carousel slides: [free pick, model record, promo]
+  const carouselSlides = [
+    { type: "free-pick" },
+    { type: "record" },
+    { type: "promo" },
+  ];
+  const slide = carouselSlides[carouselIdx % carouselSlides.length];
 
   if (!user) return (
     <div style={S.page}>
@@ -435,7 +460,7 @@ export default function ToT() {
             "All daily picks with full model breakdown",
             "Steals — only bets passing every condition",
             "Parlay builder from CLEAN picks only",
-            "Pick tracker + personal win rate",
+            "Pick tracker + personal win rate + P&L",
             "Sharp filter: confidence, variance, edge per game",
           ].map((f, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: "1px solid #0d0d0d" }}>
@@ -536,27 +561,61 @@ export default function ToT() {
         <div style={S.navBadge}>MLB</div>
       </div>
 
+      {/* Carousel — cycles between free pick, model record, and promo */}
       <div style={S.carousel}>
-        <div style={S.carouselTag}>FREE PICK</div>
-        {freePick ? (
+        {slide.type === "free-pick" && (
           <>
-            <div style={S.carouselMatchup}>{freePick.awayTeam} @ {freePick.homeTeam}</div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6 }}>
-              <span style={{ ...S.badge, background: TIER[freePick.tier?.level]?.bg, color: TIER[freePick.tier?.level]?.color }}>
-                {TIER[freePick.tier?.level]?.label}
-              </span>
-              <span style={{ fontSize: 12, color: "#555" }}>Take {freePick.pick}</span>
-            </div>
-            {freePick.breakdown?.preview && (
-              <div style={{ fontSize: 12, color: "#555", marginTop: 6, lineHeight: 1.5 }}>{freePick.breakdown.preview}</div>
+            <div style={S.carouselTag}>FREE PICK</div>
+            {freePick ? (
+              <>
+                <div style={S.carouselMatchup}>{freePick.awayTeam} @ {freePick.homeTeam}</div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6 }}>
+                  <span style={{ ...S.badge, background: TIER[freePick.tier?.level]?.bg, color: TIER[freePick.tier?.level]?.color }}>
+                    {TIER[freePick.tier?.level]?.label}
+                  </span>
+                  <span style={{ fontSize: 12, color: "#555" }}>Take {freePick.pick}</span>
+                </div>
+                {freePick.breakdown?.preview && (
+                  <div style={{ fontSize: 12, color: "#555", marginTop: 6, lineHeight: 1.5 }}>{freePick.breakdown.preview}</div>
+                )}
+              </>
+            ) : (
+              <div style={{ color: "#333", fontSize: 13 }}>No actionable bet today — check back tomorrow</div>
             )}
           </>
-        ) : (
-          <div style={{ color: "#333", fontSize: 13 }}>Loading…</div>
+        )}
+        {slide.type === "record" && (
+          <>
+            <div style={S.carouselTag}>MODEL RECORD</div>
+            {modelRecord?.total > 0 ? (
+              <>
+                <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 20, fontWeight: 700, marginTop: 4 }}>
+                  <span style={{ color: "#00FF87" }}>{modelRecord.wins}</span>
+                  <span style={{ color: "#444" }}>-</span>
+                  <span style={{ color: "#FF4D4D" }}>{modelRecord.losses}</span>
+                </div>
+                <div style={{ fontSize: 12, color: "#444", marginTop: 4 }}>
+                  {modelRecord.pct}% win rate · {modelRecord.total} tracked bets
+                </div>
+              </>
+            ) : (
+              <div style={{ color: "#333", fontSize: 13, marginTop: 4 }}>Track record populates as picks resolve</div>
+            )}
+          </>
+        )}
+        {slide.type === "promo" && (
+          <>
+            <div style={S.carouselTag}>SHARP FILTER</div>
+            <div style={{ fontSize: 13, color: "#888", marginTop: 4, lineHeight: 1.5 }}>
+              Every bet must pass 13+ conditions: confidence, variance, edge, juice, park factor, pitcher quality & more.
+            </div>
+            <div style={{ fontSize: 11, color: "#00FF87", marginTop: 6 }}>⚡ CLEAN = all conditions passed</div>
+          </>
         )}
         <div style={{ display: "flex", gap: 5, marginTop: 10 }}>
-          {[0, 1, 2].map(i => (
-            <div key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: carouselIdx % 3 === i ? "#00FF87" : "#1a1a1a" }} />
+          {carouselSlides.map((_, i) => (
+            <div key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: carouselIdx % carouselSlides.length === i ? "#00FF87" : "#1a1a1a", cursor: "pointer" }}
+              onClick={() => setCarouselIdx(i)} />
           ))}
         </div>
       </div>
@@ -594,13 +653,13 @@ export default function ToT() {
         </div>
         {activeTab === "picks" && (
           <div style={{ display: "flex", gap: 4 }}>
-            {["confidence", "time"].map(s2 => (
+            {["edge", "time"].map(s2 => (
               <button
                 key={s2}
                 style={{ ...S.sortBtn, background: sortBy === s2 ? "#00FF87" : "transparent", color: sortBy === s2 ? "#000" : "#444" }}
                 onClick={() => setSortBy(s2)}
               >
-                {s2 === "confidence" ? "🎯" : "🕐"}
+                {s2 === "edge" ? "📈" : "🕐"}
               </button>
             ))}
             <button
@@ -659,12 +718,15 @@ export default function ToT() {
             // Compute result if game is final
             let pickResult = null;
             if (ls?.status === "Final" && ls.homeScore !== null && ls.awayScore !== null) {
-              const homeWon = ls.homeScore > ls.awayScore;
-              const pickedHome = pick.pick === pick.homeTeam;
-              pickResult = (homeWon === pickedHome) ? "win" : "loss";
+              if (ls.homeScore === ls.awayScore) {
+                pickResult = "push";
+              } else {
+                const homeWon = ls.homeScore > ls.awayScore;
+                const pickedHome = pick.pick === pick.homeTeam;
+                pickResult = (homeWon === pickedHome) ? "win" : "loss";
+              }
             }
 
-            // BET/PASS colors
             const betColor  = "#00FF87";
             const passColor = "#333";
             const resultBorderColor = pickResult === "win" ? "#00FF87" : pickResult === "loss" ? "#FF4D4D" : null;
@@ -674,7 +736,6 @@ export default function ToT() {
               <div key={pick.id} style={{ ...S.card, borderColor: cardBorder }}>
                 <div style={S.cardTop}>
                   <div style={{ flex: 1 }}>
-                    {/* Verdict badge row */}
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                       {pick.filter?.verdict === "CLEAN" ? (
                         <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, background: "rgba(0,255,135,0.15)", color: "#00FF87", border: "1px solid rgba(0,255,135,0.5)" }}>
@@ -693,7 +754,6 @@ export default function ToT() {
                       <span style={{ fontSize: 11, color: isBet ? "#555" : "#333", fontFamily: "'JetBrains Mono',monospace" }}>
                         {edge.toFixed(1)}% edge
                       </span>
-                      {/* Tier label only on BET/CLEAN picks — meaningless on PASS */}
                       {isBet && (
                         <span style={{ fontSize: 10, color: t.color, opacity: 0.7 }}>
                           {t.label}
@@ -703,7 +763,7 @@ export default function ToT() {
                     <div style={S.cardMatchup}>{pick.awayTeam} @ {pick.homeTeam}</div>
                     <div style={S.cardMeta}>
                       {fmtGameTime(pick.commenceTime)} · Take <span style={{ color: isBet ? betColor : "#aaa", fontWeight: 700 }}>{pick.pick}</span>
-                      {isBet && <span style={{ color: "#444", fontFamily: "'JetBrains Mono',monospace" }}> · {pick.pick === pick.homeTeam ? fmtOdds(pick.homeOdds) : fmtOdds(pick.awayOdds)}</span>}
+                      {isBet && pick.homeOdds != null && <span style={{ color: "#444", fontFamily: "'JetBrains Mono',monospace" }}> · {fmtOdds(pick.pick === pick.homeTeam ? pick.homeOdds : pick.awayOdds)}</span>}
                     </div>
                     <div style={{ marginTop: 7, display: "flex", alignItems: "center", gap: 7 }}>
                       <div style={{ flex: 1, height: 3, background: "#111", borderRadius: 2 }}>
@@ -724,11 +784,11 @@ export default function ToT() {
                         {pickResult && (
                           <span style={{
                             fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5,
-                            background: pickResult === "win" ? "rgba(0,255,135,0.12)" : "rgba(255,77,77,0.12)",
-                            color: pickResult === "win" ? "#00FF87" : "#FF4D4D",
-                            border: `1px solid ${pickResult === "win" ? "rgba(0,255,135,0.3)" : "rgba(255,77,77,0.3)"}`,
+                            background: pickResult === "win" ? "rgba(0,255,135,0.12)" : pickResult === "loss" ? "rgba(255,77,77,0.12)" : "rgba(255,214,0,0.08)",
+                            color: pickResult === "win" ? "#00FF87" : pickResult === "loss" ? "#FF4D4D" : "#FFD600",
+                            border: `1px solid ${pickResult === "win" ? "rgba(0,255,135,0.3)" : pickResult === "loss" ? "rgba(255,77,77,0.3)" : "rgba(255,214,0,0.3)"}`,
                           }}>
-                            {pickResult === "win" ? "WIN" : "LOSS"}
+                            {pickResult === "win" ? "WIN" : pickResult === "loss" ? "LOSS" : "PUSH"}
                           </span>
                         )}
                         <span style={{ fontSize: 12, color: "#444" }}>
@@ -767,7 +827,6 @@ export default function ToT() {
                 {isOpen && (
                   <div style={{ animation: "fadeUp 0.2s ease" }}>
                     <div style={S.expDivider} />
-                    {/* Sharp filter panel */}
                     {pick.filter && (() => {
                       const f = pick.filter;
                       const isClean = f.verdict === "CLEAN";
@@ -776,7 +835,6 @@ export default function ToT() {
                       const confColor = f.confidence >= 8 ? "#00FF87" : f.confidence >= 6 ? "#FFD600" : "#FF4D4D";
                       return (
                         <div style={{ ...S.expSection, background: vBg, borderRadius: 10, padding: 12, border: `1px solid ${vColor}33`, marginBottom: 8 }}>
-                          {/* Header row */}
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                               <span style={{ fontSize: 11, fontWeight: 800, color: vColor, letterSpacing: 1.5 }}>{f.verdict}</span>
@@ -786,8 +844,7 @@ export default function ToT() {
                             </div>
                             <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: vColor }}>{f.trueEdgePct > 0 ? "+" : ""}{f.trueEdgePct}% edge</span>
                           </div>
-                          {/* Stats row */}
-                          <div style={{ display: "flex", gap: 14, marginBottom: 8 }}>
+                          <div style={{ display: "flex", gap: 14, marginBottom: 8, flexWrap: "wrap" }}>
                             <div>
                               <div style={{ fontSize: 9, color: "#444", letterSpacing: 1 }}>CONFIDENCE</div>
                               <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: confColor, fontWeight: 700 }}>{f.confidence}/{f.confidenceOf || 10}</div>
@@ -823,7 +880,6 @@ export default function ToT() {
                               </div>
                             )}
                           </div>
-                          {/* Failures (why this is a PASS) */}
                           {(f.failures || []).length > 0 && (
                             <div style={{ marginTop: 4 }}>
                               <div style={{ fontSize: 9, color: "#444", letterSpacing: 1, marginBottom: 4 }}>FAILED CONDITIONS</div>
@@ -834,7 +890,6 @@ export default function ToT() {
                               </div>
                             </div>
                           )}
-                          {/* Clean pick celebration */}
                           {isClean && (
                             <div style={{ marginTop: 4, fontSize: 10, color: "#00FF87" }}>✓ All conditions passed — disciplined bet</div>
                           )}
@@ -892,6 +947,52 @@ export default function ToT() {
             );
           })
         )}
+
+        {/* Parlay Builder — shown at the bottom of the Picks tab when 2+ BET picks exist */}
+        {activeTab === "picks" && picks !== null && (() => {
+          const betPicks = sorted.filter(p => p.isBet && p.homeOdds != null);
+          if (betPicks.length < 2) return null;
+          return (
+            <div style={{ marginTop: 4 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#333", letterSpacing: 1.5, marginBottom: 10 }}>PARLAY BUILDER</div>
+              {[
+                { label: "SAFE", legs: betPicks.slice(0, 2), color: "#00FF87" },
+                { label: "BALANCED", legs: betPicks.slice(0, 3), color: "#FFD600" },
+                { label: "AGGRESSIVE", legs: betPicks.slice(0, 4), color: "#FF4D4D" },
+              ].filter(c => c.legs.length >= 2).map(card => {
+                const comboDec = card.legs.reduce((acc, leg) => {
+                  const o = leg.pick === leg.homeTeam ? leg.homeOdds : leg.awayOdds;
+                  if (!o) return acc;
+                  return acc * (o > 0 ? 1 + o / 100 : 1 + 100 / Math.abs(o));
+                }, 1);
+                const comboAmerican = comboDec >= 2
+                  ? `+${Math.round((comboDec - 1) * 100)}`
+                  : `${Math.round(-100 / (comboDec - 1))}`;
+                const payout10 = ((comboDec - 1) * 10).toFixed(0);
+                return (
+                  <div key={card.label} style={{ background: "#080808", border: `1px solid ${card.color}22`, borderRadius: 12, padding: "12px 14px", marginBottom: 8 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: card.color, letterSpacing: 1 }}>{card.label} — {card.legs.length}-LEG</span>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, fontWeight: 700, color: card.color }}>{comboAmerican}</div>
+                        <div style={{ fontSize: 10, color: "#333" }}>${payout10} profit on $10</div>
+                      </div>
+                    </div>
+                    {card.legs.map((leg, i) => (
+                      <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: i < card.legs.length - 1 ? "1px solid #111" : "none" }}>
+                        <span style={{ fontSize: 12, fontFamily: "'JetBrains Mono',monospace" }}>{leg.awayTeam} @ {leg.homeTeam}</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 11, color: leg.filter?.verdict === "CLEAN" ? "#00FF87" : "#FFD600", fontWeight: 700 }}>{leg.pick}</span>
+                          <span style={{ fontSize: 11, color: "#444", fontFamily: "'JetBrains Mono',monospace" }}>{leg.edge.toFixed(1)}% edge</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
 
         {activeTab === "steals" && (
           steals === null ? (
@@ -997,7 +1098,7 @@ export default function ToT() {
                 );
               })}
 
-              {/* Parlay Cards */}
+              {/* Parlay Cards with combined odds */}
               {steals.length >= 2 && (
                 <div style={{ marginTop: 8 }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: "#333", letterSpacing: 1.5, marginBottom: 10 }}>PARLAY CARDS</div>
@@ -1008,6 +1109,7 @@ export default function ToT() {
                   ].filter(c => c.legs.length >= 2).map(card => {
                     const comboDec = card.legs.reduce((acc, leg) => {
                       const o = leg.pick === leg.homeTeam ? leg.homeOdds : leg.awayOdds;
+                      if (!o) return acc;
                       return acc * (o > 0 ? 1 + o / 100 : 1 + 100 / Math.abs(o));
                     }, 1);
                     const comboAmerican = comboDec >= 2
@@ -1015,24 +1117,24 @@ export default function ToT() {
                       : `${Math.round(-100 / (comboDec - 1))}`;
                     const payout10 = ((comboDec - 1) * 10).toFixed(0);
                     return (
-                    <div key={card.label} style={{ background: "#080808", border: `1px solid ${card.color}22`, borderRadius: 12, padding: "12px 14px", marginBottom: 8 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                        <span style={{ fontSize: 11, fontWeight: 800, color: card.color, letterSpacing: 1 }}>{card.label} — {card.legs.length}-LEG</span>
-                        <div style={{ textAlign: "right" }}>
-                          <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, fontWeight: 700, color: card.color }}>{comboAmerican}</div>
-                          <div style={{ fontSize: 10, color: "#333" }}>${payout10} profit on $10</div>
-                        </div>
-                      </div>
-                      {card.legs.map((leg, i) => (
-                        <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: i < card.legs.length - 1 ? "1px solid #111" : "none" }}>
-                          <span style={{ fontSize: 12, fontFamily: "'JetBrains Mono',monospace" }}>{leg.awayTeam} @ {leg.homeTeam}</span>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <span style={{ fontSize: 11, color: "#00FF87", fontWeight: 700 }}>{leg.pick}</span>
-                            <span style={{ fontSize: 11, color: "#444", fontFamily: "'JetBrains Mono',monospace" }}>+{(leg.filter?.trueEdgePct || 0).toFixed(1)}%</span>
+                      <div key={card.label} style={{ background: "#080808", border: `1px solid ${card.color}22`, borderRadius: 12, padding: "12px 14px", marginBottom: 8 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                          <span style={{ fontSize: 11, fontWeight: 800, color: card.color, letterSpacing: 1 }}>{card.label} — {card.legs.length}-LEG</span>
+                          <div style={{ textAlign: "right" }}>
+                            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, fontWeight: 700, color: card.color }}>{comboAmerican}</div>
+                            <div style={{ fontSize: 10, color: "#333" }}>${payout10} profit on $10</div>
                           </div>
                         </div>
-                      ))}
-                    </div>
+                        {card.legs.map((leg, i) => (
+                          <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: i < card.legs.length - 1 ? "1px solid #111" : "none" }}>
+                            <span style={{ fontSize: 12, fontFamily: "'JetBrains Mono',monospace" }}>{leg.awayTeam} @ {leg.homeTeam}</span>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{ fontSize: 11, color: "#00FF87", fontWeight: 700 }}>{leg.pick}</span>
+                              <span style={{ fontSize: 11, color: "#444", fontFamily: "'JetBrains Mono',monospace" }}>+{(leg.filter?.trueEdgePct || 0).toFixed(1)}%</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     );
                   })}
                 </div>
@@ -1043,77 +1145,78 @@ export default function ToT() {
 
         {activeTab === "tracker" && (
           <>
-              {/* ROI header */}
-              <div style={{ background: "#080808", border: "1px solid #1a1a1a", borderRadius: 14, padding: "16px 16px 12px", marginBottom: 8 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                  <div>
-                    <div style={{ fontSize: 10, color: "#333", letterSpacing: 1, marginBottom: 4 }}>PROFIT / LOSS</div>
-                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 28, fontWeight: 700, color: pnl >= 0 ? "#00FF87" : "#FF4D4D" }}>
-                      {pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}
-                    </div>
-                    <div style={{ fontSize: 11, color: "#333", marginTop: 2 }}>flat ${unitSize}/bet · {total} settled</div>
+            {/* ROI header */}
+            <div style={{ background: "#080808", border: "1px solid #1a1a1a", borderRadius: 14, padding: "16px 16px 12px", marginBottom: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                <div>
+                  <div style={{ fontSize: 10, color: "#333", letterSpacing: 1, marginBottom: 4 }}>PROFIT / LOSS</div>
+                  <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 28, fontWeight: 700, color: pnl >= 0 ? "#00FF87" : "#FF4D4D" }}>
+                    {pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}
                   </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: 10, color: "#333", letterSpacing: 1, marginBottom: 4 }}>UNIT SIZE</div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      <span style={{ fontSize: 13, color: "#555" }}>$</span>
-                      <input
-                        type="number"
-                        value={unitSize}
-                        onChange={e => setUnitSize(Math.max(1, parseInt(e.target.value) || 10))}
-                        style={{ width: 60, background: "#111", border: "1px solid #222", borderRadius: 6, color: "#fff", fontSize: 14, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, padding: "4px 8px", textAlign: "right" }}
-                      />
-                    </div>
-                  </div>
+                  <div style={{ fontSize: 11, color: "#333", marginTop: 2 }}>flat ${unitSize}/bet · {total} settled{pushes > 0 ? ` · ${pushes} push` : ""}</div>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
-                  <div style={S.statCard}><div style={{ ...S.statVal, color: "#00FF87", fontSize: 18 }}>{wins}</div><div style={S.statLabel}>Wins</div></div>
-                  <div style={S.statCard}><div style={{ ...S.statVal, color: "#FF4D4D", fontSize: 18 }}>{losses}</div><div style={S.statLabel}>Losses</div></div>
-                  <div style={S.statCard}><div style={{ ...S.statVal, fontSize: 18 }}>{total > 0 ? winPct : "—"}%</div><div style={S.statLabel}>Win Rate</div></div>
-                  <div style={S.statCard}>
-                    <div style={{ ...S.statVal, fontSize: 18, color: streakType === "win" ? "#00FF87" : streakType === "loss" ? "#FF4D4D" : "#333" }}>
-                      {streakLen > 0 ? `${streakType === "win" ? "W" : "L"}${streakLen}` : "—"}
-                    </div>
-                    <div style={S.statLabel}>Streak</div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: 10, color: "#333", letterSpacing: 1, marginBottom: 4 }}>UNIT SIZE</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <span style={{ fontSize: 13, color: "#555" }}>$</span>
+                    <input
+                      type="number"
+                      value={unitSize}
+                      onChange={e => setUnitSize(Math.max(1, parseInt(e.target.value) || 10))}
+                      style={{ width: 60, background: "#111", border: "1px solid #222", borderRadius: 6, color: "#fff", fontSize: 14, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, padding: "4px 8px", textAlign: "right" }}
+                    />
                   </div>
                 </div>
               </div>
-              {savedPicks.length === 0 ? (
-                <div style={S.center}>
-                  <div style={{ fontSize: 32 }}>📊</div>
-                  <div style={{ color: "#fff", fontWeight: 700, marginTop: 8 }}>No saved picks yet</div>
-                  <div style={{ color: "#333", fontSize: 13, marginTop: 4 }}>Tap + Save on any pick to track it</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
+                <div style={S.statCard}><div style={{ ...S.statVal, color: "#00FF87", fontSize: 18 }}>{wins}</div><div style={S.statLabel}>Wins</div></div>
+                <div style={S.statCard}><div style={{ ...S.statVal, color: "#FF4D4D", fontSize: 18 }}>{losses}</div><div style={S.statLabel}>Losses</div></div>
+                <div style={S.statCard}><div style={{ ...S.statVal, fontSize: 18 }}>{decisioned > 0 ? winPct : "—"}%</div><div style={S.statLabel}>Win Rate</div></div>
+                <div style={S.statCard}>
+                  <div style={{ ...S.statVal, fontSize: 18, color: streakType === "win" ? "#00FF87" : streakType === "loss" ? "#FF4D4D" : "#333" }}>
+                    {streakLen > 0 ? `${streakType === "win" ? "W" : "L"}${streakLen}` : "—"}
+                  </div>
+                  <div style={S.statLabel}>Streak</div>
                 </div>
-              ) : savedPicks.map(p => (
-                <div key={p.id} style={{ ...S.card, borderColor: "#1a1a1a" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={S.cardMatchup}>{p.away_team} @ {p.home_team}</div>
-                      <div style={S.cardMeta}>Pick: <span style={{ color: "#00FF87" }}>{p.pick}</span> · {fmtOdds(p.odds)}</div>
-                      <div style={{ fontSize: 11, color: "#333", marginTop: 3 }}>
-                        {new Date(p.commence_time).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{
-                        ...S.badge,
-                        background: p.result === "win" ? "rgba(0,255,135,0.1)" : p.result === "loss" ? "rgba(255,77,77,0.1)" : "rgba(136,136,136,0.1)",
-                        color: p.result === "win" ? "#00FF87" : p.result === "loss" ? "#FF4D4D" : "#888",
-                      }}>
-                        {p.result.toUpperCase()}
-                      </span>
-                      <button style={S.trashBtn} onClick={() => deleteSaved(p.id)}>🗑</button>
+              </div>
+            </div>
+            {savedPicks.length === 0 ? (
+              <div style={S.center}>
+                <div style={{ fontSize: 32 }}>📊</div>
+                <div style={{ color: "#fff", fontWeight: 700, marginTop: 8 }}>No saved picks yet</div>
+                <div style={{ color: "#333", fontSize: 13, marginTop: 4 }}>Tap + Save on any pick to track it</div>
+              </div>
+            ) : savedPicks.map(p => (
+              <div key={p.id} style={{ ...S.card, borderColor: p.result === "win" ? "rgba(0,255,135,0.2)" : p.result === "loss" ? "rgba(255,77,77,0.2)" : "#1a1a1a" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={S.cardMatchup}>{p.away_team} @ {p.home_team}</div>
+                    <div style={S.cardMeta}>Pick: <span style={{ color: "#00FF87" }}>{p.pick}</span> · {fmtOdds(p.odds)}</div>
+                    <div style={{ fontSize: 11, color: "#333", marginTop: 3 }}>
+                      {new Date(p.commence_time).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
                     </div>
                   </div>
-                  {p.result === "pending" && (
-                    <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                      <button style={{ ...S.resultBtn, background: "rgba(0,255,135,0.1)", color: "#00FF87", borderColor: "#00FF87" }} onClick={() => markResult(p.id, "win")}>✓ Win</button>
-                      <button style={{ ...S.resultBtn, background: "rgba(255,77,77,0.1)", color: "#FF4D4D", borderColor: "#FF4D4D" }} onClick={() => markResult(p.id, "loss")}>✗ Loss</button>
-                    </div>
-                  )}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{
+                      ...S.badge,
+                      background: p.result === "win" ? "rgba(0,255,135,0.1)" : p.result === "loss" ? "rgba(255,77,77,0.1)" : p.result === "push" ? "rgba(255,214,0,0.1)" : "rgba(136,136,136,0.1)",
+                      color: p.result === "win" ? "#00FF87" : p.result === "loss" ? "#FF4D4D" : p.result === "push" ? "#FFD600" : "#888",
+                    }}>
+                      {p.result.toUpperCase()}
+                    </span>
+                    <button style={S.trashBtn} onClick={() => deleteSaved(p.id)}>🗑</button>
+                  </div>
                 </div>
-              ))}
-            </>
+                {p.result === "pending" && (
+                  <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                    <button style={{ ...S.resultBtn, background: "rgba(0,255,135,0.1)", color: "#00FF87", borderColor: "#00FF87" }} onClick={() => markResult(p.id, "win")}>✓ Win</button>
+                    <button style={{ ...S.resultBtn, background: "rgba(255,77,77,0.1)", color: "#FF4D4D", borderColor: "#FF4D4D" }} onClick={() => markResult(p.id, "loss")}>✗ Loss</button>
+                    <button style={{ ...S.resultBtn, background: "rgba(255,214,0,0.05)", color: "#FFD600", borderColor: "#FFD600", flex: "0 0 auto", padding: "8px 14px" }} onClick={() => markResult(p.id, "push")}>Push</button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </>
         )}
       </div>
 

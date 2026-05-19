@@ -1,4 +1,4 @@
-// Resolves a user's pending saved picks by checking final scores from MLB API.
+// Auto-resolves pending saved picks by checking final scores from MLB Stats API.
 // Called when the user opens the tracker tab.
 
 import { createClient } from "@supabase/supabase-js";
@@ -54,12 +54,12 @@ export async function POST(request) {
 
   if (!pending?.length) return Response.json({ resolved: 0 });
 
-  // Only try to resolve games that started more than 3 hours ago
+  // Only resolve games that started more than 3 hours ago
   const cutoff = new Date(Date.now() - 3 * 60 * 60 * 1000);
   const resolvable = pending.filter(p => new Date(p.commence_time) < cutoff);
   if (!resolvable.length) return Response.json({ resolved: 0 });
 
-  // Group by game date
+  // Group by game date to minimize MLB API calls
   const byDate = {};
   for (const pick of resolvable) {
     const date = pick.commence_time.split("T")[0];

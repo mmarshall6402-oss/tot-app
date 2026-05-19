@@ -13,11 +13,10 @@ export async function GET() {
     const data = await res.json();
     const picks = data?.picks || [];
 
-    // Return the top BET pick (already sorted by edge descending)
-    const topBet = picks.find(p => p.isBet);
-
-    // Fallback: if no BET picks today, return the highest-edge pick regardless
-    const pick = topBet || picks[0] || null;
+    // Prefer CLEAN, then BET — never expose a PASS pick as the free pick
+    const pick = picks.find(p => p.filter?.verdict === "CLEAN")
+              || picks.find(p => p.isBet)
+              || null;
 
     return Response.json({ pick });
   } catch (e) {

@@ -9,23 +9,25 @@ const getSupabase = () => createClient(
 );
 
 export async function POST(request) {
-  const stripe = getStripe();
-  const { userId } = await request.json();
+  try {
+    const { userId } = await request.json();
+    const { data } = await getSupabase()
+      .from("subscriptions")
+      .select("stripe_customer_id")
+      .eq("user_id", userId)
+      .single();
 
-  const { data } = await getSupabase()
-    .from("subscriptions")
-    .select("stripe_customer_id")
-    .eq("user_id", userId)
-    .single();
+    if (!data?.stripe_customer_id) {
+      return Response.json({ error: "no subscription found" }, { status: 404 });
+    }
 
-  if (!data?.stripe_customer_id) {
-    return Response.json({ error: "No subscription found" }, { status: 404 });
+    const session = await getStripe().billingPortal.sessions.create({
+      customer: data.stripe_customer_id,
+      return_url: APP_URL,
+    });
+
+    return Response.json({ url: session.url });
+  } catch (e) {
+    return Response.json({ error: e.message }, { status: 500 });
   }
-
-  const session = await stripe.billingPortal.sessions.create({
-    customer:   data.stripe_customer_id,
-    return_url: APP_URL,
-  });
-
-  return Response.json({ url: session.url });
 }

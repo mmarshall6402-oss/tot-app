@@ -4,8 +4,9 @@
 import { createClient } from "@supabase/supabase-js";
 import { fetchMLBOdds } from "../../../../lib/odds.js";
 import { calculateEdge, BET_THRESHOLD, getConfidenceTier } from "../../../../lib/edge.js";
-import { getModelProbability } from "../../../../lib/probability.js";
+import { getModelProbability, setEloRatings } from "../../../../lib/probability.js";
 import { applyFilterLayer, buildParlayCards } from "../../../../lib/filter.js";
+import { getEloRatings } from "../../../../lib/elo-db.js";
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 const getSupabase = () => createClient(
@@ -165,10 +166,13 @@ export async function GET(request) {
       .single();
     if (existing) return Response.json({ message: "Already cached", date });
 
-    const [oddsGames, mlbRes] = await Promise.all([
+    const [oddsGames, mlbRes, liveElo] = await Promise.all([
       fetchMLBOdds(),
       fetch(`${BASE_URL}/api/mlb?date=${date}`).then(r => r.json()),
+      getEloRatings(supabase),
     ]);
+    // Inject live ELO so probability model uses up-to-date team strength
+    setEloRatings(liveElo);
     const mlbGames = mlbRes?.games || [];
 
     // Build game contexts for batch Claude call
@@ -228,6 +232,30 @@ export async function GET(request) {
     await supabase
       .from("picks_cache")
       .upsert({ date, picks: results, generated_at: new Date().toISOString() }, { onConflict: "date" });
+
+    // Log picks to model_picks for result tracking and calibration.
+    // predicted_prob = home win probability; edge_pct and verdict for calibration buckets.
+    const pickRows = gameContexts.map((ctx, i) => {
+      const result = results[i];
+      if (!result) return null;
+      return {
+        date,
+        home_team: ctx.game.homeTeam,
+        away_team: ctx.game.awayTeam,
+        pick: result.pick,
+        predicted_prob: Math.round(getModelProbability(ctx.game, ctx.mlb) * 1000) / 1000,
+        edge_pct: result.edge,
+        verdict: result.filter?.verdict || "PASS",
+        result: "pending",
+      };
+    }).filter(Boolean);
+
+    if (pickRows.length) {
+      await supabase.from("model_picks").upsert(pickRows, {
+        onConflict: "date,home_team,away_team",
+        ignoreDuplicates: true,
+      });
+    }
 
     return Response.json({ message: "Picks generated", date, count: results.length, safeCard, balancedCard, aggressiveCard });
   } catch (e) {
