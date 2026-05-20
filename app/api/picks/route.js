@@ -59,7 +59,10 @@ function buildPick(game, mlb, breakdown) {
 
   return {
     id: game.id, homeTeam: game.homeTeam, awayTeam: game.awayTeam,
-    commenceTime: game.commenceTime, homeOdds: game.homeOdds, awayOdds: game.awayOdds,
+    // Prefer MLB API commenceTime (trusted UTC from mlb.com) over odds API which
+    // may return Eastern times without proper UTC conversion.
+    commenceTime: mlb?.commenceTime || game.commenceTime,
+    homeOdds: game.homeOdds, awayOdds: game.awayOdds,
     pick, edge: edgePct, isBet: filteredIsBet, tier,
     breakdown: { ...(breakdown || {}), pitcher_home: homePStr, pitcher_away: awayPStr },
     filter,
@@ -149,7 +152,8 @@ export async function GET(request) {
   const supabase = getSupabase();
   try {
     const { searchParams } = new URL(request.url);
-    const date = searchParams.get("date") || new Date().toISOString().split("T")[0];
+    const today = new Date().toISOString().split("T")[0];
+    const date = searchParams.get("date") || today;
     const bust = searchParams.get("bust") === "1";
 
     const { data: cached } = await supabase
@@ -158,7 +162,9 @@ export async function GET(request) {
       .eq("date", date)
       .single();
 
-    if (!bust && cached?.picks?.length) {
+    // Only serve from cache for today — past dates use the MLB-direct path which
+    // always returns final scores. Future dates are never cached (no-op here).
+    if (!bust && cached?.picks?.length && date >= today) {
       // Fetch fresh MLB data — update live scores AND pitcher strings (starters may post after cache)
       const mlbRes = await fetch(`${BASE_URL}/api/mlb?date=${date}`).then(r => r.json()).catch(() => ({ games: [] }));
       const mlbGames = mlbRes?.games || [];
@@ -182,8 +188,6 @@ export async function GET(request) {
         : cached.picks;
       return Response.json({ picks, cached: true, generated_at: cached.generated_at });
     }
-
-    const today = new Date().toISOString().split("T")[0];
 
     // Past date with no cache — build results from MLB API directly (odds aren't available for past dates)
     if (date < today) {
