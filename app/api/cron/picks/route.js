@@ -231,8 +231,11 @@ async function generateForDate(date, oddsGames, supabase) {
       if (!result) return null;
       const pickIsHome = result.pick === ctx.game.homeTeam;
       const odds = pickIsHome ? ctx.game.homeOdds : ctx.game.awayOdds;
+      // game_id is NOT NULL — derive a stable hash from date + teams
+      const gameId = Buffer.from(`${date}|${ctx.game.homeTeam}|${ctx.game.awayTeam}`).toString("base64").replace(/[^a-z0-9]/gi, "").slice(0, 32);
       return {
         date,
+        game_id:    gameId,
         home_team:  ctx.game.homeTeam,
         away_team:  ctx.game.awayTeam,
         pick:       result.pick,
