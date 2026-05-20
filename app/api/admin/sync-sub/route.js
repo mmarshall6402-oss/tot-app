@@ -36,15 +36,15 @@ export async function POST(request) {
     return Response.json({ error: "No subscriptions found for that email" }, { status: 404 });
   }
 
-  // Look up userId from Supabase auth by email
-  const { data: authUsers } = await supabase.auth.admin.listUsers();
-  const authUser = authUsers?.users?.find(u => u.email?.toLowerCase() === email.toLowerCase());
-  if (!authUser) {
+  // Look up userId from Supabase auth by email — use getUserByEmail instead of
+  // listUsers() which only returns the first page and can match the wrong user.
+  const { data: authUser, error: authErr } = await supabase.auth.admin.getUserByEmail(email);
+  if (authErr || !authUser?.user) {
     return Response.json({ error: "No Supabase auth user found for that email" }, { status: 404 });
   }
 
   await supabase.from("subscriptions").upsert({
-    user_id: authUser.id,
+    user_id: authUser.user.id,
     stripe_customer_id: bestSub.customer,
     stripe_subscription_id: bestSub.id,
     status: bestSub.status,
@@ -54,7 +54,7 @@ export async function POST(request) {
   return Response.json({
     ok: true,
     email,
-    userId: authUser.id,
+    userId: authUser.user.id,
     status: bestSub.status,
     subscriptionId: bestSub.id,
   });
