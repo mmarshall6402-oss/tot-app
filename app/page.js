@@ -555,12 +555,12 @@ export default function ToT() {
   );
 
   // Derive model record from user's own saved picks — personal win/loss, not global model stats
-  const decisioned = savedPicks.filter(p => p.result === "win" || p.result === "loss");
-  const modelRecord = decisioned.length > 0 ? {
-    wins:   decisioned.filter(p => p.result === "win").length,
-    losses: decisioned.filter(p => p.result === "loss").length,
-    total:  decisioned.length,
-    pct:    Math.round(decisioned.filter(p => p.result === "win").length / decisioned.length * 1000) / 10,
+  const userSettled = savedPicks.filter(p => p.result === "win" || p.result === "loss");
+  const modelRecord = userSettled.length > 0 ? {
+    wins:   userSettled.filter(p => p.result === "win").length,
+    losses: userSettled.filter(p => p.result === "loss").length,
+    total:  userSettled.length,
+    pct:    Math.round(userSettled.filter(p => p.result === "win").length / userSettled.length * 1000) / 10,
   } : null;
 
   return (
