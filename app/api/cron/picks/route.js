@@ -223,15 +223,24 @@ async function generateForDate(date, oddsGames, supabase) {
   await supabase.from("picks_cache")
     .upsert({ date, picks: results, generated_at: new Date().toISOString() }, { onConflict: "date" });
 
+  // Only log today's BET picks to model_picks for record tracking.
+  // Use the columns that actually exist in the table schema.
   if (date === new Date().toISOString().split("T")[0]) {
     const pickRows = gameContexts.map((ctx, i) => {
       const result = results[i];
       if (!result) return null;
+      const pickIsHome = result.pick === ctx.game.homeTeam;
+      const odds = pickIsHome ? ctx.game.homeOdds : ctx.game.awayOdds;
       return {
-        date, home_team: ctx.game.homeTeam, away_team: ctx.game.awayTeam,
-        pick: result.pick,
-        predicted_prob: Math.round(getModelProbability(ctx.game, ctx.mlb) * 1000) / 1000,
-        edge_pct: result.edge, verdict: result.filter?.verdict || "PASS", result: "pending",
+        date,
+        home_team:  ctx.game.homeTeam,
+        away_team:  ctx.game.awayTeam,
+        pick:       result.pick,
+        odds:       odds ?? null,
+        edge:       result.edge,
+        tier:       result.tier?.level || "Low",
+        is_bet:     result.isBet,
+        result:     "pending",
       };
     }).filter(Boolean);
     if (pickRows.length) {

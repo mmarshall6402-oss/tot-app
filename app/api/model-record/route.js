@@ -5,26 +5,33 @@ const getSupabase = () => createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-export async function GET(request) {
-  const { searchParams } = new URL(request.url);
-  const days = parseInt(searchParams.get("days") || "0", 10);
-
+export async function GET() {
   const supabase = getSupabase();
-  let query = supabase.from("model_daily_stats").select("wins, losses, date");
 
-  if (days > 0) {
-    const since = new Date();
-    since.setDate(since.getDate() - days);
-    query = query.gte("date", since.toISOString().split("T")[0]);
-  }
+  const { data } = await supabase
+    .from("model_picks")
+    .select("result, is_bet, tier, edge")
+    .eq("is_bet", true)
+    .in("result", ["win", "loss", "push"]);
 
-  const { data } = await query;
-  if (!data?.length) return Response.json({ wins: 0, losses: 0, pct: null, total: 0, days: days || "all" });
+  if (!data?.length) return Response.json({ wins: 0, losses: 0, pushes: 0, pct: null, total: 0 });
 
-  const wins   = data.reduce((s, r) => s + (r.wins   || 0), 0);
-  const losses = data.reduce((s, r) => s + (r.losses || 0), 0);
-  const total  = wins + losses;
+  const wins   = data.filter(r => r.result === "win").length;
+  const losses = data.filter(r => r.result === "loss").length;
+  const pushes = data.filter(r => r.result === "push").length;
+  const total  = wins + losses; // pushes excluded from win rate
   const pct    = total > 0 ? Math.round((wins / total) * 1000) / 10 : null;
 
-  return Response.json({ wins, losses, pct, total, days: days || "all" });
+  const byTier = ["High", "Medium", "Low"].map(tier => {
+    const picks  = data.filter(r => r.tier === tier);
+    const tWins  = picks.filter(r => r.result === "win").length;
+    const tTotal = picks.filter(r => r.result !== "push").length;
+    return { tier, wins: tWins, total: tTotal, pct: tTotal > 0 ? Math.round((tWins / tTotal) * 1000) / 10 : null };
+  });
+
+  const avgEdge = data.length > 0
+    ? Math.round(data.reduce((s, r) => s + (r.edge || 0), 0) / data.length * 10) / 10
+    : null;
+
+  return Response.json({ wins, losses, pushes, pct, total, byTier, avgEdge });
 }
