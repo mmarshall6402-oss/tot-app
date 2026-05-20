@@ -3,6 +3,7 @@ import { fetchMLBOdds } from "../../../lib/odds.js";
 import { calculateEdge, BET_THRESHOLD, getConfidenceTier, americanToDecimal, decimalToImplied, removeVig } from "../../../lib/edge.js";
 import { getModelProbability } from "../../../lib/probability.js";
 import { applyFilterLayer, buildParlayCards } from "../../../lib/filter.js";
+import { requirePro } from "../../../lib/auth.js";
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ||
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
@@ -138,6 +139,9 @@ async function fetchOddsWithCache() {
 }
 
 export async function GET(request) {
+  const { error: authError } = await requirePro(request);
+  if (authError) return authError;
+
   const supabase = getSupabase();
   try {
     const { searchParams } = new URL(request.url);

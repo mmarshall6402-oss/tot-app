@@ -1,33 +1,17 @@
-export async function GET() {
-  // Quick Claude smoke test
-  let claudeOk = false;
-  let claudeError = null;
-  try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 20,
-        messages: [{ role: "user", content: "reply: ok" }],
-      }),
-    });
-    const d = await res.json();
-    claudeOk = !!d.content?.[0]?.text;
-    if (!claudeOk) claudeError = JSON.stringify(d).slice(0, 200);
-  } catch (e) {
-    claudeError = e.message;
-  }
+import { requireAuth } from "../../../lib/auth.js";
+import { timingSafeEqual } from "../../../lib/auth.js";
 
+export async function GET(request) {
+  // Require admin key — not exposed publicly
+  const key = request.headers.get("x-admin-key");
+  if (!timingSafeEqual(key, process.env.ADMIN_KEY)) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
   return Response.json({
     hasAnthropicKey: !!process.env.ANTHROPIC_API_KEY,
     hasSportsDataKey: !!process.env.SPORTSDATA_API_KEY,
     hasSportsGameOddsKey: !!process.env.SPORTSGAMEODDS_API_KEY,
-    claudeOk,
-    claudeError,
+    hasStripeKey: !!process.env.STRIPE_SECRET_KEY,
+    hasSupabaseServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
   });
 }

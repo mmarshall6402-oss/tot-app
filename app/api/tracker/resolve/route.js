@@ -2,6 +2,7 @@
 // Called when the user opens the tracker tab.
 
 import { createClient } from "@supabase/supabase-js";
+import { requireAuth } from "../../../../lib/auth.js";
 
 const MLB_API = "https://statsapi.mlb.com/api/v1";
 
@@ -41,8 +42,12 @@ function resolveResult(pick, games) {
 }
 
 export async function POST(request) {
+  const { user, error: authError } = await requireAuth(request);
+  if (authError) return authError;
+
   const { userId } = await request.json();
   if (!userId) return Response.json({ error: "userId required" }, { status: 400 });
+  if (user.id !== userId) return Response.json({ error: "Forbidden" }, { status: 403 });
 
   const supabase = getSupabase();
 

@@ -7,6 +7,7 @@ import { fetchMLBOdds } from "../../../lib/odds.js";
 import { getModelProbability } from "../../../lib/probability.js";
 import { calculateEdge } from "../../../lib/edge.js";
 import { applyFilterLayer } from "../../../lib/filter.js";
+import { requirePro } from "../../../lib/auth.js";
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ||
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
@@ -31,6 +32,9 @@ function matchMLBGame(game, mlbGames) {
 }
 
 export async function GET(request) {
+  const { error: authError } = await requirePro(request);
+  if (authError) return authError;
+
   const { searchParams } = new URL(request.url);
   const date = searchParams.get("date") || new Date().toISOString().split("T")[0];
 

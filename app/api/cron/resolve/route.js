@@ -4,6 +4,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { getEloRatings, updateEloAfterGame } from "../../../../lib/elo-db.js";
+import { timingSafeEqual } from "../../../../lib/auth.js";
 
 const MLB_API = "https://statsapi.mlb.com/api/v1";
 
@@ -13,8 +14,8 @@ const getSupabase = () => createClient(
 );
 
 export async function GET(request) {
-  const authHeader = request.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const authHeader = request.headers.get("authorization")?.replace("Bearer ", "");
+  if (!timingSafeEqual(authHeader, process.env.CRON_SECRET)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 

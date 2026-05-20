@@ -274,9 +274,15 @@ export default function ToT() {
     navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   };
 
+  const getAuthHeaders = async () => {
+    const { data: { session } } = await getSupabase().auth.getSession();
+    return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
+  };
+
   const fetchSteals = async (date) => {
     try {
-      const res = await fetch(`/api/steals?date=${date}`);
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/steals?date=${date}`, { headers });
       const data = await res.json();
       setSteals(data.steals || []);
     } catch (e) { setSteals(prev => prev ?? []); }
@@ -285,7 +291,8 @@ export default function ToT() {
   const fetchPicks = async (date, bust = false) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/picks?date=${date}${bust ? "&bust=1" : ""}`);
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/picks?date=${date}${bust ? "&bust=1" : ""}`, { headers });
       const data = await res.json();
       const next = data.picks || [];
       setPicks(next);
@@ -306,9 +313,10 @@ export default function ToT() {
   const fetchSaved = async () => {
     setLoading(activeTab === "tracker");
     // Auto-resolve any pending picks whose games are finished
+    const headers = await getAuthHeaders();
     await fetch("/api/tracker/resolve", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...headers },
       body: JSON.stringify({ userId: user.id }),
     }).catch(() => {});
     const { data } = await getSupabase().from("saved_picks").select("*").eq("user_id", user.id).order("created_at", { ascending: false });

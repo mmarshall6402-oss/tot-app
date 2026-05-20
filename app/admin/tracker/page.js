@@ -6,8 +6,8 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || "";
-const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
+const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || process.env.NEXT_PUBLIC_ADMIN_EMAIL || "")
+  .split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
 
 const fmtPct = (v) => v != null ? `${v}%` : "—";
 const fmtROI = (v) => v != null ? `${v > 0 ? "+" : ""}${v}u` : "—";
@@ -39,7 +39,7 @@ export default function AdminTracker() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       const u = session?.user;
       setUser(u);
-      if (u?.email === ADMIN_EMAIL || ADMIN_EMAIL === "") setAuthorized(true);
+      if (u?.email && ADMIN_EMAILS.includes(u.email.toLowerCase())) setAuthorized(true);
     });
   }, []);
 
@@ -48,11 +48,18 @@ export default function AdminTracker() {
     fetchStats();
   }, [authorized, days]);
 
+  const getToken = async () => {
+    const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token || "";
+  };
+
   const fetchStats = async () => {
     setLoading(true);
     try {
+      const token = await getToken();
       const res = await fetch(`/api/admin/tracker?action=stats&days=${days}`, {
-        headers: { "x-admin-key": ADMIN_KEY },
+        headers: { Authorization: `Bearer ${token}` },
       });
       const d = await res.json();
       setData(d);
@@ -66,9 +73,10 @@ export default function AdminTracker() {
     setResolving(true);
     setResolveMsg("");
     try {
+      const token = await getToken();
       const res = await fetch("/api/admin/tracker", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-admin-key": ADMIN_KEY },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ action: "resolve", date }),
       });
       const d = await res.json();

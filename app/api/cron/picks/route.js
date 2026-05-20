@@ -7,6 +7,7 @@ import { calculateEdge, BET_THRESHOLD, getConfidenceTier } from "../../../../lib
 import { getModelProbability, setEloRatings } from "../../../../lib/probability.js";
 import { applyFilterLayer, buildParlayCards } from "../../../../lib/filter.js";
 import { getEloRatings } from "../../../../lib/elo-db.js";
+import { timingSafeEqual } from "../../../../lib/auth.js";
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ||
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
@@ -257,8 +258,8 @@ async function generateForDate(date, oddsGames, supabase) {
 }
 
 export async function GET(request) {
-  const authHeader = request.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const authHeader = request.headers.get("authorization")?.replace("Bearer ", "");
+  if (!timingSafeEqual(authHeader, process.env.CRON_SECRET)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 

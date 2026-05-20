@@ -3,6 +3,7 @@
 // Handles: snapshotting picks, resolving results, fetching stats
 
 import { createClient } from "@supabase/supabase-js";
+import { requireAuth } from "../../../../lib/auth.js";
 
 const MLB_API = "https://statsapi.mlb.com/api/v1";
 
@@ -12,17 +13,19 @@ const getSupabase = () => createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-function checkAuth(request) {
-  const key = request.headers.get("x-admin-key");
-  if (key !== process.env.ADMIN_KEY) return false;
-  return true;
+async function checkAuth(request) {
+  const { user } = await requireAuth(request);
+  if (!user) return false;
+  const admins = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || process.env.NEXT_PUBLIC_ADMIN_EMAIL || "")
+    .split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
+  return admins.includes(user.email?.toLowerCase());
 }
 
 // ─────────────────────────────────────────────
 // GET: fetch tracker stats + recent picks
 // ─────────────────────────────────────────────
 export async function GET(request) {
-  if (!checkAuth(request)) {
+  if (!await checkAuth(request)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -94,7 +97,7 @@ export async function GET(request) {
 // POST: snapshot today's picks OR resolve results
 // ─────────────────────────────────────────────
 export async function POST(request) {
-  if (!checkAuth(request)) {
+  if (!await checkAuth(request)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
