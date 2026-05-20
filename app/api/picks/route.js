@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { fetchMLBOdds } from "../../../lib/odds.js";
-import { calculateEdge, BET_THRESHOLD, getConfidenceTier } from "../../../lib/edge.js";
+import { calculateEdge, BET_THRESHOLD, getConfidenceTier, americanToDecimal, decimalToImplied, removeVig } from "../../../lib/edge.js";
 import { getModelProbability } from "../../../lib/probability.js";
 import { applyFilterLayer, buildParlayCards } from "../../../lib/filter.js";
 
@@ -154,7 +154,10 @@ export async function GET(request) {
     // Only serve from cache for today — past dates use the MLB-direct path which
     // always returns final scores. Future dates are never cached (no-op here).
     if (!bust && cached?.picks?.length && date >= today) {
-      // Fetch fresh MLB data — update live scores AND pitcher strings (starters may post after cache)
+      // Fetch fresh MLB data — update live scores, pitchers, AND recompute filter.
+      // Critical: cron runs at 7 AM ET before pitchers are announced, so cached filter
+      // may be PASS due to NO_PITCHER_DATA. Recompute with current data so picks flip
+      // to BET/CLEAN once starters post (~90 min before first pitch).
       const mlbRes = await fetch(`${BASE_URL}/api/mlb?date=${date}`).then(r => r.json()).catch(() => ({ games: [] }));
       const mlbGames = mlbRes?.games || [];
       const ipStr = (p) => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";
@@ -162,10 +165,38 @@ export async function GET(request) {
         ? cached.picks.map(pick => {
             const mlb = matchMLBGame(pick, mlbGames);
             if (!mlb) return pick;
+
             const homePStr = mlb.homePitcher ? `${mlb.homePitcher.name} (${mlb.homePitcher.wins}-${mlb.homePitcher.losses}, ${mlb.homePitcher.era} ERA, ${mlb.homePitcher.whip} WHIP${ipStr(mlb.homePitcher)})` : null;
             const awayPStr = mlb.awayPitcher ? `${mlb.awayPitcher.name} (${mlb.awayPitcher.wins}-${mlb.awayPitcher.losses}, ${mlb.awayPitcher.era} ERA, ${mlb.awayPitcher.whip} WHIP${ipStr(mlb.awayPitcher)})` : null;
+
+            // Reconstruct homeImplied from stored odds so model + filter can run
+            let gameWithImplied = pick;
+            if (pick.homeOdds && pick.awayOdds) {
+              const hDec = americanToDecimal(pick.homeOdds);
+              const aDec = americanToDecimal(pick.awayOdds);
+              const { fairHome, fairAway } = removeVig(decimalToImplied(hDec), decimalToImplied(aDec));
+              gameWithImplied = { ...pick, homeImplied: fairHome, awayImplied: fairAway };
+            }
+
+            const modelProbRaw = getModelProbability(gameWithImplied, mlb);
+            const homeImplied  = gameWithImplied.homeImplied || 0.5;
+            const modelProb    = homeImplied + (modelProbRaw - homeImplied) * 0.20;
+            const rawEdge      = calculateEdge(modelProb, homeImplied);
+            const freshPick    = rawEdge >= 0 ? pick.homeTeam : pick.awayTeam;
+            const edgePct      = Math.min(Math.abs(rawEdge) * 100, 8.0);
+            const freshFilter  = applyFilterLayer(freshPick, { ...gameWithImplied, source: pick.filter?.isSquareLine ? "sportsdata" : undefined }, mlb, modelProbRaw);
+            const filteredIsBet = ["CLEAN", "BET"].includes(freshFilter.verdict);
+            const tier = pick.breakdown?.tier?.level
+              ? { label: pick.breakdown.tier.level === "High" ? "🔥 Value Pick" : pick.breakdown.tier.level === "Medium" ? "✅ Solid Pick" : "👀 Lean", level: pick.breakdown.tier.level }
+              : getConfidenceTier(edgePct / 100) || { label: "👀 Lean", level: "Low" };
+
             return {
               ...pick,
+              pick: freshPick,
+              edge: edgePct,
+              isBet: filteredIsBet,
+              tier,
+              filter: freshFilter,
               liveScore: { status: mlb.status, homeScore: mlb.homeScore, awayScore: mlb.awayScore, inning: mlb.inning, inningHalf: mlb.inningHalf },
               breakdown: {
                 ...pick.breakdown,
