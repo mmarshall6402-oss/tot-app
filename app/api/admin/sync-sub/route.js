@@ -36,25 +36,37 @@ export async function POST(request) {
     return Response.json({ error: "No subscriptions found for that email" }, { status: 404 });
   }
 
-  // Look up userId from Supabase auth by email — use getUserByEmail instead of
-  // listUsers() which only returns the first page and can match the wrong user.
-  const { data: authUser, error: authErr } = await supabase.auth.admin.getUserByEmail(email);
-  if (authErr || !authUser?.user) {
+  // Look up userId via the admin REST API with an email filter — avoids
+  // listUsers() pagination issues and works with all @supabase/supabase-js versions.
+  const usersRes = await fetch(
+    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/admin/users?filter=${encodeURIComponent(`email=eq.${email}`)}`,
+    { headers: { apikey: process.env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}` } }
+  );
+  const usersData = await usersRes.json();
+  const authUser = usersData?.users?.[0];
+  if (!authUser) {
     return Response.json({ error: "No Supabase auth user found for that email" }, { status: 404 });
   }
 
-  await supabase.from("subscriptions").upsert({
-    user_id: authUser.user.id,
+  const fields = {
+    user_id: authUser.id,
     stripe_customer_id: bestSub.customer,
     stripe_subscription_id: bestSub.id,
     status: bestSub.status,
     current_period_end: new Date(bestSub.current_period_end * 1000).toISOString(),
-  }, { onConflict: "user_id" });
+  };
+
+  const { data: existing } = await supabase.from("subscriptions").select("id").eq("user_id", authUser.id).single();
+  if (existing) {
+    await supabase.from("subscriptions").update(fields).eq("user_id", authUser.id);
+  } else {
+    await supabase.from("subscriptions").insert(fields);
+  }
 
   return Response.json({
     ok: true,
     email,
-    userId: authUser.user.id,
+    userId: authUser.id,
     status: bestSub.status,
     subscriptionId: bestSub.id,
   });
