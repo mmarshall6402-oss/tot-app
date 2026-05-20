@@ -164,9 +164,16 @@ async function generateForDate(date, oddsGames, supabase) {
   const mlbRes = await fetch(`${BASE_URL}/api/mlb?date=${date}`).then(r => r.json()).catch(() => ({}));
   const mlbGames = mlbRes?.games || [];
 
-  // Only process odds games that match this date's MLB schedule
-  const dateOdds = oddsGames.filter(game => !!matchMLBGame(game, mlbGames));
-  if (!dateOdds.length) return { skipped: true, date, reason: "no matching games" };
+  // Filter odds games to those scheduled on this date (check UTC date and ET date to
+  // handle west coast night games that cross midnight UTC into the next calendar day).
+  const dateOdds = oddsGames.filter(game => {
+    if (!game.commenceTime) return false;
+    const t = new Date(game.commenceTime);
+    const utcDate = t.toISOString().split("T")[0];
+    const etDate  = new Date(t.getTime() - 5 * 3600000).toISOString().split("T")[0];
+    return utcDate === date || etDate === date;
+  });
+  if (!dateOdds.length) return { skipped: true, date, reason: "no odds games for date" };
 
   const ipStr = (p) => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";
   const bullStr = b => b
