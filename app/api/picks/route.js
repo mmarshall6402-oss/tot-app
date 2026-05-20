@@ -19,14 +19,16 @@ const getSupabase = () => createClient(
 const _mlbDataCache = new Map();
 const MLB_DATA_TTL = 4 * 60 * 1000;
 
-async function fetchMLBGames(date) {
-  const hit = _mlbDataCache.get(date);
+async function fetchMLBGames(date, lite = false) {
+  const key = lite ? `${date}_lite` : date;
+  const hit = _mlbDataCache.get(key);
   const today = new Date().toISOString().split("T")[0];
   const isPast = date < today;
   if (hit && (isPast || Date.now() - hit.ts < MLB_DATA_TTL)) return hit.games;
-  const res = await fetch(`${BASE_URL}/api/mlb?date=${date}`).then(r => r.json()).catch(() => ({ games: [] }));
+  const url = `${BASE_URL}/api/mlb?date=${date}${lite ? "&lite=1" : ""}`;
+  const res = await fetch(url).then(r => r.json()).catch(() => ({ games: [] }));
   const games = res?.games || [];
-  if (games.length) _mlbDataCache.set(date, { games, ts: Date.now() });
+  if (games.length) _mlbDataCache.set(key, { games, ts: Date.now() });
   return games;
 }
 
@@ -175,11 +177,13 @@ export async function GET(request) {
     // Only serve from cache for today — past dates use the MLB-direct path which
     // always returns final scores. Future dates are never cached (no-op here).
     if (!bust && cached?.picks?.length && date >= today) {
-      // Fetch fresh MLB data — update live scores, pitchers, AND recompute filter.
-      // Critical: cron runs at 7 AM ET before pitchers are announced, so cached filter
-      // may be PASS due to NO_PITCHER_DATA. Recompute with current data so picks flip
-      // to BET/CLEAN once starters post (~90 min before first pitch).
-      const mlbGames = await fetchMLBGames(date);
+      // Use lite mode (1 schedule call + pitcher stats only, ~2s) unless the cron
+      // cached picks with NO pitcher data — in that case use full fetch so all
+      // form/bullpen signals are available for the filter recompute.
+      const needsFullFetch = cached.picks.some(p =>
+        p.filter?.failures?.some(f => f.includes("SP data missing"))
+      );
+      const mlbGames = await fetchMLBGames(date, !needsFullFetch);
       const ipStr = (p) => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";
       const picks = mlbGames.length
         ? cached.picks.map(pick => {

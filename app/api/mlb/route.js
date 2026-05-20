@@ -173,12 +173,67 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const date    = searchParams.get("date") || new Date().toISOString().split("T")[0];
+    const lite    = searchParams.get("lite") === "1"; // skip heavy stats — fast live score + pitcher update
     const today   = new Date().toISOString().split("T")[0];
 
-    const cached  = _mlbCache.get(date);
-    const isPast  = date < today;
+    const cacheKey = lite ? `${date}_lite` : date;
+    const cached   = _mlbCache.get(cacheKey);
+    const isPast   = date < today;
     if (cached && (isPast || Date.now() - cached.ts < LIVE_TTL)) {
       return Response.json(cached.data);
+    }
+
+    // Lite mode: only schedule + probable pitcher season stats.
+    // Skips Savant, team hitting, bullpen rolling, standings, handedness splits.
+    // ~30 API calls vs 240+ — reduces response time from ~20s to ~2s.
+    if (lite) {
+      const schedRes = await fetch(`${MLB}/schedule?sportId=1&hydrate=probablePitcher,linescore,teams&date=${date}`);
+      const schedData = await schedRes.json();
+      const games = schedData?.dates?.[0]?.games || [];
+
+      const liteGames = await Promise.all(games.map(async (game) => {
+        const homePitcher = game.teams?.home?.probablePitcher;
+        const awayPitcher = game.teams?.away?.probablePitcher;
+        const linescore  = game.linescore;
+
+        const [homePStats, awayPStats] = await Promise.all([
+          fetchPitcherStats(homePitcher?.id),
+          fetchPitcherStats(awayPitcher?.id),
+        ]);
+
+        const buildP = (p, stats) => !p ? null : {
+          name: p.fullName, id: p.id, hand: null,
+          era: stats?.era ?? null, whip: stats?.whip ?? null,
+          wins: stats?.wins ?? 0, losses: stats?.losses ?? 0,
+          strikeoutsPer9: stats?.strikeoutsPer9Inn ?? null,
+          inningsPitched: stats?.inningsPitched ?? null,
+          kBBPct: null, xFip: null, hardHitPct: null, barrelPct: null, avgExitVelo: null, recentStarts: null,
+        };
+
+        return {
+          gameId: game.gamePk,
+          homeTeam: game.teams?.home?.team?.name,
+          awayTeam: game.teams?.away?.team?.name,
+          homeId: game.teams?.home?.team?.id,
+          awayId: game.teams?.away?.team?.id,
+          commenceTime: game.gameDate,
+          status: game.status?.abstractGameState,
+          homeScore: linescore?.teams?.home?.runs ?? null,
+          awayScore: linescore?.teams?.away?.runs ?? null,
+          inning: linescore?.currentInning ?? null,
+          inningHalf: linescore?.inningHalf ?? null,
+          homePitcher: buildP(homePitcher, homePStats),
+          awayPitcher: buildP(awayPitcher, awayPStats),
+          homeForm: null, awayForm: null,
+          homeBullpen: null, awayBullpen: null,
+          homeStandings: null, awayStandings: null,
+          homeLineupOpsVsPitcher: null, awayLineupOpsVsPitcher: null,
+        };
+      }));
+
+      const payload = { games: liteGames, date, lite: true };
+      _mlbCache.set(cacheKey, { data: payload, ts: Date.now() });
+      return Response.json(payload);
     }
 
     const past7   = getPastDate(7);
