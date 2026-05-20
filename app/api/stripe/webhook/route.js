@@ -6,6 +6,22 @@ const getSupabase = () => createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+// user_id has no UNIQUE constraint so upsert(onConflict:"user_id") silently fails.
+// Use select → update-or-insert instead.
+async function writeSubscription(supabase, fields) {
+  const { data: existing } = await supabase
+    .from("subscriptions")
+    .select("id")
+    .eq("user_id", fields.user_id)
+    .single();
+
+  if (existing) {
+    await supabase.from("subscriptions").update(fields).eq("user_id", fields.user_id);
+  } else {
+    await supabase.from("subscriptions").insert(fields);
+  }
+}
+
 export async function POST(request) {
   const sig = request.headers.get("stripe-signature");
   const body = await request.text();
@@ -26,13 +42,13 @@ export async function POST(request) {
     const userId = obj.metadata?.userId;
     const subscriptionId = obj.subscription;
     if (userId && subscriptionId) {
-      await supabase.from("subscriptions").upsert({
+      await writeSubscription(supabase, {
         user_id: userId,
         stripe_customer_id: obj.customer,
         stripe_subscription_id: subscriptionId,
         status: "active",
         current_period_end: null,
-      }, { onConflict: "user_id" });
+      });
     }
     return Response.json({ received: true });
   }
@@ -42,13 +58,13 @@ export async function POST(request) {
     const userId = obj.metadata?.userId;
     if (!userId) return Response.json({ received: true });
 
-    await supabase.from("subscriptions").upsert({
+    await writeSubscription(supabase, {
       user_id: userId,
       stripe_customer_id: obj.customer,
       stripe_subscription_id: obj.id,
       status: obj.status,
       current_period_end: new Date(obj.current_period_end * 1000).toISOString(),
-    }, { onConflict: "user_id" });
+    });
   }
 
   if (event.type === "customer.subscription.deleted") {
