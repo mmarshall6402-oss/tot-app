@@ -20,3 +20,14 @@ create policy "users read own subscription"
   using (auth.uid() = user_id);
 
 -- Service role (used by webhook) bypasses RLS automatically
+
+-- Email list for free pick subscribers
+create table if not exists email_list (
+  id         uuid primary key default gen_random_uuid(),
+  email      text unique not null,
+  source     text default 'landing',
+  created_at timestamptz default now()
+);
+
+alter table email_list enable row level security;
+-- Service role handles all reads/writes (no public access)
