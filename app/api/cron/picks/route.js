@@ -247,9 +247,9 @@ async function generateForDate(date, oddsGames, supabase) {
       };
     }).filter(Boolean);
     if (pickRows.length) {
-      await supabase.from("model_picks").upsert(pickRows, {
-        onConflict: "date,home_team,away_team", ignoreDuplicates: true,
-      });
+      // Delete existing rows for this date first so we don't get duplicates on re-runs
+      await supabase.from("model_picks").delete().eq("date", date);
+      await supabase.from("model_picks").insert(pickRows);
     }
   }
 
