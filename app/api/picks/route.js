@@ -66,7 +66,7 @@ function matchMLBGame(game, mlbGames) {
   // cross-game contamination when last-word matching is ambiguous).
   const timeClose = (t1, t2) => {
     if (!t1 || !t2) return true;
-    return Math.abs(new Date(t1) - new Date(t2)) < 6 * 3_600_000;
+    return Math.abs(new Date(t1) - new Date(t2)) < 12 * 3_600_000;
   };
 
   // 1. Exact normalized full name — most reliable when both APIs use official names

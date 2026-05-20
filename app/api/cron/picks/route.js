@@ -20,7 +20,7 @@ function matchMLBGame(game, mlbGames) {
   const lastWord = s => norm(s).split(" ").pop();
   const timeClose = (t1, t2) => {
     if (!t1 || !t2) return true;
-    return Math.abs(new Date(t1) - new Date(t2)) < 6 * 3_600_000;
+    return Math.abs(new Date(t1) - new Date(t2)) < 12 * 3_600_000;
   };
 
   // 1. Exact normalized full name (most reliable)
