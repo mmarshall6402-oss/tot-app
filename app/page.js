@@ -142,6 +142,8 @@ export default function ToT() {
   const [unitSize, setUnitSize] = useState(10);
   const [copied, setCopied] = useState(false);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const [installPlatform, setInstallPlatform] = useState(null); // 'ios' | 'android'
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
 
   // Auth state
   useEffect(() => {
@@ -198,16 +200,26 @@ export default function ToT() {
     return () => clearInterval(t);
   }, []);
 
-  // iOS install prompt (shown after 1.5s if not dismissed)
+  // Capture Android/Chrome native install prompt before it fires
   useEffect(() => {
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    const isStandalone = window.navigator.standalone;
-    const dismissed = localStorage.getItem("tot-pwa-dismissed");
-    if (isIOS && !isStandalone && !dismissed) {
-      const timer = setTimeout(() => setShowInstallPrompt(true), 1500);
-      return () => clearTimeout(timer);
-    }
+    const handler = (e) => { e.preventDefault(); setDeferredPrompt(e); };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
+
+  // Show install prompt after user is engaged (logged in, 4s on page, not already installed)
+  useEffect(() => {
+    if (!user) return;
+    const isStandalone = window.navigator.standalone || window.matchMedia("(display-mode: standalone)").matches;
+    if (isStandalone) return;
+    const dismissedAt = localStorage.getItem("tot-pwa-dismissed");
+    if (dismissedAt && Date.now() - parseInt(dismissedAt) < 7 * 24 * 60 * 60 * 1000) return;
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    if (!isIOS && !deferredPrompt) return;
+    const platform = isIOS ? "ios" : "android";
+    const timer = setTimeout(() => { setInstallPlatform(platform); setShowInstallPrompt(true); }, 4000);
+    return () => clearTimeout(timer);
+  }, [user, deferredPrompt]);
 
   // Tab data fetching — fetchSaved runs on user load AND whenever tracker tab is opened.
   // The user effect covers initial load; the tab effect handles tab switches.
@@ -536,38 +548,72 @@ export default function ToT() {
       <style>{css}</style>
 
       {showInstallPrompt && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+        <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
           onClick={() => setShowInstallPrompt(false)}>
-          <div style={{ width: "100%", maxWidth: 480, background: "#0d0d0d", borderRadius: "20px 20px 0 0", padding: "24px 24px 36px", border: "1px solid #1a1a1a" }}
+          <div style={{ width: "100%", maxWidth: 500, background: "#0a0a0a", borderRadius: "24px 24px 0 0", border: "1px solid #1a1a1a", borderBottom: "none", padding: "0 0 max(24px, env(safe-area-inset-bottom)) 0", animation: "slideUp 0.3s cubic-bezier(0.32,0.72,0,1)" }}
             onClick={e => e.stopPropagation()}>
-            <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 18 }}>
-              <div style={{ width: 52, height: 52, background: "#000", borderRadius: 12, border: "1px solid #1a1a1a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontFamily: "monospace", fontWeight: 700, color: "#fff", flexShrink: 0 }}>
-                T<span style={{ color: "#00FF87" }}>|</span>T
-              </div>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 16, color: "#fff" }}>Install ToT Picks</div>
-                <div style={{ fontSize: 13, color: "#555", marginTop: 2 }}>Add to your home screen for the best experience</div>
-              </div>
+            {/* Drag handle */}
+            <div style={{ display: "flex", justifyContent: "center", padding: "12px 0 4px" }}>
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: "#222" }} />
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 22 }}>
-              {[
-                { num: 1, icon: "⬆️", text: <>Tap the <strong style={{ color: "#fff" }}>Share</strong> button at the bottom of your browser</> },
-                { num: 2, icon: "➕", text: <>Tap <strong style={{ color: "#fff" }}>"Add to Home Screen"</strong></> },
-                { num: 3, icon: "✅", text: <>Tap <strong style={{ color: "#fff" }}>"Add"</strong> to confirm</> },
-              ].map(({ num, icon, text }) => (
-                <div key={num} style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                  <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#1a1a1a", border: "1px solid #222", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#00FF87", flexShrink: 0 }}>{num}</div>
-                  <div style={{ fontSize: 14, color: "#888", lineHeight: 1.4 }}>{text}</div>
+            <div style={{ padding: "16px 24px 24px" }}>
+              {/* App identity row */}
+              <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 24 }}>
+                <div style={{ width: 56, height: 56, background: "#000", borderRadius: 14, border: "1px solid #1a1a1a", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'JetBrains Mono',monospace", fontSize: 18, fontWeight: 700, color: "#fff", flexShrink: 0, letterSpacing: -1 }}>
+                  T<span style={{ color: "#00FF87" }}>|</span>T
                 </div>
-              ))}
-            </div>
-            <button style={{ width: "100%", background: "#00FF87", color: "#000", border: "none", borderRadius: 12, padding: "14px 0", fontWeight: 800, fontSize: 15, cursor: "pointer", marginBottom: 12 }}
-              onClick={() => setShowInstallPrompt(false)}>
-              Got it
-            </button>
-            <div style={{ textAlign: "center", fontSize: 13, color: "#333", cursor: "pointer" }}
-              onClick={() => { localStorage.setItem("tot-pwa-dismissed", "1"); setShowInstallPrompt(false); }}>
-              Don't show again
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 17, color: "#fff", letterSpacing: -0.3 }}>ToT Picks</div>
+                  <div style={{ fontSize: 12, color: "#333", marginTop: 2, fontFamily: "'JetBrains Mono',monospace" }}>tot-app.vercel.app</div>
+                </div>
+                <button onClick={() => setShowInstallPrompt(false)} style={{ background: "#1a1a1a", border: "none", borderRadius: "50%", width: 28, height: 28, color: "#555", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>✕</button>
+              </div>
+
+              {installPlatform === "android" ? (
+                <>
+                  <div style={{ fontSize: 14, color: "#555", marginBottom: 20, lineHeight: 1.5 }}>
+                    Install for instant access from your home screen — no browser, no address bar.
+                  </div>
+                  <button
+                    style={{ width: "100%", background: "#00FF87", color: "#000", border: "none", borderRadius: 14, padding: "15px 0", fontWeight: 800, fontSize: 15, letterSpacing: 0.3, marginBottom: 12 }}
+                    onClick={async () => {
+                      if (deferredPrompt) {
+                        deferredPrompt.prompt();
+                        const { outcome } = await deferredPrompt.userChoice;
+                        setDeferredPrompt(null);
+                        if (outcome === "accepted") localStorage.setItem("tot-pwa-dismissed", String(Date.now()));
+                      }
+                      setShowInstallPrompt(false);
+                    }}>
+                    Add to Home Screen
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 0, marginBottom: 20, background: "#0d0d0d", borderRadius: 14, border: "1px solid #141414", overflow: "hidden" }}>
+                    {[
+                      { step: "1", label: "Tap the", bold: "Share", after: " button in Safari", icon: "↑" },
+                      { step: "2", label: "Select", bold: "Add to Home Screen", after: "", icon: "+" },
+                      { step: "3", label: "Tap", bold: "Add", after: " to confirm", icon: "✓" },
+                    ].map(({ step, label, bold, after, icon }, i) => (
+                      <div key={step} style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", borderTop: i > 0 ? "1px solid #141414" : "none" }}>
+                        <div style={{ width: 32, height: 32, borderRadius: 8, background: "#141414", border: "1px solid #1e1e1e", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: "#00FF87", flexShrink: 0, fontWeight: 700 }}>{icon}</div>
+                        <div style={{ fontSize: 14, color: "#666", lineHeight: 1.4 }}>
+                          {label} <span style={{ color: "#fff", fontWeight: 600 }}>{bold}</span>{after}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <button style={{ width: "100%", background: "#00FF87", color: "#000", border: "none", borderRadius: 14, padding: "15px 0", fontWeight: 800, fontSize: 15, letterSpacing: 0.3, marginBottom: 12 }}
+                    onClick={() => setShowInstallPrompt(false)}>
+                    Got it
+                  </button>
+                </>
+              )}
+              <div style={{ textAlign: "center", fontSize: 13, color: "#2a2a2a", cursor: "pointer", padding: "4px 0" }}
+                onClick={() => { localStorage.setItem("tot-pwa-dismissed", String(Date.now())); setShowInstallPrompt(false); }}>
+                Don't show again
+              </div>
             </div>
           </div>
         </div>
@@ -1387,6 +1433,7 @@ const css = `
   @keyframes spin{to{transform:rotate(360deg);}}
   @keyframes fadeUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
   @keyframes slideIn{from{transform:translateX(-100%);}to{transform:translateX(0);}}
+  @keyframes slideUp{from{transform:translateY(100%);}to{transform:translateY(0);}}
   @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
   ::-webkit-scrollbar{width:0;height:0;}
 `;
