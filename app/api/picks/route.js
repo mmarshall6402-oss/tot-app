@@ -238,7 +238,9 @@ export async function GET(request) {
 
     const { safeCard, balancedCard, aggressiveCard } = buildParlayCards(results);
 
-    if (results.length) {
+    // Only cache today's picks — future dates have moving odds/pitchers and should
+    // always be fetched fresh. Caching them would block the cron from adding breakdowns.
+    if (results.length && date === today) {
       await supabase
         .from("picks_cache")
         .upsert({ date, picks: results, generated_at: new Date().toISOString() }, { onConflict: "date" });
