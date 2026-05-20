@@ -545,7 +545,11 @@ export default function ToT() {
             {checkingOut === "annual" && <div style={{ color: "#00FF87", fontSize: 11, marginTop: 6 }}>Redirecting…</div>}
           </button>
         </div>
-        <div style={{ fontSize: 11, color: "#1a1a1a", textAlign: "center", marginBottom: 20 }}>Cancel anytime · Secure payment via Stripe</div>
+        <div style={{ fontSize: 11, color: "#1a1a1a", textAlign: "center", marginBottom: 12 }}>Cancel anytime · Secure payment via Stripe</div>
+        <a href="https://twitter.com/ThisorThatPicks" target="_blank" rel="noopener noreferrer"
+          style={{ display: "block", textAlign: "center", fontSize: 13, color: "#1DA1F2", marginBottom: 20, textDecoration: "none" }}>
+          𝕏 @ThisorThatPicks
+        </a>
         <button style={{ ...S.primaryBtn, background: "transparent", border: "1px solid #111", color: "#333" }} onClick={signOut}>Sign out</button>
       </div>
     </div>
@@ -646,6 +650,11 @@ export default function ToT() {
             <div style={S.drawerLine} />
             <AccuracyPanel savedPicks={savedPicks} />
             <div style={{ flex: 1 }} />
+            <div style={S.drawerLine} />
+            <a href="https://twitter.com/ThisorThatPicks" target="_blank" rel="noopener noreferrer"
+              style={{ ...S.drawerItem, color: "#1DA1F2", textDecoration: "none" }}>
+              𝕏 @ThisorThatPicks
+            </a>
             <div style={S.drawerLine} />
             <div style={{ ...S.drawerItem, color: "#555" }} onClick={manageBilling}>⚡ Manage Billing</div>
             <div style={{ ...S.drawerItem, color: "#FF4D4D" }} onClick={signOut}>Sign Out</div>
