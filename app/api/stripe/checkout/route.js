@@ -1,6 +1,7 @@
 import { getStripe, PLANS } from "../../../../lib/stripe.js";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ||
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
 
 export async function POST(request) {
   try {
@@ -14,6 +15,7 @@ export async function POST(request) {
       line_items: [{ price: priceId, quantity: 1 }],
       customer_email: email,
       metadata: { userId },
+      subscription_data: { metadata: { userId } },
       success_url: `${APP_URL}/?checkout=success`,
       cancel_url:  `${APP_URL}/`,
     });

@@ -18,18 +18,36 @@ export async function POST(request) {
   }
 
   const supabase = getSupabase();
-  const sub = event.data.object;
+  const obj = event.data.object;
 
+  // Fires immediately after payment — session carries userId metadata directly.
+  // This is the fastest path to unlocking access after checkout.
+  if (event.type === "checkout.session.completed") {
+    const userId = obj.metadata?.userId;
+    const subscriptionId = obj.subscription;
+    if (userId && subscriptionId) {
+      await supabase.from("subscriptions").upsert({
+        user_id: userId,
+        stripe_customer_id: obj.customer,
+        stripe_subscription_id: subscriptionId,
+        status: "active",
+        current_period_end: null,
+      }, { onConflict: "user_id" });
+    }
+    return Response.json({ received: true });
+  }
+
+  // Subscription events carry userId via subscription_data.metadata (set at checkout).
   if (["customer.subscription.created", "customer.subscription.updated"].includes(event.type)) {
-    const userId = sub.metadata?.userId;
+    const userId = obj.metadata?.userId;
     if (!userId) return Response.json({ received: true });
 
     await supabase.from("subscriptions").upsert({
       user_id: userId,
-      stripe_customer_id: sub.customer,
-      stripe_subscription_id: sub.id,
-      status: sub.status,
-      current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
+      stripe_customer_id: obj.customer,
+      stripe_subscription_id: obj.id,
+      status: obj.status,
+      current_period_end: new Date(obj.current_period_end * 1000).toISOString(),
     }, { onConflict: "user_id" });
   }
 
@@ -37,7 +55,7 @@ export async function POST(request) {
     await supabase
       .from("subscriptions")
       .update({ status: "canceled" })
-      .eq("stripe_subscription_id", sub.id);
+      .eq("stripe_subscription_id", obj.id);
   }
 
   return Response.json({ received: true });

@@ -4,7 +4,8 @@ import { calculateEdge, BET_THRESHOLD, getConfidenceTier } from "../../../lib/ed
 import { getModelProbability } from "../../../lib/probability.js";
 import { applyFilterLayer, buildParlayCards } from "../../../lib/filter.js";
 
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ||
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
 // Server-side route — use service role key to bypass RLS on picks_cache reads
 const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,

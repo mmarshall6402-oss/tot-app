@@ -8,7 +8,8 @@ import { getModelProbability, setEloRatings } from "../../../../lib/probability.
 import { applyFilterLayer, buildParlayCards } from "../../../../lib/filter.js";
 import { getEloRatings } from "../../../../lib/elo-db.js";
 
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ||
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
 const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -159,12 +160,16 @@ export async function GET(request) {
     const date = new Date().toISOString().split("T")[0];
 
     const supabase = getSupabase();
+    // Only skip if today's cache already has Claude-generated breakdowns.
+    // If the fast-path cached picks without breakdowns first, we still run.
     const { data: existing } = await supabase
       .from("picks_cache")
-      .select("id")
+      .select("picks")
       .eq("date", date)
       .single();
-    if (existing) return Response.json({ message: "Already cached", date });
+    if (existing?.picks?.some(p => p.breakdown?.preview)) {
+      return Response.json({ message: "Already cached with breakdowns", date });
+    }
 
     const [oddsGames, mlbRes, liveElo] = await Promise.all([
       fetchMLBOdds(),
