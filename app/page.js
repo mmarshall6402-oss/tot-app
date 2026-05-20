@@ -209,7 +209,8 @@ export default function ToT() {
     }
   }, []);
 
-  // Tab data fetching
+  // Tab data fetching — fetchSaved runs on user load AND whenever tracker tab is opened.
+  // The user effect covers initial load; the tab effect handles tab switches.
   useEffect(() => {
     if (!user) return;
     if (activeTab === "picks") fetchPicks(selectedDate);
@@ -219,7 +220,7 @@ export default function ToT() {
   }, [user, activeTab, selectedDate]);
 
   useEffect(() => {
-    if (user) fetchSaved();
+    if (user && activeTab !== "tracker") fetchSaved();
   }, [user]);
 
   const startCheckout = async (plan) => {

@@ -70,16 +70,14 @@ export async function POST(request) {
   let resolved = 0;
   for (const [date, picks] of Object.entries(byDate)) {
     const games = await fetchFinalScores(date);
-    for (const pick of picks) {
-      const result = resolveResult(pick, games);
-      if (!result) continue;
-      await supabase
-        .from("saved_picks")
-        .update({ result })
-        .eq("id", pick.id)
-        .eq("user_id", userId);
-      resolved++;
-    }
+    const updates = picks
+      .map(pick => ({ pick, result: resolveResult(pick, games) }))
+      .filter(({ result }) => result !== null);
+
+    await Promise.all(updates.map(({ pick, result }) =>
+      supabase.from("saved_picks").update({ result }).eq("id", pick.id).eq("user_id", userId)
+    ));
+    resolved += updates.length;
   }
 
   return Response.json({ resolved });

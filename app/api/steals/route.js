@@ -8,7 +8,8 @@ import { getModelProbability } from "../../../lib/probability.js";
 import { calculateEdge } from "../../../lib/edge.js";
 import { applyFilterLayer } from "../../../lib/filter.js";
 
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ||
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
 
 const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -16,11 +17,17 @@ const getSupabase = () => createClient(
 );
 
 function matchMLBGame(game, mlbGames) {
-  return mlbGames.find(g => {
-    const hw = game.homeTeam?.split(" ").pop()?.toLowerCase();
-    const aw = game.awayTeam?.split(" ").pop()?.toLowerCase();
-    return g.homeTeam?.toLowerCase().includes(hw) && g.awayTeam?.toLowerCase().includes(aw);
-  });
+  const norm = s => (s || "").toLowerCase().trim();
+  const lastWord = s => norm(s).split(" ").pop();
+  const timeClose = (t1, t2) => {
+    if (!t1 || !t2) return true;
+    return Math.abs(new Date(t1) - new Date(t2)) < 6 * 3_600_000;
+  };
+  return mlbGames.find(g =>
+    norm(g.homeTeam).includes(lastWord(game.homeTeam)) &&
+    norm(g.awayTeam).includes(lastWord(game.awayTeam)) &&
+    timeClose(g.commenceTime, game.commenceTime)
+  ) || null;
 }
 
 export async function GET(request) {

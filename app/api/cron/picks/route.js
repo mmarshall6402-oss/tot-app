@@ -90,24 +90,27 @@ Return ONLY a JSON array, no markdown. Each element:
   "tier": { "level": "High" }
 }`;
 
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": process.env.ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-6",
+      max_tokens: 4096,
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(`Claude API error: ${JSON.stringify(data.error || data)}`);
+  const text = data.content?.[0]?.text || "[]";
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 4096,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
-    const data = await res.json();
-    const text = data.content?.[0]?.text || "[]";
     return JSON.parse(text.replace(/```json|```/g, "").trim());
-  } catch { return []; }
+  } catch (e) {
+    throw new Error(`Claude returned invalid JSON: ${text.slice(0, 200)}`);
+  }
 }
 
 function buildPick(game, mlb, breakdown, precomputedFilter) {

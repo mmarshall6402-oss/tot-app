@@ -164,10 +164,23 @@ async function fetchPitcherRecentStarts(pitcherId, numStarts = 5) {
   } catch { return null; }
 }
 
+// Module-level cache: keyed by date, expires after 4 minutes for live dates.
+// Past dates are cached indefinitely (scores don't change).
+const _mlbCache = new Map();
+const LIVE_TTL = 4 * 60 * 1000;
+
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const date    = searchParams.get("date") || new Date().toISOString().split("T")[0];
+    const today   = new Date().toISOString().split("T")[0];
+
+    const cached  = _mlbCache.get(date);
+    const isPast  = date < today;
+    if (cached && (isPast || Date.now() - cached.ts < LIVE_TTL)) {
+      return Response.json(cached.data);
+    }
+
     const past7   = getPastDate(7);
     const past10  = getPastDate(10);
     const past14  = getPastDate(14);
@@ -291,7 +304,9 @@ export async function GET(request) {
       };
     }));
 
-    return Response.json({ games: enriched, date });
+    const payload = { games: enriched, date };
+    _mlbCache.set(date, { data: payload, ts: Date.now() });
+    return Response.json(payload);
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });
   }

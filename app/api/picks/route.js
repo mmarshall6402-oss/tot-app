@@ -12,17 +12,6 @@ const getSupabase = () => createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
 
-const memCache = new Map();
-const TTL = 1000 * 60 * 10;
-
-const getMemCached = async (key, fn) => {
-  const hit = memCache.get(key);
-  if (hit && Date.now() - hit.time < TTL) return hit.data;
-  const data = await fn();
-  memCache.set(key, { data, time: Date.now() });
-  return data;
-};
-
 function buildPick(game, mlb, breakdown) {
   const modelProbRaw = getModelProbability(game, mlb);
 
