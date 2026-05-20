@@ -1,19 +1,24 @@
-// app/api/free-pick/route.js
-// Delegates to /api/picks and returns the single highest-edge BET pick
-// This ensures the free pick always uses the same model as the main picks page
+import { createClient } from "@supabase/supabase-js";
 
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+const getSupabase = () => createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 export async function GET() {
   try {
     const date = new Date().toISOString().split("T")[0];
+    const supabase = getSupabase();
 
-    // Fetch today's picks from the main model
-    const res  = await fetch(`${BASE_URL}/api/picks?date=${date}`);
-    const data = await res.json();
-    const picks = data?.picks || [];
+    const { data: cached } = await supabase
+      .from("picks_cache")
+      .select("picks")
+      .eq("date", date)
+      .single();
 
-    // Prefer CLEAN, then BET — never expose a PASS pick as the free pick
+    const picks = cached?.picks || [];
+
+    // Prefer CLEAN, then BET — never show a PASS pick
     const pick = picks.find(p => p.filter?.verdict === "CLEAN")
               || picks.find(p => p.isBet)
               || null;
