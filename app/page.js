@@ -138,7 +138,7 @@ export default function ToT() {
     return null;
   });
   const [checkingOut, setCheckingOut] = useState(false);
-  const [modelRecord, setModelRecord] = useState(null);
+  // modelRecord is derived from the user's own savedPicks — no separate state needed
   const [unitSize, setUnitSize] = useState(10);
   const [copied, setCopied] = useState(false);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
@@ -192,10 +192,9 @@ export default function ToT() {
     return () => clearInterval(poll);
   }, [user?.id]);
 
-  // Load free pick, model record, start carousel
+  // Load free pick and start carousel
   useEffect(() => {
     fetch("/api/free-pick").then(r => r.json()).then(d => setFreePick(d.pick || null)).catch(() => {});
-    fetch("/api/model-record").then(r => r.json()).then(d => setModelRecord(d)).catch(() => {});
     const t = setInterval(() => setCarouselIdx(i => i + 1), 3000);
     return () => clearInterval(t);
   }, []);
@@ -554,6 +553,15 @@ export default function ToT() {
       </div>
     </div>
   );
+
+  // Derive model record from user's own saved picks — personal win/loss, not global model stats
+  const decisioned = savedPicks.filter(p => p.result === "win" || p.result === "loss");
+  const modelRecord = decisioned.length > 0 ? {
+    wins:   decisioned.filter(p => p.result === "win").length,
+    losses: decisioned.filter(p => p.result === "loss").length,
+    total:  decisioned.length,
+    pct:    Math.round(decisioned.filter(p => p.result === "win").length / decisioned.length * 1000) / 10,
+  } : null;
 
   return (
     <div style={S.app}>
