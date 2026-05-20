@@ -154,6 +154,89 @@ function buildPick(game, mlb, breakdown, precomputedFilter) {
   };
 }
 
+async function generateForDate(date, oddsGames, supabase) {
+  const { data: existing } = await supabase
+    .from("picks_cache").select("picks").eq("date", date).single();
+  if (existing?.picks?.some(p => p.breakdown?.preview)) {
+    return { skipped: true, date };
+  }
+
+  const mlbRes = await fetch(`${BASE_URL}/api/mlb?date=${date}`).then(r => r.json()).catch(() => ({}));
+  const mlbGames = mlbRes?.games || [];
+
+  // Only process odds games that match this date's MLB schedule
+  const dateOdds = oddsGames.filter(game => !!matchMLBGame(game, mlbGames));
+  if (!dateOdds.length) return { skipped: true, date, reason: "no matching games" };
+
+  const ipStr = (p) => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";
+  const bullStr = b => b
+    ? `${b.era} ERA, ${b.whip ?? "?"} WHIP, K/9 ${b.k9 ?? "?"}${b.isRolling ? ` (${b.window}d rolling)` : " (season)"}`
+    : "no data";
+
+  const gameContexts = dateOdds.map(game => {
+    const mlb          = matchMLBGame(game, mlbGames);
+    const modelProbRaw = getModelProbability(game, mlb);
+    const homeImplied  = game.homeImplied || 0.5;
+    const modelProb    = homeImplied + (modelProbRaw - homeImplied) * 0.20;
+    const rawEdge      = calculateEdge(modelProb, homeImplied);
+    const pick         = rawEdge >= 0 ? game.homeTeam : game.awayTeam;
+    const filter       = applyFilterLayer(pick, { ...game, source: game.source }, mlb, modelProbRaw);
+    const hp = mlb?.homePitcher, ap = mlb?.awayPitcher;
+    const hf = mlb?.homeForm, af = mlb?.awayForm;
+    const hb = mlb?.homeBullpen, ab = mlb?.awayBullpen;
+    const hs = mlb?.homeStandings, as_ = mlb?.awayStandings;
+    const hlo = mlb?.homeLineupOpsVsPitcher, alo = mlb?.awayLineupOpsVsPitcher;
+    return {
+      game, mlb, pick,
+      homePStr: hp ? `${hp.name} (${hp.wins}-${hp.losses}, ${hp.era} ERA, ${hp.whip} WHIP${ipStr(hp)})` : "TBD",
+      awayPStr: ap ? `${ap.name} (${ap.wins}-${ap.losses}, ${ap.era} ERA, ${ap.whip} WHIP${ipStr(ap)})` : "N/A",
+      homeFormStr: hf ? `${hf.avg} AVG, ${hf.ops} OPS, ${hf.homeRuns} HR, ${hf.runs} R` : "no data",
+      awayFormStr: af ? `${af.avg} AVG, ${af.ops} OPS, ${af.homeRuns} HR, ${af.runs} R` : "no data",
+      homeBullpenStr: bullStr(hb), awayBullpenStr: bullStr(ab),
+      homeRecordStr: hs ? `${hs.wins}-${hs.losses}` : "no data",
+      awayRecordStr: as_ ? `${as_.wins}-${as_.losses}` : "no data",
+      homeLineupStr: hlo != null ? `${parseFloat(hlo).toFixed(3)} OPS vs pitcher hand` : "not posted",
+      awayLineupStr: alo != null ? `${parseFloat(alo).toFixed(3)} OPS vs pitcher hand` : "not posted",
+      homeTeam: game.homeTeam, awayTeam: game.awayTeam,
+      homeOdds: game.homeOdds, awayOdds: game.awayOdds,
+      filter,
+      trueEdgePct: filter.trueEdgePct, verdict: filter.verdict,
+      variance: filter.variance, parkFactor: filter.parkFactor,
+      flags: filter.flags.map(f => f.replace(/_/g, " ").toLowerCase()).join(", ") || "none",
+    };
+  });
+
+  const breakdowns = await callClaudeBatch(gameContexts);
+  const results = gameContexts.map((ctx, i) =>
+    buildPick(ctx.game, ctx.mlb, breakdowns[i] || {}, ctx.filter)
+  ).filter(Boolean);
+
+  results.sort((a, b) => b.edge - a.edge);
+
+  await supabase.from("picks_cache")
+    .upsert({ date, picks: results, generated_at: new Date().toISOString() }, { onConflict: "date" });
+
+  if (date === new Date().toISOString().split("T")[0]) {
+    const pickRows = gameContexts.map((ctx, i) => {
+      const result = results[i];
+      if (!result) return null;
+      return {
+        date, home_team: ctx.game.homeTeam, away_team: ctx.game.awayTeam,
+        pick: result.pick,
+        predicted_prob: Math.round(getModelProbability(ctx.game, ctx.mlb) * 1000) / 1000,
+        edge_pct: result.edge, verdict: result.filter?.verdict || "PASS", result: "pending",
+      };
+    }).filter(Boolean);
+    if (pickRows.length) {
+      await supabase.from("model_picks").upsert(pickRows, {
+        onConflict: "date,home_team,away_team", ignoreDuplicates: true,
+      });
+    }
+  }
+
+  return { date, count: results.length };
+}
+
 export async function GET(request) {
   const authHeader = request.headers.get("authorization");
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -161,112 +244,21 @@ export async function GET(request) {
   }
 
   try {
-    const date = new Date().toISOString().split("T")[0];
+    const today    = new Date().toISOString().split("T")[0];
+    const tomorrow = new Date(Date.now() + 86400000).toISOString().split("T")[0];
 
     const supabase = getSupabase();
-    // Only skip if today's cache already has Claude-generated breakdowns.
-    // If the fast-path cached picks without breakdowns first, we still run.
-    const { data: existing } = await supabase
-      .from("picks_cache")
-      .select("picks")
-      .eq("date", date)
-      .single();
-    if (existing?.picks?.some(p => p.breakdown?.preview)) {
-      return Response.json({ message: "Already cached with breakdowns", date });
-    }
-
-    const [oddsGames, mlbRes, liveElo] = await Promise.all([
+    const [oddsGames, liveElo] = await Promise.all([
       fetchMLBOdds(),
-      fetch(`${BASE_URL}/api/mlb?date=${date}`).then(r => r.json()),
       getEloRatings(supabase),
     ]);
-    // Inject live ELO so probability model uses up-to-date team strength
     setEloRatings(liveElo);
-    const mlbGames = mlbRes?.games || [];
 
-    // Build game contexts for batch Claude call
-    const gameContexts = oddsGames.map(game => {
-      const mlb           = matchMLBGame(game, mlbGames);
-      const modelProbRaw  = getModelProbability(game, mlb);
-      const homeImplied   = game.homeImplied || 0.5;
-      const modelProb     = homeImplied + (modelProbRaw - homeImplied) * 0.20;
-      const rawEdge       = calculateEdge(modelProb, homeImplied);
-      const pick          = rawEdge >= 0 ? game.homeTeam : game.awayTeam;
-      const filter        = applyFilterLayer(pick, { ...game, source: game.source }, mlb, modelProbRaw);
-      const hf = mlb?.homeForm;
-      const af = mlb?.awayForm;
-      const hb = mlb?.homeBullpen;
-      const ab = mlb?.awayBullpen;
-      const hs = mlb?.homeStandings;
-      const as_ = mlb?.awayStandings;
-      const hlo = mlb?.homeLineupOpsVsPitcher;
-      const alo = mlb?.awayLineupOpsVsPitcher;
-      const ipStr = (p) => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";
-      const hp = mlb?.homePitcher;
-      const ap = mlb?.awayPitcher;
-      const bullStr = b => b
-        ? `${b.era} ERA, ${b.whip ?? "?"} WHIP, K/9 ${b.k9 ?? "?"}${b.isRolling ? ` (${b.window}d rolling)` : " (season)"}`
-        : "no data";
-      return {
-        game, mlb, pick,
-        homePStr: hp ? `${hp.name} (${hp.wins}-${hp.losses}, ${hp.era} ERA, ${hp.whip} WHIP${ipStr(hp)})` : "TBD",
-        awayPStr: ap ? `${ap.name} (${ap.wins}-${ap.losses}, ${ap.era} ERA, ${ap.whip} WHIP${ipStr(ap)})` : "N/A",
-        homeFormStr: hf ? `${hf.avg} AVG, ${hf.ops} OPS, ${hf.homeRuns} HR, ${hf.runs} R` : "no data",
-        awayFormStr: af ? `${af.avg} AVG, ${af.ops} OPS, ${af.homeRuns} HR, ${af.runs} R` : "no data",
-        homeBullpenStr: bullStr(hb),
-        awayBullpenStr: bullStr(ab),
-        homeRecordStr: hs ? `${hs.wins}-${hs.losses}` : "no data",
-        awayRecordStr: as_ ? `${as_.wins}-${as_.losses}` : "no data",
-        homeLineupStr: hlo != null ? `${parseFloat(hlo).toFixed(3)} OPS vs pitcher hand` : "not posted",
-        awayLineupStr: alo != null ? `${parseFloat(alo).toFixed(3)} OPS vs pitcher hand` : "not posted",
-        homeTeam: game.homeTeam, awayTeam: game.awayTeam,
-        homeOdds: game.homeOdds, awayOdds: game.awayOdds,
-        filter,
-        trueEdgePct: filter.trueEdgePct, verdict: filter.verdict,
-        variance: filter.variance, parkFactor: filter.parkFactor,
-        flags: filter.flags.map(f => f.replace(/_/g, " ").toLowerCase()).join(", ") || "none",
-      };
-    });
+    // Generate today then tomorrow sequentially — each Claude call needs its own context
+    const todayResult    = await generateForDate(today, oddsGames, supabase);
+    const tomorrowResult = await generateForDate(tomorrow, oddsGames, supabase);
 
-    const breakdowns = await callClaudeBatch(gameContexts);
-
-    // Pass precomputed filter to buildPick — avoids computing applyFilterLayer twice per game
-    const results = gameContexts.map((ctx, i) =>
-      buildPick(ctx.game, ctx.mlb, breakdowns[i] || {}, ctx.filter)
-    ).filter(Boolean);
-
-    results.sort((a, b) => b.edge - a.edge);
-    const { safeCard, balancedCard, aggressiveCard } = buildParlayCards(results);
-
-    await supabase
-      .from("picks_cache")
-      .upsert({ date, picks: results, generated_at: new Date().toISOString() }, { onConflict: "date" });
-
-    // Log picks to model_picks for result tracking and calibration.
-    // predicted_prob = home win probability; edge_pct and verdict for calibration buckets.
-    const pickRows = gameContexts.map((ctx, i) => {
-      const result = results[i];
-      if (!result) return null;
-      return {
-        date,
-        home_team: ctx.game.homeTeam,
-        away_team: ctx.game.awayTeam,
-        pick: result.pick,
-        predicted_prob: Math.round(getModelProbability(ctx.game, ctx.mlb) * 1000) / 1000,
-        edge_pct: result.edge,
-        verdict: result.filter?.verdict || "PASS",
-        result: "pending",
-      };
-    }).filter(Boolean);
-
-    if (pickRows.length) {
-      await supabase.from("model_picks").upsert(pickRows, {
-        onConflict: "date,home_team,away_team",
-        ignoreDuplicates: true,
-      });
-    }
-
-    return Response.json({ message: "Picks generated", date, count: results.length, safeCard, balancedCard, aggressiveCard });
+    return Response.json({ today: todayResult, tomorrow: tomorrowResult });
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });
   }

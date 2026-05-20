@@ -246,17 +246,40 @@ export async function GET(request) {
 
     const mlbGames = mlbRes?.games || [];
 
-    if (!oddsGames.length) {
-      return Response.json({ picks: [], cached: false, notice: "odds unavailable" });
-    }
+    // MLB schedule is the date-authoritative source — iterate it so we always show
+    // the right games for the date. Odds supplement each game where lines are posted.
+    // Games with no odds show as informational (no edge, no BET label).
+    const norm = s => (s || "").toLowerCase().trim();
+    const lastWord = s => norm(s).split(" ").pop();
+    const findOdds = (mlbGame) => oddsGames.find(g =>
+      norm(g.homeTeam).includes(lastWord(mlbGame.homeTeam)) &&
+      norm(g.awayTeam).includes(lastWord(mlbGame.awayTeam))
+    ) || null;
 
-    // Fast path: build picks without Claude (must complete in <10s on Vercel free tier).
-    // Claude breakdowns are added by the daily cron job (/api/cron/picks) which
-    // pre-warms the Supabase cache. On cache hit above, full breakdowns are served.
-    const results = oddsGames.map(game => {
-      const mlb = matchMLBGame(game, mlbGames);
-      return buildPick(game, mlb, null);
-    }).filter(Boolean);
+    const ipStr2 = (p) => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";
+
+    const results = mlbGames.length
+      ? mlbGames.map(mlbGame => {
+          const oddsGame = findOdds(mlbGame);
+          if (oddsGame) {
+            return buildPick({ ...oddsGame, commenceTime: mlbGame.commenceTime }, mlbGame, null);
+          }
+          // No odds yet — show game as informational
+          const modelProb = getModelProbability({ homeTeam: mlbGame.homeTeam, awayTeam: mlbGame.awayTeam, homeImplied: 0.5, commenceTime: mlbGame.commenceTime }, mlbGame);
+          const pick = modelProb >= 0.5 ? mlbGame.homeTeam : mlbGame.awayTeam;
+          return {
+            id: String(mlbGame.gameId), homeTeam: mlbGame.homeTeam, awayTeam: mlbGame.awayTeam,
+            commenceTime: mlbGame.commenceTime, homeOdds: null, awayOdds: null,
+            pick, edge: 0, isBet: false, tier: { label: "📋 No Line", level: "Low", emoji: "📋" },
+            breakdown: {
+              pitcher_home: mlbGame.homePitcher ? `${mlbGame.homePitcher.name} (${mlbGame.homePitcher.wins}-${mlbGame.homePitcher.losses}, ${mlbGame.homePitcher.era} ERA${ipStr2(mlbGame.homePitcher)})` : "TBD",
+              pitcher_away: mlbGame.awayPitcher ? `${mlbGame.awayPitcher.name} (${mlbGame.awayPitcher.wins}-${mlbGame.awayPitcher.losses}, ${mlbGame.awayPitcher.era} ERA${ipStr2(mlbGame.awayPitcher)})` : "TBD",
+            },
+            filter: null,
+            liveScore: { status: mlbGame.status, homeScore: mlbGame.homeScore, awayScore: mlbGame.awayScore, inning: mlbGame.inning, inningHalf: mlbGame.inningHalf },
+          };
+        }).filter(Boolean)
+      : oddsGames.map(game => buildPick(game, null, null)).filter(Boolean);
 
     results.sort((a, b) => b.edge - a.edge);
 
