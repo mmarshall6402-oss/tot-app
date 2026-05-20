@@ -35,13 +35,24 @@ function buildPick(game, mlb, breakdown) {
   const filter    = applyFilterLayer(pick, { ...game, source: game.source }, mlb, modelProbRaw);
   const filteredIsBet = ["CLEAN", "BET"].includes(filter.verdict);
 
+  // Tier from Claude breakdown if available; otherwise derive from filter verdict.
+  // Edge-based tier (getConfidenceTier) maps 2-8% → Low for almost all picks after
+  // market calibration, so we prefer the verdict signal instead.
+  const verdictTier = filteredIsBet
+    ? (filter?.verdict === "CLEAN" || (filter?.confidence || 0) >= 7.5)
+      ? { level: "High",   label: "🔥 Value Pick", emoji: "🔥" }
+      : (filter?.confidence || 0) >= 6
+      ? { level: "Medium", label: "✅ Solid Pick",  emoji: "✅" }
+      : { level: "Low",    label: "👀 Lean",         emoji: "👀" }
+    : { level: "Low", label: "👀 Lean", emoji: "👀" };
+
   const tier = breakdown?.tier?.level
     ? {
         label: breakdown.tier.level === "High" ? "🔥 Value Pick" : breakdown.tier.level === "Medium" ? "✅ Solid Pick" : "👀 Lean",
         level: breakdown.tier.level,
         emoji: breakdown.tier.level === "High" ? "🔥" : breakdown.tier.level === "Medium" ? "✅" : "👀",
       }
-    : getConfidenceTier(edgePct / 100) || { label: "👀 Lean", level: "Low", emoji: "👀" };
+    : verdictTier;
 
   const ipStr = (p) => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";
   const homePStr = homePitcher ? `${homePitcher.name} (${homePitcher.wins}-${homePitcher.losses}, ${homePitcher.era} ERA, ${homePitcher.whip} WHIP${ipStr(homePitcher)})` : "TBD";

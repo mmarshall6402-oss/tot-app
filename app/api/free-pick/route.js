@@ -19,11 +19,22 @@ export async function GET() {
     const picks = cached?.picks || [];
 
     // Prefer CLEAN, then BET — never show a PASS pick
-    const pick = picks.find(p => p.filter?.verdict === "CLEAN")
-              || picks.find(p => p.isBet)
-              || null;
+    const raw = picks.find(p => p.filter?.verdict === "CLEAN")
+             || picks.find(p => p.isBet)
+             || null;
 
-    return Response.json({ pick });
+    if (!raw) return Response.json({ pick: null });
+
+    // Override tier from filter verdict — cached tier reflects edge magnitude
+    // which is calibrated to 2-8%, but CLEAN/BET designation is the real signal.
+    const verdict = raw.filter?.verdict;
+    const tier = verdict === "CLEAN"
+      ? { level: "High",   label: "🔥 Value Pick", emoji: "🔥" }
+      : verdict === "BET" && (raw.filter?.confidence || 0) >= 7
+      ? { level: "Medium", label: "✅ Solid Pick",  emoji: "✅" }
+      : { level: "Low",    label: "👀 Lean",         emoji: "👀" };
+
+    return Response.json({ pick: { ...raw, tier } });
   } catch (e) {
     return Response.json({ pick: null, error: e.message });
   }

@@ -130,13 +130,21 @@ function buildPick(game, mlb, breakdown, precomputedFilter) {
   const filter    = precomputedFilter || applyFilterLayer(pick, { ...game, source: game.source }, mlb, modelProbRaw);
   const filteredIsBet = ["CLEAN", "BET"].includes(filter.verdict);
 
+  const verdictTier = filteredIsBet
+    ? (filter?.verdict === "CLEAN" || (filter?.confidence || 0) >= 7.5)
+      ? { level: "High",   label: "🔥 Value Pick", emoji: "🔥" }
+      : (filter?.confidence || 0) >= 6
+      ? { level: "Medium", label: "✅ Solid Pick",  emoji: "✅" }
+      : { level: "Low",    label: "👀 Lean",         emoji: "👀" }
+    : { level: "Low", label: "👀 Lean", emoji: "👀" };
+
   const tier = breakdown?.tier?.level
     ? {
         label: breakdown.tier.level === "High" ? "🔥 Value Pick" : breakdown.tier.level === "Medium" ? "✅ Solid Pick" : "👀 Lean",
         level: breakdown.tier.level,
         emoji: breakdown.tier.level === "High" ? "🔥" : breakdown.tier.level === "Medium" ? "✅" : "👀",
       }
-    : getConfidenceTier(edgePct / 100) || { label: "👀 Lean", level: "Low", emoji: "👀" };
+    : verdictTier;
 
   const ipStr = (p) => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";
   const hp = mlb?.homePitcher;
