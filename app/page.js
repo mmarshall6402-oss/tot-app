@@ -149,6 +149,9 @@ export default function ToT() {
   const [unitSize, setUnitSize] = useState(10);
   const [copied, setCopied] = useState(false);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const [showAuth, setShowAuth] = useState(false);
+  const [subEmail, setSubEmail] = useState("");
+  const [subStatus, setSubStatus] = useState(null); // null | "loading" | "ok" | "err"
   const [installPlatform, setInstallPlatform] = useState(null); // 'ios' | 'android'
   const [deferredPrompt, setDeferredPrompt] = useState(null);
 
@@ -443,68 +446,117 @@ export default function ToT() {
   if (!user) return (
     <div style={S.page}>
       <style>{css}</style>
-      <div style={S.previewBox}>
-        <div style={S.previewTag}>TODAY'S FREE PICK</div>
-        {freePick ? (
-          <>
-            <div style={S.previewMatchup}>{freePick.awayTeam} @ {freePick.homeTeam}</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10 }}>
-              <span style={{ ...S.badge, background: TIER[freePick.tier?.level]?.bg, color: TIER[freePick.tier?.level]?.color }}>
-                {TIER[freePick.tier?.level]?.label}
-              </span>
-              <span style={{ fontSize: 13, color: "#555" }}>Take {freePick.pick}</span>
+
+      {!showAuth ? (
+        /* ── Landing view ── */
+        <div style={{ width: "100%", maxWidth: 460 }}>
+          {/* Logo */}
+          <div style={{ textAlign: "center", marginBottom: 24 }}>
+            <div style={S.logo}>T<span style={{ color: "#00FF87" }}>|</span>T <span style={{ color: "#333", fontFamily: "'Space Grotesk',sans-serif", fontSize: 14, fontWeight: 400 }}>Sharp MLB Picks</span></div>
+          </div>
+
+          {/* Free pick preview */}
+          <div style={S.previewBox}>
+            <div style={S.previewTag}>TODAY'S FREE PICK</div>
+            {freePick ? (
+              <>
+                <div style={S.previewMatchup}>{freePick.awayTeam} @ {freePick.homeTeam}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10 }}>
+                  <span style={{ ...S.badge, background: TIER[freePick.tier?.level]?.bg, color: TIER[freePick.tier?.level]?.color }}>
+                    {TIER[freePick.tier?.level]?.label}
+                  </span>
+                  <span style={{ fontSize: 13, color: "#555" }}>Take {freePick.pick}</span>
+                </div>
+                {freePick.breakdown?.preview && <div style={S.previewReason}>{freePick.breakdown.preview}</div>}
+                <div style={S.pitchRow}>
+                  <div style={S.pitchBox}>
+                    <div style={S.pitchLabel}>HOME SP</div>
+                    <div style={S.pitchName}>{freePick.breakdown?.pitcher_home || "TBD"}</div>
+                  </div>
+                  <div style={S.pitchVs}>VS</div>
+                  <div style={{ ...S.pitchBox, textAlign: "right" }}>
+                    <div style={S.pitchLabel}>AWAY SP</div>
+                    <div style={S.pitchName}>{freePick.breakdown?.pitcher_away || "TBD"}</div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div style={{ color: "#333", fontSize: 13 }}>Loading today's free pick…</div>
+            )}
+          </div>
+
+          {/* Email capture */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 13, color: "#444", marginBottom: 10, textAlign: "center" }}>
+              Get tomorrow's pick free — every morning.
             </div>
-            {freePick.breakdown?.preview && <div style={S.previewReason}>{freePick.breakdown.preview}</div>}
-            <div style={S.pitchRow}>
-              <div style={S.pitchBox}>
-                <div style={S.pitchLabel}>HOME SP</div>
-                <div style={S.pitchName}>{freePick.breakdown?.pitcher_home || "TBD"}</div>
+            {subStatus === "ok" ? (
+              <div style={{ background: "rgba(0,255,135,0.08)", border: "1px solid rgba(0,255,135,0.2)", borderRadius: 12, padding: "12px 16px", textAlign: "center", fontSize: 13, color: "#00FF87" }}>
+                ✓ You're in — first pick lands tomorrow.
               </div>
-              <div style={S.pitchVs}>VS</div>
-              <div style={{ ...S.pitchBox, textAlign: "right" }}>
-                <div style={S.pitchLabel}>AWAY SP</div>
-                <div style={S.pitchName}>{freePick.breakdown?.pitcher_away || "TBD"}</div>
-              </div>
-            </div>
-          </>
-        ) : (
-          <div style={{ color: "#333", fontSize: 13 }}>Loading today's free pick…</div>
-        )}
-        <div style={{ display: "flex", gap: 5, marginTop: 14 }}>
-          {[0, 1, 2].map(i => (
-            <div key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: carouselIdx % 3 === i ? "#00FF87" : "#1a1a1a" }} />
-          ))}
+            ) : (
+              <form onSubmit={async e => { e.preventDefault(); setSubStatus("loading"); try { const r=await fetch("/api/subscribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:subEmail})}); setSubStatus(r.ok?"ok":"err"); } catch { setSubStatus("err"); }}}
+                style={{ display: "flex", gap: 8 }}>
+                <input type="email" required placeholder="your@email.com" value={subEmail} onChange={e => setSubEmail(e.target.value)}
+                  style={{ flex: 1, background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 10, padding: "11px 14px", color: "#fff", fontSize: 14, outline: "none" }} />
+                <button type="submit" disabled={subStatus === "loading"}
+                  style={{ background: "#00FF87", color: "#000", border: "none", borderRadius: 10, padding: "11px 16px", fontWeight: 800, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" }}>
+                  {subStatus === "loading" ? "…" : "Send me picks"}
+                </button>
+              </form>
+            )}
+          </div>
+
+          {/* CTAs */}
+          <button style={{ ...S.primaryBtn, marginBottom: 10 }} onClick={() => { setShowAuth(true); setAuthMode("signup"); }}>
+            Get Full Access →
+          </button>
+          <button style={{ ...S.primaryBtn, background: "transparent", border: "1px solid #111", color: "#444" }} onClick={() => { setShowAuth(true); setAuthMode("signin"); }}>
+            Sign In
+          </button>
+
+          {/* Footer */}
+          <div style={{ fontSize: 10, color: "#1a1a1a", textAlign: "center", lineHeight: 1.8, marginTop: 16 }}>
+            <a href="https://twitter.com/ThisorThatPicks" target="_blank" rel="noopener noreferrer" style={{ color: "#1a1a1a", textDecoration: "none" }}>𝕏 @ThisorThatPicks</a>
+            {" · "}
+            <a href="/terms" style={{ color: "#1a1a1a" }}>Terms</a>
+            {" · "}
+            <a href="/privacy" style={{ color: "#1a1a1a" }}>Privacy</a>
+          </div>
         </div>
-      </div>
-      <div style={S.authBox}>
-        <div style={S.logo}>T<span style={{ color: "#00FF87" }}>|</span>T</div>
-        <div style={S.authSub}>{authMode === "signin" ? "Sign in to see all picks" : "Create your free account"}</div>
-        <button style={S.googleBtn} onClick={signInGoogle}><GoogleIcon /> Continue with Google</button>
-        <div style={S.orRow}>
-          <div style={S.orLine} />
-          <span style={{ color: "#333", fontSize: 12, padding: "0 10px" }}>or</span>
-          <div style={S.orLine} />
+      ) : (
+        /* ── Auth view ── */
+        <div style={S.authBox}>
+          <button onClick={() => setShowAuth(false)} style={{ background: "none", border: "none", color: "#333", fontSize: 13, cursor: "pointer", alignSelf: "flex-start", marginBottom: 8, padding: 0 }}>← Back</button>
+          <div style={S.logo}>T<span style={{ color: "#00FF87" }}>|</span>T</div>
+          <div style={S.authSub}>{authMode === "signin" ? "Sign in to see all picks" : "Create your free account"}</div>
+          <button style={S.googleBtn} onClick={signInGoogle}><GoogleIcon /> Continue with Google</button>
+          <div style={S.orRow}>
+            <div style={S.orLine} />
+            <span style={{ color: "#333", fontSize: 12, padding: "0 10px" }}>or</span>
+            <div style={S.orLine} />
+          </div>
+          <input style={S.input} type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
+          <input style={S.input} type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} />
+          {authError && <div style={S.errMsg}>{authError}</div>}
+          <button style={S.primaryBtn} onClick={authMode === "signin" ? signIn : signUp} disabled={authLoading}>
+            {authLoading ? "…" : authMode === "signin" ? "Sign In" : "Create Account"}
+          </button>
+          <div style={S.switchRow}>
+            {authMode === "signin" ? "No account? " : "Have an account? "}
+            <span style={{ color: "#00FF87", cursor: "pointer" }} onClick={() => { setAuthMode(authMode === "signin" ? "signup" : "signin"); setAuthError(""); }}>
+              {authMode === "signin" ? "Sign up" : "Sign in"}
+            </span>
+          </div>
+          <div style={{ fontSize: 10, color: "#222", textAlign: "center", lineHeight: 1.7, marginTop: 4 }}>
+            For entertainment only · Not gambling advice · 21+
+            {" · "}
+            <a href="/terms" style={{ color: "#222" }}>Terms</a>
+            {" · "}
+            <a href="/privacy" style={{ color: "#222" }}>Privacy</a>
+          </div>
         </div>
-        <input style={S.input} type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
-        <input style={S.input} type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} />
-        {authError && <div style={S.errMsg}>{authError}</div>}
-        <button style={S.primaryBtn} onClick={authMode === "signin" ? signIn : signUp} disabled={authLoading}>
-          {authLoading ? "…" : authMode === "signin" ? "Sign In" : "Create Account"}
-        </button>
-        <div style={S.switchRow}>
-          {authMode === "signin" ? "No account? " : "Have an account? "}
-          <span style={{ color: "#00FF87", cursor: "pointer" }} onClick={() => { setAuthMode(authMode === "signin" ? "signup" : "signin"); setAuthError(""); }}>
-            {authMode === "signin" ? "Sign up" : "Sign in"}
-          </span>
-        </div>
-        <div style={{ fontSize: 10, color: "#222", textAlign: "center", lineHeight: 1.7, marginTop: 4 }}>
-          For entertainment only · Not gambling advice · 21+
-          {" · "}
-          <a href="/terms" style={{ color: "#222" }}>Terms</a>
-          {" · "}
-          <a href="/privacy" style={{ color: "#222" }}>Privacy</a>
-        </div>
-      </div>
+      )}
     </div>
   );
 
