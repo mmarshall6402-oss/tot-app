@@ -275,7 +275,7 @@ export async function GET(request) {
     const etDate = (offset = 0) => {
       const d = new Date(Date.now() + offset * 86400000);
       const p = new Intl.DateTimeFormat("en-US", {
-        timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit",
+        timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit",
       }).formatToParts(d);
       return `${p.find(x => x.type === "year").value}-${p.find(x => x.type === "month").value}-${p.find(x => x.type === "day").value}`;
     };

@@ -159,7 +159,7 @@ export async function GET(request) {
     // Use Eastern Time as the canonical "today" — MLB is a US sport and users
     // expect today's picks through midnight ET, not midnight UTC (4 AM ET).
     const etParts = new Intl.DateTimeFormat("en-US", {
-      timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit",
+      timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit",
     }).formatToParts(new Date());
     const today = `${etParts.find(p => p.type === "year").value}-${etParts.find(p => p.type === "month").value}-${etParts.find(p => p.type === "day").value}`;
     const date = searchParams.get("date") || today;
