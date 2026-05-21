@@ -156,7 +156,12 @@ export async function GET(request) {
   const supabase = getSupabase();
   try {
     const { searchParams } = new URL(request.url);
-    const today = new Date().toISOString().split("T")[0];
+    // Use Eastern Time as the canonical "today" — MLB is a US sport and users
+    // expect today's picks through midnight ET, not midnight UTC (4 AM ET).
+    const etParts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit",
+    }).formatToParts(new Date());
+    const today = `${etParts.find(p => p.type === "year").value}-${etParts.find(p => p.type === "month").value}-${etParts.find(p => p.type === "day").value}`;
     const date = searchParams.get("date") || today;
     const bust = searchParams.get("bust") === "1";
 

@@ -272,8 +272,15 @@ export async function GET(request) {
   }
 
   try {
-    const today    = new Date().toISOString().split("T")[0];
-    const tomorrow = new Date(Date.now() + 86400000).toISOString().split("T")[0];
+    const etDate = (offset = 0) => {
+      const d = new Date(Date.now() + offset * 86400000);
+      const p = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit",
+      }).formatToParts(d);
+      return `${p.find(x => x.type === "year").value}-${p.find(x => x.type === "month").value}-${p.find(x => x.type === "day").value}`;
+    };
+    const today    = etDate(0);
+    const tomorrow = etDate(1);
 
     const supabase = getSupabase();
     const [oddsGames, liveElo] = await Promise.all([
