@@ -3,7 +3,14 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-const getSupabase = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+// Single shared instance — sign-out and auth listeners must share the same client
+// so state changes propagate correctly. Calling createClient() on every request
+// creates isolated instances that don't share in-memory auth state.
+let _supabase = null;
+const getSupabase = () => {
+  if (!_supabase) _supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  return _supabase;
+};
 
 const fmtOdds = (o) => o == null ? "—" : (o > 0 ? `+${o}` : `${o}`);
 
