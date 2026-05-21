@@ -909,7 +909,7 @@ export default function ToT() {
                             color: pickResult === "win" ? "#00FF87" : pickResult === "loss" ? "#FF4D4D" : "#FFD600",
                             border: `1px solid ${pickResult === "win" ? "rgba(0,255,135,0.3)" : pickResult === "loss" ? "rgba(255,77,77,0.3)" : "rgba(255,214,0,0.3)"}`,
                           }}>
-                            {pickResult === "win" ? "WIN" : pickResult === "loss" ? "LOSS" : "PUSH"}
+                            {pickResult === "win" ? "WIN" : pickResult === "loss" ? "LOSS" : "TIE"}
                           </span>
                         )}
                         <span style={{ fontSize: 12, color: "#444" }}>
@@ -1357,7 +1357,7 @@ export default function ToT() {
                   <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 28, fontWeight: 700, color: pnl >= 0 ? "#00FF87" : "#FF4D4D" }}>
                     {pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}
                   </div>
-                  <div style={{ fontSize: 11, color: "#333", marginTop: 2 }}>flat ${unitSize}/bet · {total} settled{pushes > 0 ? ` · ${pushes} push` : ""}</div>
+                  <div style={{ fontSize: 11, color: "#333", marginTop: 2 }}>flat ${unitSize}/bet · {total} settled{pushes > 0 ? ` · ${pushes} tie` : ""}</div>
                 </div>
                 <div style={{ textAlign: "right" }}>
                   <div style={{ fontSize: 10, color: "#333", letterSpacing: 1, marginBottom: 4 }}>UNIT SIZE</div>
@@ -1406,7 +1406,7 @@ export default function ToT() {
                       background: p.result === "win" ? "rgba(0,255,135,0.1)" : p.result === "loss" ? "rgba(255,77,77,0.1)" : p.result === "push" ? "rgba(255,214,0,0.1)" : "rgba(136,136,136,0.1)",
                       color: p.result === "win" ? "#00FF87" : p.result === "loss" ? "#FF4D4D" : p.result === "push" ? "#FFD600" : "#888",
                     }}>
-                      {p.result.toUpperCase()}
+                      {p.result === "push" ? "TIE" : p.result.toUpperCase()}
                     </span>
                     <button style={S.trashBtn} onClick={() => deleteSaved(p.id)}>🗑</button>
                   </div>
@@ -1415,7 +1415,6 @@ export default function ToT() {
                   <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
                     <button style={{ ...S.resultBtn, background: "rgba(0,255,135,0.1)", color: "#00FF87", borderColor: "#00FF87" }} onClick={() => markResult(p.id, "win")}>✓ Win</button>
                     <button style={{ ...S.resultBtn, background: "rgba(255,77,77,0.1)", color: "#FF4D4D", borderColor: "#FF4D4D" }} onClick={() => markResult(p.id, "loss")}>✗ Loss</button>
-                    <button style={{ ...S.resultBtn, background: "rgba(255,214,0,0.05)", color: "#FFD600", borderColor: "#FFD600", flex: "0 0 auto", padding: "8px 14px" }} onClick={() => markResult(p.id, "push")}>Push</button>
                   </div>
                 )}
               </div>
