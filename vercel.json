@@ -10,13 +10,18 @@
     },
     {
       "path": "/api/cron/email",
-      "schedule": "30 11 * * *"
+      "schedule": "30 15 * * *"
+    },
+    {
+      "path": "/api/cron/tweet",
+      "schedule": "15 15 * * *"
     }
   ],
   "functions": {
     "app/api/picks/route.js": { "maxDuration": 60 },
     "app/api/cron/picks/route.js": { "maxDuration": 300 },
     "app/api/cron/resolve/route.js": { "maxDuration": 60 },
-    "app/api/cron/email/route.js": { "maxDuration": 60 }
+    "app/api/cron/email/route.js": { "maxDuration": 60 },
+    "app/api/cron/tweet/route.js": { "maxDuration": 60 }
   }
 }
