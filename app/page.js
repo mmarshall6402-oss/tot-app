@@ -51,7 +51,7 @@ const TIER = {
   High:   { color: "#00FF87", bg: "rgba(0,255,135,0.08)", label: "🔥 Value Pick" },
   Medium: { color: "#FFD600", bg: "rgba(255,214,0,0.08)",  label: "✅ Solid Pick" },
   Low:    { color: "#888",    bg: "rgba(136,136,136,0.08)", label: "👀 Lean" },
-  Tossup: { color: "#444",    bg: "rgba(68,68,68,0.06)",   label: "🎲 Toss-Up" },
+  Tossup: { color: "#888",    bg: "rgba(68,68,68,0.06)",   label: "🎲 Toss-Up" },
 };
 
 function AccuracyPanel({ savedPicks }) {
@@ -81,7 +81,7 @@ function AccuracyPanel({ savedPicks }) {
       <div style={S.drawerSectionLabel}>APP ACCURACY</div>
       <div style={S.accuracyCard}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 12, color: "#555" }}>Overall Hit Rate</span>
+          <span style={{ fontSize: 12, color: "#999" }}>Overall Hit Rate</span>
           <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 18, fontWeight: 700, color: rateColor }}>
             {winPct !== null ? `${winPct}%` : "—"}
           </span>
@@ -89,7 +89,7 @@ function AccuracyPanel({ savedPicks }) {
         <div style={{ marginTop: 8, height: 3, background: "#111", borderRadius: 2 }}>
           <div style={{ height: "100%", borderRadius: 2, width: `${winPct || 0}%`, background: rateColor, transition: "width 0.6s ease" }} />
         </div>
-        <div style={{ fontSize: 11, color: "#333", marginTop: 6 }}>{decisioned.length} settled pick{decisioned.length !== 1 ? "s" : ""}</div>
+        <div style={{ fontSize: 11, color: "#777", marginTop: 6 }}>{decisioned.length} settled pick{decisioned.length !== 1 ? "s" : ""}</div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 10 }}>
         {byTier.map(({ tier, total: t, pct }) => (
@@ -106,7 +106,7 @@ function AccuracyPanel({ savedPicks }) {
         ))}
       </div>
       {settled.length === 0 && (
-        <div style={{ fontSize: 12, color: "#333", marginTop: 10, lineHeight: 1.6 }}>
+        <div style={{ fontSize: 12, color: "#777", marginTop: 10, lineHeight: 1.6 }}>
           Save picks and mark results to see accuracy here
         </div>
       )}
@@ -463,7 +463,7 @@ export default function ToT() {
         <div style={{ width: "100%", maxWidth: 460 }}>
           {/* Logo */}
           <div style={{ textAlign: "center", marginBottom: 24 }}>
-            <div style={S.logo}>T<span style={{ color: "#00FF87" }}>|</span>T <span style={{ color: "#333", fontFamily: "'Space Grotesk',sans-serif", fontSize: 14, fontWeight: 400 }}>Sharp MLB Picks</span></div>
+            <div style={S.logo}>T<span style={{ color: "#00FF87" }}>|</span>T <span style={{ color: "#777", fontFamily: "'Space Grotesk',sans-serif", fontSize: 14, fontWeight: 400 }}>Sharp MLB Picks</span></div>
           </div>
 
           {/* Free pick preview */}
@@ -476,7 +476,7 @@ export default function ToT() {
                   <span style={{ ...S.badge, background: TIER[freePick.tier?.level]?.bg, color: TIER[freePick.tier?.level]?.color }}>
                     {TIER[freePick.tier?.level]?.label}
                   </span>
-                  <span style={{ fontSize: 13, color: "#555" }}>Take {freePick.pick}</span>
+                  <span style={{ fontSize: 13, color: "#999" }}>Take {freePick.pick}</span>
                 </div>
                 {freePick.breakdown?.preview && <div style={S.previewReason}>{freePick.breakdown.preview}</div>}
                 <div style={S.pitchRow}>
@@ -492,13 +492,13 @@ export default function ToT() {
                 </div>
               </>
             ) : (
-              <div style={{ color: "#333", fontSize: 13 }}>Loading today's free pick…</div>
+              <div style={{ color: "#777", fontSize: 13 }}>Loading today's free pick…</div>
             )}
           </div>
 
           {/* Email capture */}
           <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 13, color: "#444", marginBottom: 10, textAlign: "center" }}>
+            <div style={{ fontSize: 13, color: "#888", marginBottom: 10, textAlign: "center" }}>
               Get tomorrow's pick free — every morning.
             </div>
             {subStatus === "ok" ? (
@@ -522,7 +522,7 @@ export default function ToT() {
           <button style={{ ...S.primaryBtn, marginBottom: 10 }} onClick={() => { setShowAuth(true); setAuthMode("signup"); }}>
             Get Full Access →
           </button>
-          <button style={{ ...S.primaryBtn, background: "transparent", border: "1px solid #111", color: "#444" }} onClick={() => { setShowAuth(true); setAuthMode("signin"); }}>
+          <button style={{ ...S.primaryBtn, background: "transparent", border: "1px solid #111", color: "#888" }} onClick={() => { setShowAuth(true); setAuthMode("signin"); }}>
             Sign In
           </button>
 
@@ -538,13 +538,13 @@ export default function ToT() {
       ) : (
         /* ── Auth view ── */
         <div style={S.authBox}>
-          <button onClick={() => setShowAuth(false)} style={{ background: "none", border: "none", color: "#333", fontSize: 13, cursor: "pointer", alignSelf: "flex-start", marginBottom: 8, padding: 0 }}>← Back</button>
+          <button onClick={() => setShowAuth(false)} style={{ background: "none", border: "none", color: "#777", fontSize: 13, cursor: "pointer", alignSelf: "flex-start", marginBottom: 8, padding: 0 }}>← Back</button>
           <div style={S.logo}>T<span style={{ color: "#00FF87" }}>|</span>T</div>
           <div style={S.authSub}>{authMode === "signin" ? "Sign in to see all picks" : "Create your free account"}</div>
           <button style={S.googleBtn} onClick={signInGoogle}><GoogleIcon /> Continue with Google</button>
           <div style={S.orRow}>
             <div style={S.orLine} />
-            <span style={{ color: "#333", fontSize: 12, padding: "0 10px" }}>or</span>
+            <span style={{ color: "#777", fontSize: 12, padding: "0 10px" }}>or</span>
             <div style={S.orLine} />
           </div>
           <input style={S.input} type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
@@ -583,8 +583,8 @@ export default function ToT() {
       <style>{css}</style>
       <div style={{ width: "100%", maxWidth: 460 }}>
         <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <div style={S.logo}>T<span style={{ color: "#00FF87" }}>|</span>T <span style={{ color: "#333", fontFamily: "'Space Grotesk',sans-serif", fontSize: 18, fontWeight: 400 }}>Pro</span></div>
-          <div style={{ color: "#444", fontSize: 13, marginTop: 8 }}>Sharp MLB picks. Every condition. No noise.</div>
+          <div style={S.logo}>T<span style={{ color: "#00FF87" }}>|</span>T <span style={{ color: "#777", fontFamily: "'Space Grotesk',sans-serif", fontSize: 18, fontWeight: 400 }}>Pro</span></div>
+          <div style={{ color: "#888", fontSize: 13, marginTop: 8 }}>Sharp MLB picks. Every condition. No noise.</div>
         </div>
         <div style={{ marginBottom: 28 }}>
           {[
@@ -602,16 +602,16 @@ export default function ToT() {
         </div>
         <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
           <button onClick={() => startCheckout("monthly")} disabled={!!checkingOut} style={{ flex: 1, background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 14, padding: "18px 14px", cursor: "pointer", textAlign: "center" }}>
-            <div style={{ fontSize: 10, color: "#555", letterSpacing: 1, marginBottom: 6 }}>MONTHLY</div>
+            <div style={{ fontSize: 10, color: "#999", letterSpacing: 1, marginBottom: 6 }}>MONTHLY</div>
             <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 28, fontWeight: 700, color: "#fff" }}>$2</div>
-            <div style={{ fontSize: 12, color: "#444", marginTop: 4 }}>per month</div>
-            {checkingOut === "monthly" && <div style={{ color: "#555", fontSize: 11, marginTop: 6 }}>Redirecting…</div>}
+            <div style={{ fontSize: 12, color: "#888", marginTop: 4 }}>per month</div>
+            {checkingOut === "monthly" && <div style={{ color: "#999", fontSize: 11, marginTop: 6 }}>Redirecting…</div>}
           </button>
           <button onClick={() => startCheckout("annual")} disabled={!!checkingOut} style={{ flex: 1, background: "#0a1a0f", border: "1px solid rgba(0,255,135,0.3)", borderRadius: 14, padding: "18px 14px", cursor: "pointer", textAlign: "center", position: "relative" }}>
             <div style={{ position: "absolute", top: -11, left: "50%", transform: "translateX(-50%)", background: "#00FF87", color: "#000", fontSize: 10, fontWeight: 800, padding: "3px 10px", borderRadius: 20, letterSpacing: 0.5, whiteSpace: "nowrap" }}>2 MONTHS FREE</div>
             <div style={{ fontSize: 10, color: "#00FF87", letterSpacing: 1, marginBottom: 6 }}>ANNUAL</div>
             <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 28, fontWeight: 700, color: "#00FF87" }}>$19.99</div>
-            <div style={{ fontSize: 12, color: "#555", marginTop: 4 }}>per year · $1.67/mo</div>
+            <div style={{ fontSize: 12, color: "#999", marginTop: 4 }}>per year · $1.67/mo</div>
             {checkingOut === "annual" && <div style={{ color: "#00FF87", fontSize: 11, marginTop: 6 }}>Redirecting…</div>}
           </button>
         </div>
@@ -620,7 +620,7 @@ export default function ToT() {
           style={{ display: "block", textAlign: "center", fontSize: 13, color: "#1DA1F2", marginBottom: 20, textDecoration: "none" }}>
           𝕏 @ThisorThatPicks
         </a>
-        <button style={{ ...S.primaryBtn, background: "transparent", border: "1px solid #111", color: "#333" }} onClick={signOut}>Sign out</button>
+        <button style={{ ...S.primaryBtn, background: "transparent", border: "1px solid #111", color: "#777" }} onClick={signOut}>Sign out</button>
       </div>
     </div>
   );
@@ -646,14 +646,14 @@ export default function ToT() {
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: 17, color: "#fff", letterSpacing: -0.3 }}>ToT Picks</div>
-                  <div style={{ fontSize: 12, color: "#333", marginTop: 2, fontFamily: "'JetBrains Mono',monospace" }}>tot-app.vercel.app</div>
+                  <div style={{ fontSize: 12, color: "#777", marginTop: 2, fontFamily: "'JetBrains Mono',monospace" }}>tot-app.vercel.app</div>
                 </div>
-                <button onClick={() => setShowInstallPrompt(false)} style={{ background: "#1a1a1a", border: "none", borderRadius: "50%", width: 28, height: 28, color: "#555", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>✕</button>
+                <button onClick={() => setShowInstallPrompt(false)} style={{ background: "#1a1a1a", border: "none", borderRadius: "50%", width: 28, height: 28, color: "#999", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>✕</button>
               </div>
 
               {installPlatform === "android" ? (
                 <>
-                  <div style={{ fontSize: 14, color: "#555", marginBottom: 20, lineHeight: 1.5 }}>
+                  <div style={{ fontSize: 14, color: "#999", marginBottom: 20, lineHeight: 1.5 }}>
                     Install for instant access from your home screen — no browser, no address bar.
                   </div>
                   <button
@@ -727,7 +727,7 @@ export default function ToT() {
               𝕏 @ThisorThatPicks
             </a>
             <div style={S.drawerLine} />
-            <div style={{ ...S.drawerItem, color: "#555" }} onClick={manageBilling}>⚡ Manage Billing</div>
+            <div style={{ ...S.drawerItem, color: "#999" }} onClick={manageBilling}>⚡ Manage Billing</div>
             <div style={{ ...S.drawerItem, color: "#FF4D4D" }} onClick={signOut}>Sign Out</div>
           </div>
         </div>
@@ -753,14 +753,14 @@ export default function ToT() {
                   <span style={{ ...S.badge, background: TIER[freePick.tier?.level]?.bg, color: TIER[freePick.tier?.level]?.color }}>
                     {TIER[freePick.tier?.level]?.label}
                   </span>
-                  <span style={{ fontSize: 12, color: "#555" }}>Take {freePick.pick}</span>
+                  <span style={{ fontSize: 12, color: "#999" }}>Take {freePick.pick}</span>
                 </div>
                 {freePick.breakdown?.preview && (
-                  <div style={{ fontSize: 12, color: "#555", marginTop: 6, lineHeight: 1.5 }}>{freePick.breakdown.preview}</div>
+                  <div style={{ fontSize: 12, color: "#999", marginTop: 6, lineHeight: 1.5 }}>{freePick.breakdown.preview}</div>
                 )}
               </>
             ) : (
-              <div style={{ color: "#333", fontSize: 13 }}>No actionable bet today — check back tomorrow</div>
+              <div style={{ color: "#777", fontSize: 13 }}>No actionable bet today — check back tomorrow</div>
             )}
           </>
         )}
@@ -771,15 +771,15 @@ export default function ToT() {
               <>
                 <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 20, fontWeight: 700, marginTop: 4 }}>
                   <span style={{ color: "#00FF87" }}>{modelRecord.wins}</span>
-                  <span style={{ color: "#444" }}>-</span>
+                  <span style={{ color: "#888" }}>-</span>
                   <span style={{ color: "#FF4D4D" }}>{modelRecord.losses}</span>
                 </div>
-                <div style={{ fontSize: 12, color: "#444", marginTop: 4 }}>
+                <div style={{ fontSize: 12, color: "#888", marginTop: 4 }}>
                   {modelRecord.pct}% win rate · {modelRecord.total} tracked bets
                 </div>
               </>
             ) : (
-              <div style={{ color: "#333", fontSize: 13, marginTop: 4 }}>Track record populates as picks resolve</div>
+              <div style={{ color: "#777", fontSize: 13, marginTop: 4 }}>Track record populates as picks resolve</div>
             )}
           </>
         )}
@@ -807,9 +807,9 @@ export default function ToT() {
               key={date}
               style={{
                 ...S.dateBtn,
-                borderColor: selectedDate === date ? "#00FF87" : "#1a1a1a",
-                color: selectedDate === date ? "#00FF87" : "#444",
-                background: selectedDate === date ? "rgba(0,255,135,0.05)" : "transparent",
+                borderColor: selectedDate === date ? "#00FF87" : "#333",
+                color: selectedDate === date ? "#00FF87" : "#999",
+                background: selectedDate === date ? "rgba(0,255,135,0.08)" : "#111",
               }}
               onClick={() => setSelectedDate(date)}
             >
@@ -830,7 +830,7 @@ export default function ToT() {
           ].map(({ id, label }) => (
             <button
               key={id}
-              style={{ ...S.tabBtn, borderColor: activeTab === id ? "#00FF87" : "#1a1a1a", color: activeTab === id ? "#00FF87" : "#444" }}
+              style={{ ...S.tabBtn, borderColor: activeTab === id ? "#00FF87" : "#333", color: activeTab === id ? "#00FF87" : "#999", background: activeTab === id ? "rgba(0,255,135,0.08)" : "#111" }}
               onClick={() => setActiveTab(id)}
             >
               {label}
@@ -842,7 +842,7 @@ export default function ToT() {
             {["edge", "time"].map(s2 => (
               <button
                 key={s2}
-                style={{ ...S.sortBtn, background: sortBy === s2 ? "#00FF87" : "transparent", color: sortBy === s2 ? "#000" : "#444" }}
+                style={{ ...S.sortBtn, background: sortBy === s2 ? "#00FF87" : "#111", color: sortBy === s2 ? "#000" : "#999", border: `1px solid ${sortBy === s2 ? "#00FF87" : "#333"}` }}
                 onClick={() => setSortBy(s2)}
               >
                 {s2 === "edge" ? "📈" : "🕐"}
@@ -860,20 +860,20 @@ export default function ToT() {
       <div style={S.content}>
         {activeTab === "picks" && modelRecord?.total > 0 && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0 4px", flexWrap: "wrap" }}>
-            <span style={{ fontSize: 10, color: "#333", letterSpacing: 1 }}>MODEL RECORD</span>
+            <span style={{ fontSize: 10, color: "#777", letterSpacing: 1 }}>MODEL RECORD</span>
             <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, fontWeight: 700, color: modelRecord.pct >= 55 ? "#00FF87" : modelRecord.pct >= 50 ? "#FFD600" : "#FF4D4D" }}>
               {modelRecord.wins}-{modelRecord.losses}
             </span>
-            <span style={{ fontSize: 11, color: "#444" }}>({modelRecord.pct}%)</span>
+            <span style={{ fontSize: 11, color: "#888" }}>({modelRecord.pct}%)</span>
             <span style={{ fontSize: 10, color: "#222" }}>all-time</span>
           </div>
         )}
 
         {activeTab === "picks" && picks?.length > 0 && (
           <div style={{ display: "flex", gap: 12, padding: "6px 0", borderBottom: "1px solid #0d0d0d", marginBottom: 4 }}>
-            <span style={{ fontSize: 11, color: "#333" }}>{picks.length} games</span>
+            <span style={{ fontSize: 11, color: "#777" }}>{picks.length} games</span>
             <span style={{ fontSize: 11, color: "#00FF87" }}>{picks.filter(p => p.isBet).length} BET</span>
-            <span style={{ fontSize: 11, color: "#444" }}>{picks.filter(p => !p.isBet).length} PASS</span>
+            <span style={{ fontSize: 11, color: "#888" }}>{picks.filter(p => !p.isBet).length} PASS</span>
             {picks.filter(p => p.filter?.verdict === "CLEAN").length > 0 && (
               <span style={{ fontSize: 11, color: "#00FF87", fontWeight: 700 }}>⚡ {picks.filter(p => p.filter?.verdict === "CLEAN").length} CLEAN</span>
             )}
@@ -884,13 +884,13 @@ export default function ToT() {
           picks === null ? (
             <div style={S.center}>
               <div style={S.spinner} />
-              <div style={{ color: "#333", fontSize: 13, marginTop: 12 }}>Analyzing {fmtDateLabel(selectedDate)}'s games…</div>
+              <div style={{ color: "#777", fontSize: 13, marginTop: 12 }}>Analyzing {fmtDateLabel(selectedDate)}'s games…</div>
             </div>
           ) : sorted.length === 0 ? (
             <div style={S.center}>
               <div style={{ fontSize: 32 }}>⚾</div>
               <div style={{ color: "#fff", fontWeight: 700, marginTop: 8 }}>No games found</div>
-              <div style={{ color: "#333", fontSize: 13, marginTop: 4 }}>Try a different date</div>
+              <div style={{ color: "#777", fontSize: 13, marginTop: 4 }}>Try a different date</div>
             </div>
           ) : sorted.map(pick => {
             const isBet   = pick.isBet;
@@ -949,7 +949,7 @@ export default function ToT() {
                     <div style={S.cardMatchup}>{pick.awayTeam} @ {pick.homeTeam}</div>
                     <div style={S.cardMeta}>
                       {fmtGameTime(pick.commenceTime)} · Take <span style={{ color: isBet ? betColor : "#aaa", fontWeight: 700 }}>{pick.pick}</span>
-                      {isBet && pick.homeOdds != null && <span style={{ color: "#444", fontFamily: "'JetBrains Mono',monospace" }}> · {fmtOdds(pick.pick === pick.homeTeam ? pick.homeOdds : pick.awayOdds)}</span>}
+                      {isBet && pick.homeOdds != null && <span style={{ color: "#888", fontFamily: "'JetBrains Mono',monospace" }}> · {fmtOdds(pick.pick === pick.homeTeam ? pick.homeOdds : pick.awayOdds)}</span>}
                     </div>
                     <div style={{ marginTop: 7, display: "flex", alignItems: "center", gap: 7 }}>
                       <div style={{ flex: 1, height: 3, background: "#111", borderRadius: 2 }}>
@@ -962,7 +962,7 @@ export default function ToT() {
                         <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#FF4D4D", animation: "pulse 1s infinite" }} />
                         <span style={{ fontSize: 12, color: "#FF4D4D", fontWeight: 700 }}>LIVE</span>
                         <span style={{ fontSize: 14, fontWeight: 700 }}>{pick.awayTeam} {ls.awayScore} · {pick.homeTeam} {ls.homeScore}</span>
-                        <span style={{ fontSize: 11, color: "#444" }}>{ls.inningHalf} {ls.inning}</span>
+                        <span style={{ fontSize: 11, color: "#888" }}>{ls.inningHalf} {ls.inning}</span>
                       </div>
                     )}
                     {ls?.status === "Final" && (
@@ -977,7 +977,7 @@ export default function ToT() {
                             {pickResult === "win" ? "WIN" : pickResult === "loss" ? "LOSS" : "TIE"}
                           </span>
                         )}
-                        <span style={{ fontSize: 12, color: "#444" }}>
+                        <span style={{ fontSize: 12, color: "#888" }}>
                           Final · {pick.awayTeam} {ls.awayScore} – {pick.homeTeam} {ls.homeScore}
                         </span>
                       </div>
@@ -1035,7 +1035,7 @@ export default function ToT() {
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                               <span style={{ fontSize: 11, fontWeight: 800, color: vColor, letterSpacing: 1.5 }}>{f.verdict}</span>
-                              {f.isSquareLine && <span style={{ fontSize: 9, color: "#444", letterSpacing: 1 }}>SOFT LINE</span>}
+                              {f.isSquareLine && <span style={{ fontSize: 9, color: "#888", letterSpacing: 1 }}>SOFT LINE</span>}
                               {f.lineSignal === "confirming" && <span style={{ fontSize: 9, color: "#00FF87" }}>↑ LINE</span>}
                               {f.lineSignal === "contra"     && <span style={{ fontSize: 9, color: "#FF4D4D" }}>↓ LINE</span>}
                             </div>
@@ -1043,43 +1043,43 @@ export default function ToT() {
                           </div>
                           <div style={{ display: "flex", gap: 14, marginBottom: 8, flexWrap: "wrap" }}>
                             <div>
-                              <div style={{ fontSize: 9, color: "#444", letterSpacing: 1 }}>CONFIDENCE</div>
+                              <div style={{ fontSize: 9, color: "#888", letterSpacing: 1 }}>CONFIDENCE</div>
                               <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: confColor, fontWeight: 700 }}>{f.confidence}/{f.confidenceOf || 10}</div>
                             </div>
                             <div>
-                              <div style={{ fontSize: 9, color: "#444", letterSpacing: 1 }}>VARIANCE</div>
+                              <div style={{ fontSize: 9, color: "#888", letterSpacing: 1 }}>VARIANCE</div>
                               <div style={{ fontSize: 11, fontWeight: 700, color: f.variance === "HIGH" ? "#FF4D4D" : f.variance === "MED" ? "#FFD600" : "#00FF87" }}>{f.variance}</div>
                             </div>
                             <div>
-                              <div style={{ fontSize: 9, color: "#444", letterSpacing: 1 }}>WIN PROB</div>
+                              <div style={{ fontSize: 9, color: "#888", letterSpacing: 1 }}>WIN PROB</div>
                               <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: "#fff" }}>{f.trueWinProbPct}%</div>
                             </div>
                             <div>
-                              <div style={{ fontSize: 9, color: "#444", letterSpacing: 1 }}>MKT IMPLIED</div>
+                              <div style={{ fontSize: 9, color: "#888", letterSpacing: 1 }}>MKT IMPLIED</div>
                               <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: "#fff" }}>{f.sharpImpliedPct}%</div>
                             </div>
                             {f.uncertaintyPct != null && (
                               <div>
-                                <div style={{ fontSize: 9, color: "#444", letterSpacing: 1 }}>UNCERTAINTY</div>
+                                <div style={{ fontSize: 9, color: "#888", letterSpacing: 1 }}>UNCERTAINTY</div>
                                 <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: f.uncertaintyPct > 10 ? "#FF4D4D" : f.uncertaintyPct > 6 ? "#FFD600" : "#00FF87" }}>±{f.uncertaintyPct}%</div>
                               </div>
                             )}
                             {f.snr != null && (
                               <div>
-                                <div style={{ fontSize: 9, color: "#444", letterSpacing: 1 }}>SNR</div>
+                                <div style={{ fontSize: 9, color: "#888", letterSpacing: 1 }}>SNR</div>
                                 <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: f.snr >= 1.5 ? "#00FF87" : f.snr >= 1.0 ? "#FFD600" : "#FF4D4D" }}>{f.snr}×</div>
                               </div>
                             )}
                             {f.parkFactor !== 0 && (
                               <div>
-                                <div style={{ fontSize: 9, color: "#444", letterSpacing: 1 }}>PARK</div>
+                                <div style={{ fontSize: 9, color: "#888", letterSpacing: 1 }}>PARK</div>
                                 <div style={{ fontSize: 11, color: f.parkFactor >= 1.0 ? "#FF4D4D" : f.parkFactor <= -0.3 ? "#00FF87" : "#888" }}>{f.parkFactor > 0 ? "+" : ""}{f.parkFactor}R</div>
                               </div>
                             )}
                           </div>
                           {(f.failures || []).length > 0 && (
                             <div style={{ marginTop: 4 }}>
-                              <div style={{ fontSize: 9, color: "#444", letterSpacing: 1, marginBottom: 4 }}>FAILED CONDITIONS</div>
+                              <div style={{ fontSize: 9, color: "#888", letterSpacing: 1, marginBottom: 4 }}>FAILED CONDITIONS</div>
                               <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                                 {f.failures.map((fail, i) => (
                                   <span key={i} style={{ fontSize: 10, color: "#FF6B6B", background: "rgba(255,77,77,0.08)", padding: "2px 6px", borderRadius: 4 }}>✗ {fail}</span>
@@ -1148,7 +1148,7 @@ export default function ToT() {
                     </div>
                     {/* Share button */}
                     <button
-                      style={{ marginTop: 12, width: "100%", background: "transparent", border: "1px solid #1a1a1a", borderRadius: 10, padding: "9px 0", color: "#333", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                      style={{ marginTop: 12, width: "100%", background: "transparent", border: "1px solid #1a1a1a", borderRadius: 10, padding: "9px 0", color: "#777", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
                       onClick={() => {
                         const odds = pick.pick === pick.homeTeam ? pick.homeOdds : pick.awayOdds;
                         const fmtO = o => o == null ? "" : o > 0 ? ` (+${o})` : ` (${o})`;
@@ -1175,7 +1175,7 @@ export default function ToT() {
             onClick={() => setActiveTab("parlay")}
           >
             <span>🎲 {parlayLegs.size}-leg parlay ready</span>
-            <span style={{ fontSize: 11, color: "#555" }}>Open builder →</span>
+            <span style={{ fontSize: 11, color: "#999" }}>Open builder →</span>
           </button>
         )}
 
@@ -1183,13 +1183,13 @@ export default function ToT() {
           steals === null ? (
             <div style={S.center}>
               <div style={S.spinner} />
-              <div style={{ color: "#333", fontSize: 13, marginTop: 12 }}>Scanning for CLEAN bets…</div>
+              <div style={{ color: "#777", fontSize: 13, marginTop: 12 }}>Scanning for CLEAN bets…</div>
             </div>
           ) : steals.length === 0 ? (
             <div style={S.center}>
               <div style={{ fontSize: 32 }}>🔒</div>
               <div style={{ color: "#fff", fontWeight: 700, marginTop: 8 }}>No CLEAN bets {fmtDateLabel(selectedDate)}</div>
-              <div style={{ color: "#333", fontSize: 13, marginTop: 4 }}>All conditions must pass — discipline wins long-term</div>
+              <div style={{ color: "#777", fontSize: 13, marginTop: 4 }}>All conditions must pass — discipline wins long-term</div>
             </div>
           ) : (
             <>
@@ -1222,7 +1222,7 @@ export default function ToT() {
                           <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, background: "rgba(0,255,135,0.12)", color: "#00FF87", border: "1px solid rgba(0,255,135,0.3)" }}>
                             BET
                           </span>
-                          <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: "#555" }}>
+                          <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: "#999" }}>
                             +{(f.trueEdgePct || 0).toFixed(1)}% edge
                           </span>
                           <span style={{ fontSize: 10, color: "#00FF87", opacity: 0.7 }}>
@@ -1269,12 +1269,12 @@ export default function ToT() {
                     {parseFloat(kellyPct) > 0 && (
                       <div style={{ marginTop: 10, background: "#050505", border: "1px solid #1a1a1a", borderRadius: 8, padding: "8px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                         <div>
-                          <div style={{ fontSize: 9, color: "#333", letterSpacing: 1 }}>SUGGESTED STAKE</div>
+                          <div style={{ fontSize: 9, color: "#777", letterSpacing: 1 }}>SUGGESTED STAKE</div>
                           <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 14, fontWeight: 700, color: "#00FF87" }}>{kellyPct}% of bankroll</div>
                         </div>
                         <div style={{ textAlign: "right" }}>
-                          <div style={{ fontSize: 9, color: "#333", letterSpacing: 1 }}>25% KELLY</div>
-                          <div style={{ fontSize: 11, color: "#555" }}>disciplined sizing</div>
+                          <div style={{ fontSize: 9, color: "#777", letterSpacing: 1 }}>25% KELLY</div>
+                          <div style={{ fontSize: 11, color: "#999" }}>disciplined sizing</div>
                         </div>
                       </div>
                     )}
@@ -1286,7 +1286,7 @@ export default function ToT() {
               {/* Parlay Cards with combined odds */}
               {steals.length >= 2 && (
                 <div style={{ marginTop: 8 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "#333", letterSpacing: 1.5, marginBottom: 10 }}>PARLAY CARDS</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#777", letterSpacing: 1.5, marginBottom: 10 }}>PARLAY CARDS</div>
                   {[
                     { label: "SAFE", legs: steals.slice(0, 2), color: "#00FF87" },
                     { label: "BALANCED", legs: steals.slice(0, 3), color: "#FFD600" },
@@ -1307,7 +1307,7 @@ export default function ToT() {
                           <span style={{ fontSize: 11, fontWeight: 800, color: card.color, letterSpacing: 1 }}>{card.label} — {card.legs.length}-LEG</span>
                           <div style={{ textAlign: "right" }}>
                             <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, fontWeight: 700, color: card.color }}>{comboAmerican}</div>
-                            <div style={{ fontSize: 10, color: "#333" }}>${payout10} profit on $10</div>
+                            <div style={{ fontSize: 10, color: "#777" }}>${payout10} profit on $10</div>
                           </div>
                         </div>
                         {card.legs.map((leg, i) => (
@@ -1315,7 +1315,7 @@ export default function ToT() {
                             <span style={{ fontSize: 12, fontFamily: "'JetBrains Mono',monospace" }}>{leg.awayTeam} @ {leg.homeTeam}</span>
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                               <span style={{ fontSize: 11, color: "#00FF87", fontWeight: 700 }}>{leg.pick}</span>
-                              <span style={{ fontSize: 11, color: "#444", fontFamily: "'JetBrains Mono',monospace" }}>+{(leg.filter?.trueEdgePct || 0).toFixed(1)}%</span>
+                              <span style={{ fontSize: 11, color: "#888", fontFamily: "'JetBrains Mono',monospace" }}>+{(leg.filter?.trueEdgePct || 0).toFixed(1)}%</span>
                             </div>
                           </div>
                         ))}
@@ -1339,14 +1339,14 @@ export default function ToT() {
                 <div style={{ background: "#080808", border: "1px solid rgba(255,214,0,0.2)", borderRadius: 14, padding: 16, marginBottom: 10 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
                     <div>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 1.5, marginBottom: 4 }}>COMBINED ODDS</div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: "#999", letterSpacing: 1.5, marginBottom: 4 }}>COMBINED ODDS</div>
                       <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 28, fontWeight: 700, color: parlayLegsList.length >= 2 ? "#FFD600" : "#333" }}>{parlayAmerican}</div>
-                      <div style={{ fontSize: 11, color: "#333", marginTop: 2 }}>{parlayLegsList.length} leg{parlayLegsList.length !== 1 ? "s" : ""} selected</div>
+                      <div style={{ fontSize: 11, color: "#777", marginTop: 2 }}>{parlayLegsList.length} leg{parlayLegsList.length !== 1 ? "s" : ""} selected</div>
                     </div>
                     <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 1.5, marginBottom: 6 }}>STAKE</div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: "#999", letterSpacing: 1.5, marginBottom: 6 }}>STAKE</div>
                       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <span style={{ fontSize: 13, color: "#555" }}>$</span>
+                        <span style={{ fontSize: 13, color: "#999" }}>$</span>
                         <input
                           type="number"
                           min="1"
@@ -1359,20 +1359,20 @@ export default function ToT() {
                       {parlayLegsList.length >= 2 && (
                         <div style={{ marginTop: 6 }}>
                           <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 16, fontWeight: 700, color: "#00FF87" }}>${(parseFloat(parlayProfit) + parlayStake).toFixed(2)}</div>
-                          <div style={{ fontSize: 10, color: "#555" }}>+${parlayProfit} profit</div>
+                          <div style={{ fontSize: 10, color: "#999" }}>+${parlayProfit} profit</div>
                         </div>
                       )}
                     </div>
                   </div>
                   {/* Selected legs */}
                   {parlayLegsList.length === 0 ? (
-                    <div style={{ fontSize: 13, color: "#333", textAlign: "center", padding: "8px 0" }}>Tap any game below to add legs</div>
+                    <div style={{ fontSize: 13, color: "#777", textAlign: "center", padding: "8px 0" }}>Tap any game below to add legs</div>
                   ) : parlayLegsList.map(({ game, teamPick }) => {
                     const o = teamPick === game.homeTeam ? game.homeOdds : game.awayOdds;
                     return (
                       <div key={game.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderTop: "1px solid #111" }}>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 11, color: "#555" }}>{game.awayTeam} @ {game.homeTeam}</div>
+                          <div style={{ fontSize: 11, color: "#999" }}>{game.awayTeam} @ {game.homeTeam}</div>
                           <div style={{ fontSize: 13, fontWeight: 700, color: "#FFD600" }}>{teamPick}{o != null ? ` ${fmtOdds(o)}` : ""}</div>
                         </div>
                         <button
@@ -1384,16 +1384,16 @@ export default function ToT() {
                   })}
                   {parlayLegsList.length >= 2 && (
                     <button
-                      style={{ width: "100%", marginTop: 10, padding: "8px 0", background: "transparent", border: "1px solid #1a1a1a", borderRadius: 8, color: "#333", fontSize: 11, cursor: "pointer" }}
+                      style={{ width: "100%", marginTop: 10, padding: "8px 0", background: "transparent", border: "1px solid #1a1a1a", borderRadius: 8, color: "#777", fontSize: 11, cursor: "pointer" }}
                       onClick={() => setParlayLegs(new Map())}
                     >Clear all</button>
                   )}
                 </div>
 
                 {/* All games */}
-                <div style={{ fontSize: 10, fontWeight: 700, color: "#333", letterSpacing: 1.5, marginBottom: 8 }}>ALL GAMES — {fmtDateLabel(selectedDate).toUpperCase()}</div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "#777", letterSpacing: 1.5, marginBottom: 8 }}>ALL GAMES — {fmtDateLabel(selectedDate).toUpperCase()}</div>
                 {picks.length === 0 ? (
-                  <div style={{ color: "#333", fontSize: 13, textAlign: "center", padding: 24 }}>No games for this date</div>
+                  <div style={{ color: "#777", fontSize: 13, textAlign: "center", padding: 24 }}>No games for this date</div>
                 ) : picks.map(game => {
                   const leg = parlayLegs.get(game.id);
                   const homeSel = leg?.teamPick === game.homeTeam;
@@ -1405,7 +1405,7 @@ export default function ToT() {
                   });
                   return (
                     <div key={game.id} style={{ ...S.card, borderColor: leg ? "rgba(255,214,0,0.25)" : "#1a1a1a", marginBottom: 8 }}>
-                      <div style={{ fontSize: 11, color: "#555", marginBottom: 8 }}>
+                      <div style={{ fontSize: 11, color: "#999", marginBottom: 8 }}>
                         {fmtGameTime(game.commenceTime)}
                         {game.isBet && <span style={{ color: "#00FF87", fontWeight: 700, marginLeft: 6 }}>BET ↑</span>}
                       </div>
@@ -1414,7 +1414,7 @@ export default function ToT() {
                           style={{ flex: 1, padding: "10px 8px", borderRadius: 10, border: `1px solid ${awaySel ? "#FFD600" : "#1a1a1a"}`, background: awaySel ? "rgba(255,214,0,0.1)" : "transparent", cursor: "pointer", textAlign: "left" }}
                           onClick={() => selectSide(game.awayTeam)}
                         >
-                          <div style={{ fontSize: 10, color: "#555", marginBottom: 3 }}>AWAY</div>
+                          <div style={{ fontSize: 10, color: "#999", marginBottom: 3 }}>AWAY</div>
                           <div style={{ fontSize: 13, fontWeight: 700, color: awaySel ? "#FFD600" : "#fff" }}>{game.awayTeam.split(" ").pop()}</div>
                           {game.awayOdds != null && <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: awaySel ? "#FFD600" : "#555", marginTop: 2 }}>{fmtOdds(game.awayOdds)}</div>}
                         </button>
@@ -1423,7 +1423,7 @@ export default function ToT() {
                           style={{ flex: 1, padding: "10px 8px", borderRadius: 10, border: `1px solid ${homeSel ? "#FFD600" : "#1a1a1a"}`, background: homeSel ? "rgba(255,214,0,0.1)" : "transparent", cursor: "pointer", textAlign: "right" }}
                           onClick={() => selectSide(game.homeTeam)}
                         >
-                          <div style={{ fontSize: 10, color: "#555", marginBottom: 3 }}>HOME</div>
+                          <div style={{ fontSize: 10, color: "#999", marginBottom: 3 }}>HOME</div>
                           <div style={{ fontSize: 13, fontWeight: 700, color: homeSel ? "#FFD600" : "#fff" }}>{game.homeTeam.split(" ").pop()}</div>
                           {game.homeOdds != null && <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: homeSel ? "#FFD600" : "#555", marginTop: 2 }}>{fmtOdds(game.homeOdds)}</div>}
                         </button>
@@ -1442,16 +1442,16 @@ export default function ToT() {
             <div style={{ background: "#080808", border: "1px solid #1a1a1a", borderRadius: 14, padding: "16px 16px 12px", marginBottom: 8 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
                 <div>
-                  <div style={{ fontSize: 10, color: "#333", letterSpacing: 1, marginBottom: 4 }}>PROFIT / LOSS</div>
+                  <div style={{ fontSize: 10, color: "#777", letterSpacing: 1, marginBottom: 4 }}>PROFIT / LOSS</div>
                   <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 28, fontWeight: 700, color: pnl >= 0 ? "#00FF87" : "#FF4D4D" }}>
                     {pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}
                   </div>
-                  <div style={{ fontSize: 11, color: "#333", marginTop: 2 }}>flat ${unitSize}/bet · {total} settled{pushes > 0 ? ` · ${pushes} tie` : ""}</div>
+                  <div style={{ fontSize: 11, color: "#777", marginTop: 2 }}>flat ${unitSize}/bet · {total} settled{pushes > 0 ? ` · ${pushes} tie` : ""}</div>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 10, color: "#333", letterSpacing: 1, marginBottom: 4 }}>UNIT SIZE</div>
+                  <div style={{ fontSize: 10, color: "#777", letterSpacing: 1, marginBottom: 4 }}>UNIT SIZE</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <span style={{ fontSize: 13, color: "#555" }}>$</span>
+                    <span style={{ fontSize: 13, color: "#999" }}>$</span>
                     <input
                       type="number"
                       value={unitSize}
@@ -1477,7 +1477,7 @@ export default function ToT() {
               <div style={S.center}>
                 <div style={{ fontSize: 32 }}>📊</div>
                 <div style={{ color: "#fff", fontWeight: 700, marginTop: 8 }}>No saved picks yet</div>
-                <div style={{ color: "#333", fontSize: 13, marginTop: 4 }}>Tap + Save on any pick to track it</div>
+                <div style={{ color: "#777", fontSize: 13, marginTop: 4 }}>Tap + Save on any pick to track it</div>
               </div>
             ) : savedPicks.map(p => (
               <div key={p.id} style={{ ...S.card, borderColor: p.result === "win" ? "rgba(0,255,135,0.2)" : p.result === "loss" ? "rgba(255,77,77,0.2)" : "#1a1a1a" }}>
@@ -1485,7 +1485,7 @@ export default function ToT() {
                   <div style={{ flex: 1 }}>
                     <div style={S.cardMatchup}>{p.away_team} @ {p.home_team}</div>
                     <div style={S.cardMeta}>Pick: <span style={{ color: "#00FF87" }}>{p.pick}</span> · {fmtOdds(p.odds)}</div>
-                    <div style={{ fontSize: 11, color: "#333", marginTop: 3 }}>
+                    <div style={{ fontSize: 11, color: "#777", marginTop: 3 }}>
                       {new Date(p.commence_time).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
                     </div>
                   </div>
@@ -1530,15 +1530,15 @@ export default function ToT() {
               {/* Header stats */}
               <div style={{ background: "#080808", border: "1px solid #1a1a1a", borderRadius: 14, padding: "14px 16px", marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
-                  <div style={{ fontSize: 10, color: "#444", letterSpacing: 1.5, marginBottom: 4 }}>ALL-TIME MODEL RECORD</div>
+                  <div style={{ fontSize: 10, color: "#888", letterSpacing: 1.5, marginBottom: 4 }}>ALL-TIME MODEL RECORD</div>
                   <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 22, fontWeight: 700 }}>
                     <span style={{ color: "#00FF87" }}>{totalW}</span>
-                    <span style={{ color: "#333" }}>-</span>
+                    <span style={{ color: "#777" }}>-</span>
                     <span style={{ color: "#FF4D4D" }}>{totalL}</span>
-                    {winPct !== null && <span style={{ fontSize: 13, color: "#444", marginLeft: 10 }}>{winPct}%</span>}
+                    {winPct !== null && <span style={{ fontSize: 13, color: "#888", marginLeft: 10 }}>{winPct}%</span>}
                   </div>
                 </div>
-                <div style={{ textAlign: "right", fontSize: 11, color: "#333" }}>
+                <div style={{ textAlign: "right", fontSize: 11, color: "#777" }}>
                   {Object.keys(calRecord || {}).length} days tracked
                 </div>
               </div>
@@ -1546,15 +1546,15 @@ export default function ToT() {
               {/* Month nav */}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, padding: "0 4px" }}>
                 <button onClick={() => setCalMonth(({ y: py, m: pm }) => pm === 0 ? { y: py - 1, m: 11 } : { y: py, m: pm - 1 })}
-                  style={{ background: "none", border: "none", color: "#555", fontSize: 18, cursor: "pointer", padding: "4px 8px" }}>‹</button>
+                  style={{ background: "none", border: "none", color: "#999", fontSize: 18, cursor: "pointer", padding: "4px 8px" }}>‹</button>
                 <div style={{ fontWeight: 700, fontSize: 14 }}>{MONTHS[m]} {y}</div>
                 <button onClick={() => setCalMonth(({ y: py, m: pm }) => pm === 11 ? { y: py + 1, m: 0 } : { y: py, m: pm + 1 })}
-                  style={{ background: "none", border: "none", color: "#555", fontSize: 18, cursor: "pointer", padding: "4px 8px" }}>›</button>
+                  style={{ background: "none", border: "none", color: "#999", fontSize: 18, cursor: "pointer", padding: "4px 8px" }}>›</button>
               </div>
 
               {/* Day labels */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", marginBottom: 4 }}>
-                {DAYS.map(d => <div key={d} style={{ textAlign: "center", fontSize: 10, color: "#333", padding: "4px 0" }}>{d}</div>)}
+                {DAYS.map(d => <div key={d} style={{ textAlign: "center", fontSize: 10, color: "#777", padding: "4px 0" }}>{d}</div>)}
               </div>
 
               {/* Calendar grid */}
@@ -1595,7 +1595,7 @@ export default function ToT() {
               {/* Legend */}
               <div style={{ display: "flex", gap: 16, marginTop: 14, justifyContent: "center" }}>
                 {[["#00FF87", "Win day"], ["#FF4D4D", "Loss day"], ["#FFD600", "Split"]].map(([color, label]) => (
-                  <div key={label} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "#333" }}>
+                  <div key={label} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "#777" }}>
                     <div style={{ width: 8, height: 8, borderRadius: 2, background: color, opacity: 0.6 }} />
                     {label}
                   </div>
@@ -1614,7 +1614,7 @@ export default function ToT() {
         {" · "}
         <a href="/privacy" style={{ color: "#222", textDecoration: "underline" }}>Privacy</a>
         <br />
-        Problem gambling? Call <span style={{ color: "#333" }}>1-800-GAMBLER</span>
+        Problem gambling? Call <span style={{ color: "#777" }}>1-800-GAMBLER</span>
       </div>
     </div>
   );
@@ -1668,7 +1668,7 @@ const S = {
   drawerEmail: { fontSize: 12, color: "#666", marginBottom: 8 },
   drawerLine: { height: 1, background: "#222", margin: "12px 0" },
   drawerItem: { padding: "11px 0", fontSize: 15, fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", gap: 10 },
-  drawerSectionLabel: { fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 1.5, marginBottom: 10 },
+  drawerSectionLabel: { fontSize: 10, fontWeight: 700, color: "#999", letterSpacing: 1.5, marginBottom: 10 },
   accuracyCard: { background: "#111", border: "1px solid #222", borderRadius: 10, padding: 12 },
   nav: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid #1a1a1a", position: "sticky", top: 0, background: "rgba(0,0,0,0.97)", backdropFilter: "blur(12px)", zIndex: 100 },
   menuBtn: { background: "none", display: "flex", flexDirection: "column", gap: 5, padding: 4 },
@@ -1695,19 +1695,19 @@ const S = {
   expandBtn: { width: 32, height: 32, borderRadius: 8, background: "#111", border: "1px solid #333", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", color: "#888" },
   pitchRow: { display: "flex", alignItems: "center", gap: 8, marginTop: 10, padding: "10px 12px", background: "#080808", borderRadius: 10, border: "1px solid #222" },
   pitchBox: { flex: 1 },
-  pitchLabel: { fontSize: 9, fontWeight: 700, color: "#555", letterSpacing: 1.5, marginBottom: 3 },
+  pitchLabel: { fontSize: 9, fontWeight: 700, color: "#999", letterSpacing: 1.5, marginBottom: 3 },
   pitchName: { fontSize: 12, fontWeight: 600, color: "#aaa" },
-  pitchVs: { fontSize: 10, fontWeight: 700, color: "#444" },
+  pitchVs: { fontSize: 10, fontWeight: 700, color: "#888" },
   preview: { fontSize: 13, color: "#888", lineHeight: 1.6, marginTop: 10, paddingTop: 10, borderTop: "1px solid #1a1a1a" },
   expDivider: { height: 1, background: "#1a1a1a", margin: "12px 0" },
   expSection: { marginBottom: 12 },
-  expLabel: { fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 1.5, marginBottom: 6 },
+  expLabel: { fontSize: 10, fontWeight: 700, color: "#999", letterSpacing: 1.5, marginBottom: 6 },
   expText: { fontSize: 13, color: "#999", lineHeight: 1.6 },
   statBox: { flex: 1, background: "#080808", borderRadius: 8, padding: "10px 12px", border: "1px solid #222" },
   statCard: { background: "#0d0d0d", border: "1px solid #222", borderRadius: 12, padding: 14, textAlign: "center" },
-  statLabel: { fontSize: 10, color: "#555", marginBottom: 3, marginTop: 4 },
+  statLabel: { fontSize: 10, color: "#999", marginBottom: 3, marginTop: 4 },
   statVal: { fontSize: 14, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace" },
   trashBtn: { background: "#111", border: "1px solid #222", borderRadius: 6, fontSize: 15, cursor: "pointer", padding: "4px 8px", opacity: 0.8 },
   resultBtn: { flex: 1, padding: "10px", borderRadius: 10, border: "2px solid", fontSize: 13, fontWeight: 800 },
-  legal: { padding: "14px 20px", borderTop: "1px solid #111", textAlign: "center", fontSize: 10, color: "#333", lineHeight: 1.9 },
+  legal: { padding: "14px 20px", borderTop: "1px solid #111", textAlign: "center", fontSize: 10, color: "#777", lineHeight: 1.9 },
 };
