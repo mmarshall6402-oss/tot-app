@@ -171,9 +171,22 @@ export async function GET(request) {
       .eq("date", date)
       .single();
 
+    // Staleness check: if the cache was generated on a different CT day than the
+    // requested date it's a stale "tomorrow" cache — treat as a miss so the fast
+    // path rebuilds with today's full MLB schedule instead.
+    const ctFormatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit",
+    });
+    const ctPartsOf = (iso) => {
+      const p = ctFormatter.formatToParts(new Date(iso));
+      return `${p.find(x=>x.type==="year").value}-${p.find(x=>x.type==="month").value}-${p.find(x=>x.type==="day").value}`;
+    };
+    const cacheCtDate = cached?.generated_at ? ctPartsOf(cached.generated_at) : null;
+    const cacheStale  = cacheCtDate && cacheCtDate !== date;
+
     // Only serve from cache for today — past dates use the MLB-direct path which
     // always returns final scores. Future dates are never cached (no-op here).
-    if (!bust && cached?.picks?.length && date >= today) {
+    if (!bust && !cacheStale && cached?.picks?.length && date >= today) {
       // Fetch fresh MLB data — update live scores, pitchers, AND recompute filter.
       // Critical: cron runs at 7 AM ET before pitchers are announced, so cached filter
       // may be PASS due to NO_PITCHER_DATA. Recompute with current data so picks flip
