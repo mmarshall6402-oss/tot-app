@@ -149,6 +149,8 @@ export default function ToT() {
   const [unitSize, setUnitSize] = useState(10);
   const [copied, setCopied] = useState(false);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const [calRecord, setCalRecord] = useState(null);
+  const [calMonth, setCalMonth] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
   const [showAuth, setShowAuth] = useState(false);
   const [subEmail, setSubEmail] = useState("");
   const [subStatus, setSubStatus] = useState(null); // null | "loading" | "ok" | "err"
@@ -239,6 +241,7 @@ export default function ToT() {
     if (activeTab === "parlay" && picksDate !== selectedDate) fetchPicks(selectedDate);
     if (activeTab === "steals") fetchSteals(selectedDate);
     if (activeTab === "tracker") fetchSaved();
+    if (activeTab === "record" && !calRecord) fetchCalRecord();
   }, [user, activeTab, selectedDate]);
 
   useEffect(() => {
@@ -282,6 +285,14 @@ export default function ToT() {
     });
     const text = `ToT CLEAN Bets — ${new Date().toLocaleDateString()}\n\n${lines.join("\n")}`;
     navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+  };
+
+  const fetchCalRecord = async () => {
+    try {
+      const headers = await getAuthHeaders();
+      const d = await fetch("/api/daily-record", { headers }).then(r => r.json());
+      setCalRecord(d);
+    } catch { setCalRecord({}); }
   };
 
   const getAuthHeaders = async () => {
@@ -701,6 +712,7 @@ export default function ToT() {
               { id: "steals", icon: "🔥", label: "Steals" },
               { id: "parlay", icon: "🎲", label: "Parlay" },
               { id: "tracker", icon: "📊", label: "Tracker" },
+              { id: "record", icon: "📅", label: "Record" },
             ].map(({ id, icon, label }) => (
               <div key={id} style={{ ...S.drawerItem, color: activeTab === id ? "#00FF87" : "#fff" }} onClick={() => { setActiveTab(id); setDrawerOpen(false); }}>
                 {icon} {label}
@@ -814,6 +826,7 @@ export default function ToT() {
             { id: "steals", label: "Steals" },
             { id: "parlay", label: "🎲 Parlay" },
             { id: "tracker", label: "Tracker" },
+            { id: "record", label: "📅 Record" },
           ].map(({ id, label }) => (
             <button
               key={id}
@@ -1497,6 +1510,101 @@ export default function ToT() {
             ))}
           </>
         )}
+
+        {activeTab === "record" && (() => {
+          const DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+          const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+          const { y, m } = calMonth;
+          const firstDay = new Date(y, m, 1).getDay();
+          const daysInMonth = new Date(y, m + 1, 0).getDate();
+          const today = new Date().toISOString().split("T")[0];
+          const allDays = [...Array(firstDay).fill(null), ...Array(daysInMonth).fill(0).map((_, i) => i + 1)];
+          while (allDays.length % 7 !== 0) allDays.push(null);
+
+          const totalW = Object.values(calRecord || {}).reduce((s, d) => s + (d.wins || 0), 0);
+          const totalL = Object.values(calRecord || {}).reduce((s, d) => s + (d.losses || 0), 0);
+          const winPct = (totalW + totalL) > 0 ? Math.round(totalW / (totalW + totalL) * 100) : null;
+
+          return (
+            <div>
+              {/* Header stats */}
+              <div style={{ background: "#080808", border: "1px solid #1a1a1a", borderRadius: 14, padding: "14px 16px", marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontSize: 10, color: "#444", letterSpacing: 1.5, marginBottom: 4 }}>ALL-TIME MODEL RECORD</div>
+                  <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 22, fontWeight: 700 }}>
+                    <span style={{ color: "#00FF87" }}>{totalW}</span>
+                    <span style={{ color: "#333" }}>-</span>
+                    <span style={{ color: "#FF4D4D" }}>{totalL}</span>
+                    {winPct !== null && <span style={{ fontSize: 13, color: "#444", marginLeft: 10 }}>{winPct}%</span>}
+                  </div>
+                </div>
+                <div style={{ textAlign: "right", fontSize: 11, color: "#333" }}>
+                  {Object.keys(calRecord || {}).length} days tracked
+                </div>
+              </div>
+
+              {/* Month nav */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, padding: "0 4px" }}>
+                <button onClick={() => setCalMonth(({ y: py, m: pm }) => pm === 0 ? { y: py - 1, m: 11 } : { y: py, m: pm - 1 })}
+                  style={{ background: "none", border: "none", color: "#555", fontSize: 18, cursor: "pointer", padding: "4px 8px" }}>‹</button>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{MONTHS[m]} {y}</div>
+                <button onClick={() => setCalMonth(({ y: py, m: pm }) => pm === 11 ? { y: py + 1, m: 0 } : { y: py, m: pm + 1 })}
+                  style={{ background: "none", border: "none", color: "#555", fontSize: 18, cursor: "pointer", padding: "4px 8px" }}>›</button>
+              </div>
+
+              {/* Day labels */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", marginBottom: 4 }}>
+                {DAYS.map(d => <div key={d} style={{ textAlign: "center", fontSize: 10, color: "#333", padding: "4px 0" }}>{d}</div>)}
+              </div>
+
+              {/* Calendar grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 3 }}>
+                {allDays.map((day, i) => {
+                  if (!day) return <div key={i} />;
+                  const dateStr = `${y}-${String(m + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                  const rec = (calRecord || {})[dateStr];
+                  const isToday = dateStr === today;
+                  const isFuture = dateStr > today;
+                  const hasData = rec && (rec.wins + rec.losses) > 0;
+                  const dayColor = !hasData ? "transparent"
+                    : rec.wins > rec.losses ? "rgba(0,255,135,0.15)"
+                    : rec.losses > rec.wins ? "rgba(255,77,77,0.15)"
+                    : "rgba(255,214,0,0.15)";
+                  const borderColor = !hasData ? (isToday ? "#00FF87" : "#1a1a1a")
+                    : rec.wins > rec.losses ? "rgba(0,255,135,0.4)"
+                    : rec.losses > rec.wins ? "rgba(255,77,77,0.4)"
+                    : "rgba(255,214,0,0.4)";
+                  const textColor = !hasData ? (isFuture ? "#222" : isToday ? "#00FF87" : "#444")
+                    : rec.wins > rec.losses ? "#00FF87"
+                    : rec.losses > rec.wins ? "#FF4D4D"
+                    : "#FFD600";
+
+                  return (
+                    <div key={i} style={{ background: dayColor, border: `1px solid ${borderColor}`, borderRadius: 8, padding: "6px 4px", textAlign: "center", minHeight: 52, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2 }}>
+                      <div style={{ fontSize: 11, color: textColor, fontWeight: isToday ? 700 : 400 }}>{day}</div>
+                      {hasData && (
+                        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, fontWeight: 700, color: textColor }}>
+                          {rec.wins}-{rec.losses}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Legend */}
+              <div style={{ display: "flex", gap: 16, marginTop: 14, justifyContent: "center" }}>
+                {[["#00FF87", "Win day"], ["#FF4D4D", "Loss day"], ["#FFD600", "Split"]].map(([color, label]) => (
+                  <div key={label} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "#333" }}>
+                    <div style={{ width: 8, height: 8, borderRadius: 2, background: color, opacity: 0.6 }} />
+                    {label}
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
       </div>
 
       <div style={S.legal}>
