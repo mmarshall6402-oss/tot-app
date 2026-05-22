@@ -10,7 +10,64 @@ const getSupabase = () => createClient(
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://tot-app.vercel.app";
 
-function buildEmailHtml(pick) {
+function shortName(team) {
+  const map = {
+    "Oakland Athletics":"Athletics","Los Angeles Angels":"Angels","Los Angeles Dodgers":"Dodgers",
+    "New York Yankees":"Yankees","New York Mets":"Mets","Chicago White Sox":"White Sox",
+    "Chicago Cubs":"Cubs","Boston Red Sox":"Red Sox","Tampa Bay Rays":"Rays",
+    "San Francisco Giants":"Giants","San Diego Padres":"Padres","Kansas City Royals":"Royals",
+    "Toronto Blue Jays":"Blue Jays","Colorado Rockies":"Rockies","Minnesota Twins":"Twins",
+    "Seattle Mariners":"Mariners","Houston Astros":"Astros","Texas Rangers":"Rangers",
+    "Cleveland Guardians":"Guardians","Detroit Tigers":"Tigers","Baltimore Orioles":"Orioles",
+    "Atlanta Braves":"Braves","Philadelphia Phillies":"Phillies","Washington Nationals":"Nationals",
+    "Miami Marlins":"Marlins","Pittsburgh Pirates":"Pirates","St. Louis Cardinals":"Cardinals",
+    "Milwaukee Brewers":"Brewers","Cincinnati Reds":"Reds","Arizona Diamondbacks":"Diamondbacks",
+  };
+  return map[team] || team.split(" ").pop();
+}
+
+function buildTweetBlock(picks, yWins, yLosses, yesterday) {
+  const hasY = yWins + yLosses > 0;
+  const yLabel = hasY ? `📊 Yesterday: ${yWins}-${yLosses} ${yWins>yLosses?"✅":yWins<yLosses?"❌":"➖"}\n\n` : "";
+  const ic = { CLEAN:"🔥", BET:"✅" };
+  const fmtO = o => o==null?"":o>0?` (+${o})`:`(${o})`;
+  const today = new Date().toLocaleDateString("en-US",{timeZone:"America/Chicago",weekday:"short",month:"short",day:"numeric"});
+
+  const thread = [
+    `${yLabel}Today's top ${picks.length} MLB pick${picks.length>1?"s":""} — ${today} 🧵👇\n\n${APP_URL}`,
+    ...picks.map((p,i) => {
+      const f=p.filter||{}, b=p.breakdown||{};
+      const odds=p.pick===p.homeTeam?p.homeOdds:p.awayOdds;
+      const stat=(b.what_decides||b.preview||"").slice(0,120);
+      return [
+        `${i+1}/${picks.length} ${ic[f.verdict]||"👀"} ${shortName(p.awayTeam)} @ ${shortName(p.homeTeam)}`,
+        `Take: ${shortName(p.pick)}${fmtO(odds)} | +${p.edge?.toFixed(1)}% edge`,
+        f.verdict==="CLEAN"?"CLEAN — all conditions ✅":"BET",
+        stat?`\n${stat}`:"",
+        `\n${APP_URL}`,
+      ].filter(Boolean).join("\n");
+    }),
+  ];
+
+  const rows = thread.map((t,i) =>
+    `<tr><td style="padding:10px 0;border-bottom:1px solid #111;vertical-align:top;">
+      <div style="font-size:10px;color:#333;letter-spacing:1.5px;margin-bottom:6px;">${i===0?"HOOK":"REPLY "+i}</div>
+      <pre style="font-family:monospace;font-size:12px;color:#666;white-space:pre-wrap;line-height:1.6;margin:0;">${t}</pre>
+    </td></tr>`
+  ).join("");
+
+  return `
+    <div style="margin:24px 0;border-top:1px solid #111;padding-top:20px;">
+      <div style="font-size:11px;color:#333;letter-spacing:2px;margin-bottom:12px;">YOUR TWEET THREAD TODAY</div>
+      <div style="font-size:11px;color:#222;margin-bottom:12px;line-height:1.6;">Copy each tweet in order. Post the hook first, then reply with each pick. X app: tap Reply under your own tweet.</div>
+      <table style="width:100%;border-collapse:collapse;">${rows}</table>
+      <div style="margin-top:12px;text-align:center;">
+        <a href="${APP_URL}/admin/tweet" style="font-size:12px;color:#00FF87;text-decoration:none;">→ Open tweet admin page</a>
+      </div>
+    </div>`;
+}
+
+function buildEmailHtml(pick, topPicks, yWins, yLosses, yesterday) {
   const verdict = pick.filter?.verdict || "BET";
   const verdictColor = { CLEAN: "#00FF87", BET: "#FFD600" }[verdict] || "#00FF87";
   const verdictLabel = verdict === "CLEAN" ? "🔥 Value Pick" : "✅ Solid Pick";
@@ -56,6 +113,8 @@ function buildEmailHtml(pick) {
       </a>
     </div>
 
+    ${topPicks?.length ? buildTweetBlock(topPicks, yWins, yLosses, yesterday) : ""}
+
     <div style="text-align:center;font-size:11px;color:#222;line-height:1.8;">
       <a href="${APP_URL}/landing" style="color:#222;text-decoration:none;">tot-app.vercel.app</a>
       &nbsp;·&nbsp;
@@ -79,19 +138,35 @@ export async function GET(request) {
   const supabase = getSupabase();
   const resend   = new Resend(process.env.RESEND_API_KEY);
 
-  // Get today's free pick from cache
-  const date = new Date().toISOString().split("T")[0];
-  const { data: cached } = await supabase.from("picks_cache").select("picks").eq("date", date).single();
-  const picks = cached?.picks || [];
-  const pick  = picks.find(p => p.filter?.verdict === "CLEAN") || picks.find(p => p.isBet) || null;
+  // CT-based today/yesterday
+  const ctParts = (d) => {
+    const p = new Intl.DateTimeFormat("en-US",{timeZone:"America/Chicago",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(d);
+    return `${p.find(x=>x.type==="year").value}-${p.find(x=>x.type==="month").value}-${p.find(x=>x.type==="day").value}`;
+  };
+  const today     = ctParts(new Date());
+  const yesterday = ctParts(new Date(Date.now() - 86400000));
+
+  // Today's picks
+  const { data: cached } = await supabase.from("picks_cache").select("picks").eq("date", today).single();
+  const allPicks = cached?.picks || [];
+  const pick     = allPicks.find(p => p.filter?.verdict === "CLEAN") || allPicks.find(p => p.isBet) || null;
+  const topPicks = allPicks.filter(p=>p.isBet)
+    .sort((a,b)=>(b.filter?.verdict==="CLEAN"?1000:b.filter?.confidence||0)-(a.filter?.verdict==="CLEAN"?1000:a.filter?.confidence||0))
+    .slice(0,3);
 
   if (!pick) return Response.json({ sent: 0, reason: "no pick today" });
+
+  // Yesterday's record
+  const { data: yPicks } = await supabase.from("model_picks").select("result,is_bet")
+    .eq("date", yesterday).eq("is_bet", true).in("result",["win","loss","push"]);
+  const yWins   = (yPicks||[]).filter(p=>p.result==="win").length;
+  const yLosses = (yPicks||[]).filter(p=>p.result==="loss").length;
 
   // Get all subscribers
   const { data: subscribers } = await supabase.from("email_list").select("email");
   if (!subscribers?.length) return Response.json({ sent: 0, reason: "no subscribers" });
 
-  const html    = buildEmailHtml(pick);
+  const html    = buildEmailHtml(pick, topPicks, yWins, yLosses, yesterday);
   const subject = `Today's Pick: ${pick.awayTeam} @ ${pick.homeTeam} — Take ${pick.pick}`;
 
   // Send in batches of 50 (Resend rate limit)
