@@ -232,9 +232,11 @@ async function generateForDate(date, oddsGames, supabase) {
   await supabase.from("picks_cache")
     .upsert({ date, picks: results, generated_at: new Date().toISOString() }, { onConflict: "date" });
 
-  // Log all BET picks to model_picks — covers both today and tomorrow.
-  // Delete-then-insert handles re-runs safely.
-  {
+  // Log BET picks to model_picks — but only insert new rows, never overwrite
+  // resolved results. Check if any settled picks exist for this date first.
+  const { data: existingSettled } = await supabase.from("model_picks")
+    .select("id").eq("date", date).in("result", ["win", "loss", "push"]).limit(1);
+  if (!existingSettled?.length) {
     const pickRows = gameContexts.map((ctx, i) => {
       const result = results[i];
       if (!result) return null;
