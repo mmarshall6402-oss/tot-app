@@ -1074,8 +1074,16 @@ export default function ToT() {
                               </div>
                             </div>
                           )}
-                          {isClean && (
+                          {isClean && !f.halfSize && (
                             <div style={{ marginTop: 4, fontSize: 10, color: "#00FF87" }}>✓ All conditions passed — disciplined bet</div>
+                          )}
+                          {isClean && f.halfSize && (
+                            <div style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 4 }}>
+                              <div style={{ fontSize: 10, color: "#00FF87" }}>✓ All conditions passed — disciplined bet</div>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: "#FFD600", background: "rgba(255,214,0,0.08)", border: "1px solid rgba(255,214,0,0.25)", borderRadius: 6, padding: "3px 8px", display: "inline-block" }}>
+                                ⚠ HALF SIZE — pick-side bullpen ERA &gt;6.00, variance elevated
+                              </div>
+                            </div>
                           )}
                         </div>
                       );
