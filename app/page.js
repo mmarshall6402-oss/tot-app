@@ -528,45 +528,12 @@ export default function ToT() {
             Sign In
           </button>
 
-          {/* Access code */}
-          <div style={{ marginTop: 20, borderTop: "1px solid #1a1a1a", paddingTop: 16 }}>
-            <div style={{ fontSize: 11, color: "#555", textAlign: "center", marginBottom: 10 }}>Have an access code?</div>
-            {codeStatus === "ok" ? (
-              <div style={{ textAlign: "center", fontSize: 13, color: "#00FF87" }}>✓ Code accepted — refreshing…</div>
-            ) : (
-              <form onSubmit={async e => {
-                e.preventDefault();
-                if (!accessCode.trim() || !user) return;
-                setCodeStatus("loading");
-                try {
-                  const r = await fetch("/api/redeem-code", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ code: accessCode.trim(), userId: user.id }),
-                  });
-                  const d = await r.json();
-                  if (r.ok) {
-                    setCodeStatus("ok");
-                    setTimeout(() => { setIsPro(true); try { localStorage.setItem("tot-pro", JSON.stringify({ v: true, e: Date.now() + 5 * 60 * 1000 })); } catch {} }, 800);
-                  } else {
-                    setCodeStatus("invalid");
-                    setTimeout(() => setCodeStatus(null), 3000);
-                  }
-                } catch { setCodeStatus("invalid"); setTimeout(() => setCodeStatus(null), 3000); }
-              }} style={{ display: "flex", gap: 8 }}>
-                <input
-                  type="text"
-                  placeholder="Enter code"
-                  value={accessCode}
-                  onChange={e => setAccessCode(e.target.value.toUpperCase())}
-                  style={{ ...S.input, flex: 1, letterSpacing: 2, fontFamily: "'JetBrains Mono',monospace", textTransform: "uppercase" }}
-                />
-                <button type="submit" disabled={codeStatus === "loading"}
-                  style={{ background: "#00FF87", color: "#000", border: "none", borderRadius: 10, padding: "0 16px", fontWeight: 800, fontSize: 13, cursor: "pointer", flexShrink: 0 }}>
-                  {codeStatus === "loading" ? "…" : codeStatus === "invalid" ? "Invalid" : "Apply"}
-                </button>
-              </form>
-            )}
+          {/* Access code teaser — actual redemption happens on paywall after sign-in */}
+          <div style={{ marginTop: 16, textAlign: "center" }}>
+            <span style={{ fontSize: 12, color: "#555", cursor: "pointer" }}
+              onClick={() => { setShowAuth(true); setAuthMode("signup"); }}>
+              Have an access code? <span style={{ color: "#00FF87" }}>Sign up first →</span>
+            </span>
           </div>
 
           {/* Footer */}
@@ -663,6 +630,47 @@ export default function ToT() {
           style={{ display: "block", textAlign: "center", fontSize: 13, color: "#1DA1F2", marginBottom: 20, textDecoration: "none" }}>
           𝕏 @ThisorThatPicks
         </a>
+
+        {/* Access code — bypasses payment, no subscription needed */}
+        <div style={{ borderTop: "1px solid #111", paddingTop: 20, marginBottom: 16 }}>
+          <div style={{ fontSize: 12, color: "#666", textAlign: "center", marginBottom: 12 }}>Have an access code?</div>
+          {codeStatus === "ok" ? (
+            <div style={{ textAlign: "center", fontSize: 14, color: "#00FF87", fontWeight: 700 }}>✓ Access granted — welcome in!</div>
+          ) : (
+            <form onSubmit={async e => {
+              e.preventDefault();
+              if (!accessCode.trim() || !user) return;
+              setCodeStatus("loading");
+              try {
+                const r = await fetch("/api/redeem-code", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ code: accessCode.trim(), userId: user.id }),
+                });
+                if (r.ok) {
+                  setCodeStatus("ok");
+                  setTimeout(() => { setIsPro(true); try { localStorage.setItem("tot-pro", JSON.stringify({ v: true, e: Date.now() + 5 * 60 * 1000 })); } catch {} }, 600);
+                } else {
+                  setCodeStatus("invalid");
+                  setTimeout(() => setCodeStatus(null), 3000);
+                }
+              } catch { setCodeStatus("invalid"); setTimeout(() => setCodeStatus(null), 3000); }
+            }} style={{ display: "flex", gap: 8 }}>
+              <input
+                type="text"
+                placeholder="Enter code"
+                value={accessCode}
+                onChange={e => setAccessCode(e.target.value.toUpperCase())}
+                style={{ ...S.input, flex: 1, letterSpacing: 3, fontFamily: "'JetBrains Mono',monospace", textAlign: "center", fontSize: 15 }}
+              />
+              <button type="submit" disabled={codeStatus === "loading"}
+                style={{ background: codeStatus === "invalid" ? "#FF4D4D" : "#00FF87", color: "#000", border: "none", borderRadius: 10, padding: "0 18px", fontWeight: 800, fontSize: 13, cursor: "pointer", flexShrink: 0 }}>
+                {codeStatus === "loading" ? "…" : codeStatus === "invalid" ? "✗ Invalid" : "Apply"}
+              </button>
+            </form>
+          )}
+        </div>
+
         <button style={{ ...S.primaryBtn, background: "transparent", border: "1px solid #111", color: "#777" }} onClick={signOut}>Sign out</button>
       </div>
     </div>
