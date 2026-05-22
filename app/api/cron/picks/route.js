@@ -244,6 +244,32 @@ async function generateForDate(date, oddsGames, supabase) {
       const odds = pickIsHome ? ctx.game.homeOdds : ctx.game.awayOdds;
       // game_id is NOT NULL — derive a stable hash from date + teams
       const gameId = Buffer.from(`${date}|${ctx.game.homeTeam}|${ctx.game.awayTeam}`).toString("base64").replace(/[^a-z0-9]/gi, "").slice(0, 32);
+      // Feature vector for future ML training — stored as JSONB.
+      // Captures everything the filter used so we can train on outcomes later.
+      const f = result.filter || {};
+      const mlb = ctx.mlb || {};
+      const pickBullpen = pickIsHome ? mlb.homeBullpen : mlb.awayBullpen;
+      const pickForm    = pickIsHome ? mlb.homeForm    : mlb.awayForm;
+      const pickLineup  = pickIsHome ? mlb.homeLineupOpsVsPitcher : mlb.awayLineupOpsVsPitcher;
+      const features = {
+        confidence:        f.confidence         ?? null,
+        variance:          f.variance           ?? null,
+        snr:               f.snr                ?? null,
+        true_edge_pct:     f.trueEdgePct        ?? null,
+        true_win_prob_pct: f.trueWinProbPct     ?? null,
+        sharp_implied_pct: f.sharpImpliedPct    ?? null,
+        uncertainty_pct:   f.uncertaintyPct     ?? null,
+        park_factor:       f.parkFactor         ?? null,
+        line_signal:       f.lineSignal         ?? null,
+        verdict:           f.verdict            ?? null,
+        pick_pitcher_score: pickIsHome ? f.homePitcherScore : f.awayPitcherScore,
+        opp_pitcher_score:  pickIsHome ? f.awayPitcherScore : f.homePitcherScore,
+        pick_bullpen_era:   pickBullpen?.era != null ? parseFloat(pickBullpen.era) : null,
+        pick_form_ops:      pickForm?.ops != null ? parseFloat(pickForm.ops) : null,
+        lineup_ops_vs_pitcher: pickLineup != null ? parseFloat(pickLineup) : null,
+        half_size:          f.halfSize ?? false,
+      };
+
       return {
         date,
         game_id:    gameId,
@@ -255,6 +281,7 @@ async function generateForDate(date, oddsGames, supabase) {
         tier:       result.tier?.level || "Low",
         is_bet:     result.isBet,
         result:     "pending",
+        features,
       };
     }).filter(Boolean);
     if (pickRows.length) {

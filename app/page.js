@@ -154,6 +154,8 @@ export default function ToT() {
   const [showAuth, setShowAuth] = useState(false);
   const [subEmail, setSubEmail] = useState("");
   const [subStatus, setSubStatus] = useState(null); // null | "loading" | "ok" | "err"
+  const [accessCode, setAccessCode] = useState("");
+  const [codeStatus, setCodeStatus] = useState(null); // null | "loading" | "ok" | "invalid"
   const [installPlatform, setInstallPlatform] = useState(null); // 'ios' | 'android'
   const [deferredPrompt, setDeferredPrompt] = useState(null);
 
@@ -522,9 +524,50 @@ export default function ToT() {
           <button style={{ ...S.primaryBtn, marginBottom: 10 }} onClick={() => { setShowAuth(true); setAuthMode("signup"); }}>
             Get Full Access →
           </button>
-          <button style={{ ...S.primaryBtn, background: "transparent", border: "1px solid #111", color: "#888" }} onClick={() => { setShowAuth(true); setAuthMode("signin"); }}>
+          <button style={{ ...S.primaryBtn, background: "transparent", border: "1px solid #222", color: "#888" }} onClick={() => { setShowAuth(true); setAuthMode("signin"); }}>
             Sign In
           </button>
+
+          {/* Access code */}
+          <div style={{ marginTop: 20, borderTop: "1px solid #1a1a1a", paddingTop: 16 }}>
+            <div style={{ fontSize: 11, color: "#555", textAlign: "center", marginBottom: 10 }}>Have an access code?</div>
+            {codeStatus === "ok" ? (
+              <div style={{ textAlign: "center", fontSize: 13, color: "#00FF87" }}>✓ Code accepted — refreshing…</div>
+            ) : (
+              <form onSubmit={async e => {
+                e.preventDefault();
+                if (!accessCode.trim() || !user) return;
+                setCodeStatus("loading");
+                try {
+                  const r = await fetch("/api/redeem-code", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ code: accessCode.trim(), userId: user.id }),
+                  });
+                  const d = await r.json();
+                  if (r.ok) {
+                    setCodeStatus("ok");
+                    setTimeout(() => { setIsPro(true); try { localStorage.setItem("tot-pro", JSON.stringify({ v: true, e: Date.now() + 5 * 60 * 1000 })); } catch {} }, 800);
+                  } else {
+                    setCodeStatus("invalid");
+                    setTimeout(() => setCodeStatus(null), 3000);
+                  }
+                } catch { setCodeStatus("invalid"); setTimeout(() => setCodeStatus(null), 3000); }
+              }} style={{ display: "flex", gap: 8 }}>
+                <input
+                  type="text"
+                  placeholder="Enter code"
+                  value={accessCode}
+                  onChange={e => setAccessCode(e.target.value.toUpperCase())}
+                  style={{ ...S.input, flex: 1, letterSpacing: 2, fontFamily: "'JetBrains Mono',monospace", textTransform: "uppercase" }}
+                />
+                <button type="submit" disabled={codeStatus === "loading"}
+                  style={{ background: "#00FF87", color: "#000", border: "none", borderRadius: 10, padding: "0 16px", fontWeight: 800, fontSize: 13, cursor: "pointer", flexShrink: 0 }}>
+                  {codeStatus === "loading" ? "…" : codeStatus === "invalid" ? "Invalid" : "Apply"}
+                </button>
+              </form>
+            )}
+          </div>
 
           {/* Footer */}
           <div style={{ fontSize: 10, color: "#1a1a1a", textAlign: "center", lineHeight: 1.8, marginTop: 16 }}>
