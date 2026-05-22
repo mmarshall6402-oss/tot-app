@@ -11,14 +11,32 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const APP_URL = "https://tot-app.vercel.app";
+
 export const metadata = {
-  title: "ToT Picks",
-  description: "MLB picks powered by edge analytics",
+  title: "T|T Picks — Sharp MLB Picks",
+  description: "Sharp MLB model. Free pick every day. Full breakdowns, edge data, and filter for serious bettors.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "ToT Picks",
+    title: "T|T Picks",
+  },
+  openGraph: {
+    title: "T|T Picks — Sharp MLB Picks",
+    description: "Free pick daily. Full model breakdowns. Edge analytics for serious bettors.",
+    url: APP_URL,
+    siteName: "T|T Picks",
+    images: [{ url: `${APP_URL}/api/og`, width: 1200, height: 630, alt: "T|T Picks — Today's Free Pick" }],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    site: "@ThisorThatPicks",
+    creator: "@ThisorThatPicks",
+    title: "T|T Picks — Sharp MLB Picks",
+    description: "Free pick daily. Full model breakdowns. Edge analytics for serious bettors.",
+    images: [`${APP_URL}/api/og`],
   },
 };
 

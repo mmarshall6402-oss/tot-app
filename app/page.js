@@ -1133,6 +1133,22 @@ export default function ToT() {
                         </div>
                       )}
                     </div>
+                    {/* Share button */}
+                    <button
+                      style={{ marginTop: 12, width: "100%", background: "transparent", border: "1px solid #1a1a1a", borderRadius: 10, padding: "9px 0", color: "#333", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                      onClick={() => {
+                        const odds = pick.pick === pick.homeTeam ? pick.homeOdds : pick.awayOdds;
+                        const fmtO = o => o == null ? "" : o > 0 ? ` (+${o})` : ` (${o})`;
+                        const text = `${pick.awayTeam} @ ${pick.homeTeam}\nTake ${pick.pick}${fmtO(odds)} — ${pick.edge?.toFixed(1)}% edge\n\ntot-app.vercel.app | @ThisorThatPicks`;
+                        if (navigator.share) {
+                          navigator.share({ text, url: "https://tot-app.vercel.app" }).catch(() => {});
+                        } else {
+                          navigator.clipboard.writeText(text).then(() => alert("Copied to clipboard!")).catch(() => {});
+                        }
+                      }}
+                    >
+                      ↗ Share this pick
+                    </button>
                   </div>
                 )}
               </div>
