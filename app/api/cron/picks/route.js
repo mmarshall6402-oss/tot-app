@@ -232,9 +232,9 @@ async function generateForDate(date, oddsGames, supabase) {
   await supabase.from("picks_cache")
     .upsert({ date, picks: results, generated_at: new Date().toISOString() }, { onConflict: "date" });
 
-  // Only log today's BET picks to model_picks for record tracking.
-  // Use the columns that actually exist in the table schema.
-  if (date === new Date().toISOString().split("T")[0]) {
+  // Log all BET picks to model_picks — covers both today and tomorrow.
+  // Delete-then-insert handles re-runs safely.
+  {
     const pickRows = gameContexts.map((ctx, i) => {
       const result = results[i];
       if (!result) return null;
