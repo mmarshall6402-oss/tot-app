@@ -121,7 +121,7 @@ async function fetchOddsWithCache() {
     console.warn("[odds] live fetch failed:", e.message);
   }
 
-  // 2. Fall back to Supabase-cached odds
+  // 2. Fall back to Supabase-cached odds (hard 2h limit — stale odds hide real lines)
   const { data } = await supabase
     .from("picks_cache")
     .select("picks, generated_at")
@@ -130,13 +130,12 @@ async function fetchOddsWithCache() {
 
   if (data?.picks?.length) {
     const age = Date.now() - new Date(data.generated_at).getTime();
-    if (age < ODDS_TTL_MS) {
-      console.warn("[odds] using Supabase-cached odds, age:", Math.round(age / 1000) + "s");
+    const TWO_HOURS = 2 * 60 * 60 * 1000;
+    if (age < TWO_HOURS) {
+      console.warn("[odds] using Supabase-cached odds, age:", Math.round(age / 60000) + "m");
       return data.picks;
     }
-    // Stale but better than nothing
-    console.warn("[odds] Supabase odds stale but serving anyway");
-    return data.picks;
+    console.warn("[odds] Supabase odds too stale (>2h) — discarding, will try live");
   }
 
   return [];
