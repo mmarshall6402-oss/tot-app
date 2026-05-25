@@ -28,7 +28,7 @@ function localDateStr(d) {
 function getWeekDates() {
   const dates = [];
   const today = new Date();
-  for (let i = -1; i < 7; i++) {
+  for (let i = -7; i < 7; i++) {
     const d = new Date(today);
     d.setDate(today.getDate() + i);
     dates.push(localDateStr(d));
@@ -132,7 +132,10 @@ export default function ToT() {
   const [freePick, setFreePick] = useState(null);
   const [carouselIdx, setCarouselIdx] = useState(0);
   const weekDates = getWeekDates();
-  const [selectedDate, setSelectedDate] = useState(weekDates[1]);
+  const todayStr = weekDates[7]; // index 7 = today (7 days back + 0 offset)
+  const [selectedDate, setSelectedDate] = useState(todayStr);
+  const dateScrollRef = useRef(null);
+  const todayBtnRef = useRef(null);
   const [steals, setSteals] = useState(null);
   const [parlayLegs, setParlayLegs] = useState(new Map()); // id -> { game, teamPick }
   const [parlayStake, setParlayStake] = useState(10);
@@ -217,6 +220,15 @@ export default function ToT() {
     fetch("/api/model-record").then(r => r.json()).then(d => setModelRecord(d)).catch(() => {});
     const t = setInterval(() => setCarouselIdx(i => i + 1), 3000);
     return () => clearInterval(t);
+  }, []);
+
+  // Scroll date strip to show Today button on load
+  useEffect(() => {
+    if (todayBtnRef.current && dateScrollRef.current) {
+      const strip = dateScrollRef.current;
+      const btn = todayBtnRef.current;
+      strip.scrollLeft = btn.offsetLeft - strip.clientWidth / 2 + btn.offsetWidth / 2;
+    }
   }, []);
 
   // Capture Android/Chrome native install prompt before it fires
@@ -993,10 +1005,11 @@ export default function ToT() {
       </div>
 
       {(activeTab === "picks" || activeTab === "steals" || activeTab === "parlay") && (
-        <div style={S.dateScroll}>
+        <div ref={dateScrollRef} style={S.dateScroll}>
           {weekDates.map(date => (
             <button
               key={date}
+              ref={date === todayStr ? todayBtnRef : null}
               style={{
                 ...S.dateBtn,
                 borderColor: selectedDate === date ? "#00FF87" : "#333",
