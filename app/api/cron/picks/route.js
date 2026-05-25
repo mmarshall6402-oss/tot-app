@@ -212,10 +212,10 @@ async function generateForDate(date, oddsGames, supabase, force = false, isToday
     return { skipped: true, date };
   }
 
-  // Never overwrite today's picks once games are in progress — the odds API only
-  // returns games that haven't started, so any regen after 1 PM CT would replace
-  // the full slate with only the remaining evening games.
-  if (isToday && existing?.picks?.length >= 3) {
+  // Never overwrite today's picks once games are in progress unless explicitly forced.
+  // Auto-runs after 1 PM would only return remaining games (odds APIs drop started games).
+  // force=1 from admin bypasses this — admin knows what they're doing.
+  if (!force && isToday && existing?.picks?.length >= 3) {
     const ctHour = parseInt(new Intl.DateTimeFormat("en-US", {
       timeZone: "America/Chicago", hour: "numeric", hour12: false,
     }).format(new Date()), 10);
