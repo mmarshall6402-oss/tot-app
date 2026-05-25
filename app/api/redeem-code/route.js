@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { requireAuth } from "../../../lib/auth.js";
 
 const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -7,8 +8,12 @@ const getSupabase = () => createClient(
 
 export async function POST(request) {
   try {
-    const { code, userId } = await request.json();
-    if (!code || !userId) return Response.json({ error: "code and userId required" }, { status: 400 });
+    const { user, error: authError } = await requireAuth(request);
+    if (authError) return authError;
+
+    const { code } = await request.json();
+    const userId = user.id;
+    if (!code) return Response.json({ error: "code required" }, { status: 400 });
 
     const supabase = getSupabase();
     const clean = code.trim().toUpperCase();
