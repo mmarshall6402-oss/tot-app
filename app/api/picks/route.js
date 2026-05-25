@@ -189,10 +189,20 @@ export async function GET(request) {
         date >= today ? fetchOddsWithCache().catch(() => []) : Promise.resolve([]),
       ]);
       const mlbGames = mlbRes?.games || [];
-      const normLast = s => (s || "").toLowerCase().split(" ").pop();
+      const normM = s => (s || "").toLowerCase().trim();
+      const lwM   = s => normM(s).split(" ").pop();
+      const skipM = new Set(["the","los","san","new","york","city"]);
+      const matchTeamsM = (a, b) => {
+        const an = normM(a), bn = normM(b);
+        if (an === bn) return true;
+        if (an.includes(lwM(bn)) || bn.includes(lwM(an))) return true;
+        const tail = s => normM(s).split(" ").slice(-2).join(" ");
+        if (an.includes(tail(bn)) || bn.includes(tail(an))) return true;
+        const mw = s => normM(s).split(" ").filter(w => w.length > 3 && !skipM.has(w));
+        return mw(bn).some(w => an.includes(w));
+      };
       const findLiveOdds = (pick) => liveOdds.find(g =>
-        normLast(g.homeTeam) === normLast(pick.homeTeam) &&
-        normLast(g.awayTeam) === normLast(pick.awayTeam)
+        matchTeamsM(g.homeTeam, pick.homeTeam) && matchTeamsM(g.awayTeam, pick.awayTeam)
       ) || null;
       const ipStr = (p) => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";
       const picks = mlbGames.length
@@ -284,9 +294,19 @@ export async function GET(request) {
         const uncovered = mlbGames.filter(g => !picks.some(p => covered2(p, g)));
         for (const g of uncovered) {
           const ipStr2 = (p) => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";
+          const isPastGame = g.status === "Final" || g.status === "Completed" || date < today;
+          // Check if live odds now have a line for this game (e.g. via ESPN fallback)
+          const oddsMatch = liveOdds.find(o =>
+            matchTeamsM(o.homeTeam, g.homeTeam) && matchTeamsM(o.awayTeam, g.awayTeam)
+          );
+          if (oddsMatch && !isPastGame) {
+            // We have odds — run the full model so this shows a real verdict instead of No Line
+            const built = buildPick({ ...oddsMatch, commenceTime: g.commenceTime }, g, null);
+            if (built) { picks.push(built); continue; }
+          }
+          // No odds anywhere — show as informational only
           const modelProb = getModelProbability({ homeTeam: g.homeTeam, awayTeam: g.awayTeam, homeImplied: 0.5, commenceTime: g.commenceTime }, g);
           const rawPick = modelProb >= 0.5 ? g.homeTeam : g.awayTeam;
-          const isPastGame = g.status === "Final" || g.status === "Completed" || date < today;
           picks.push({
             id: String(g.gameId),
             homeTeam: g.homeTeam, awayTeam: g.awayTeam,
