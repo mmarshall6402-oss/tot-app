@@ -171,7 +171,7 @@ export default function ToT() {
   // After 6 PM local time today's games are done — default to tomorrow's picks.
   // Must be useEffect (not useState initializer) to avoid SSR/client hydration mismatch.
   useEffect(() => {
-    if (new Date().getHours() >= 18) setSelectedDate(d => d === weekDates[1] ? weekDates[2] : d);
+    if (new Date().getHours() >= 18) setSelectedDate(d => d === weekDates[7] ? weekDates[8] : d);
     // Restore cached pro status client-side only (localStorage not available during SSR)
     try {
       const c = localStorage.getItem("tot-pro");
@@ -280,10 +280,11 @@ export default function ToT() {
   const startCheckout = async (plan) => {
     setCheckingOut(plan);
     try {
+      const authHeaders = await getAuthHeaders();
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan, userId: user.id, email: user.email }),
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        body: JSON.stringify({ plan, email: user.email }),
       });
       const { url } = await res.json();
       if (url) window.location.href = url;
@@ -293,10 +294,11 @@ export default function ToT() {
 
   const manageBilling = async () => {
     try {
+      const authHeaders = await getAuthHeaders();
       const res = await fetch("/api/stripe/portal", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id }),
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        body: JSON.stringify({}),
       });
       const data = await res.json();
       if (data.url) { window.location.href = data.url; return; }
@@ -387,7 +389,7 @@ export default function ToT() {
       tier: pick.tier?.level,
       commence_time: pick.commenceTime,
       result: "pending",
-    });
+    }, { onConflict: "user_id,game_id" });
     setSaving(s => ({ ...s, [pick.id]: "saved" }));
   };
 

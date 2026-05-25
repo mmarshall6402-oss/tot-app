@@ -10,7 +10,7 @@ export async function GET() {
 
   const { data } = await supabase
     .from("model_picks")
-    .select("result, is_bet, tier, edge")
+    .select("result, is_bet, tier, edge, features")
     .in("result", ["win", "loss", "push"])
     .eq("is_bet", true);
 
@@ -33,5 +33,14 @@ export async function GET() {
     ? Math.round(data.reduce((s, r) => s + (r.edge || 0), 0) / data.length * 10) / 10
     : null;
 
-  return Response.json({ wins, losses, pushes, pct, total, byTier, avgEdge });
+  // CLV: closing_implied - open_implied for the picked side (stored in features by snapshot cron)
+  const clvData = data.filter(r => r.features?.clv != null);
+  const avgClv  = clvData.length > 0
+    ? Math.round(clvData.reduce((s, r) => s + r.features.clv, 0) / clvData.length * 10) / 10
+    : null;
+  const pctPositiveClv = clvData.length > 0
+    ? Math.round(clvData.filter(r => r.features.clv > 0).length / clvData.length * 1000) / 10
+    : null;
+
+  return Response.json({ wins, losses, pushes, pct, total, byTier, avgEdge, avgClv, pctPositiveClv, clvSampleSize: clvData.length });
 }

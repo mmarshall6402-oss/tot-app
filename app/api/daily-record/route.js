@@ -31,14 +31,20 @@ function liveResolve(pick, games) {
 
 export async function GET() {
   const supabase = getSupabase();
-  const today = new Date().toISOString().split("T")[0];
+  const ctParts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date());
+  const today = `${ctParts.find(x=>x.type==="year").value}-${ctParts.find(x=>x.type==="month").value}-${ctParts.find(x=>x.type==="day").value}`;
 
   // picks_cache has every game the model analyzed, all verdicts, every date
   // model_picks has settled results from the nightly resolve cron
   // Limit to current season (last 210 days) to avoid full-table scans
   const seasonStart = new Date();
   seasonStart.setDate(seasonStart.getDate() - 210);
-  const seasonStartStr = seasonStart.toISOString().split("T")[0];
+  const ssP = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(seasonStart);
+  const seasonStartStr = `${ssP.find(x=>x.type==="year").value}-${ssP.find(x=>x.type==="month").value}-${ssP.find(x=>x.type==="day").value}`;
 
   const [{ data: cacheRows }, { data: resolvedRows }] = await Promise.all([
     supabase.from("picks_cache").select("date, picks")

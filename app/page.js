@@ -168,7 +168,7 @@ export default function ToT() {
   }, []);
 
   useEffect(() => {
-    if (new Date().getHours() >= 18) setSelectedDate(d => d === weekDates[1] ? weekDates[2] : d);
+    if (new Date().getHours() >= 18) setSelectedDate(d => d === weekDates[7] ? weekDates[8] : d);
     try {
       const c = localStorage.getItem("tot-pro");
       if (c) { const { v, e } = JSON.parse(c); if (Date.now() < e) setIsPro(v); }
@@ -274,10 +274,11 @@ export default function ToT() {
   const startCheckout = async (plan) => {
     setCheckingOut(plan);
     try {
+      const authHeaders = await getAuthHeaders();
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan, userId: user.id, email: user.email }),
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        body: JSON.stringify({ plan, email: user.email }),
       });
       const { url } = await res.json();
       if (url) window.location.href = url;
@@ -287,10 +288,11 @@ export default function ToT() {
 
   const manageBilling = async () => {
     try {
+      const authHeaders = await getAuthHeaders();
       const res = await fetch("/api/stripe/portal", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id }),
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        body: JSON.stringify({}),
       });
       const data = await res.json();
       if (data.url) { window.location.href = data.url; return; }

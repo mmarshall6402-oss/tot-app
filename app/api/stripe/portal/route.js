@@ -1,5 +1,6 @@
 import { getStripe } from "../../../../lib/stripe.js";
 import { createClient } from "@supabase/supabase-js";
+import { requireAuth } from "../../../../lib/auth.js";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
@@ -9,12 +10,14 @@ const getSupabase = () => createClient(
 );
 
 export async function POST(request) {
+  const { user, error: authError } = await requireAuth(request);
+  if (authError) return authError;
+
   try {
-    const { userId } = await request.json();
     const { data } = await getSupabase()
       .from("subscriptions")
       .select("stripe_customer_id")
-      .eq("user_id", userId)
+      .eq("user_id", user.id)
       .single();
 
     if (!data?.stripe_customer_id) {

@@ -104,8 +104,9 @@ export async function GET(request) {
       resolved++;
     }
 
-    // Update model_daily_stats for today's resolved picks
+    // Update model_daily_stats — only count actual bets, not PASS/TRAP picks
     const resolvedPicks = pending.filter(p => {
+      if (!p.is_bet) return false;
       const game = games.find(g => {
         const ht = g.teams?.home?.team?.name?.toLowerCase() || "";
         const at = g.teams?.away?.team?.name?.toLowerCase() || "";

@@ -1,5 +1,6 @@
 import { getStripe } from "../../../../lib/stripe.js";
 import { createClient } from "@supabase/supabase-js";
+import { timingSafeEqual } from "../../../../lib/auth.js";
 
 const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -7,7 +8,7 @@ const getSupabase = () => createClient(
 );
 
 export async function POST(request) {
-  if (request.headers.get("x-admin-key") !== process.env.ADMIN_KEY) {
+  if (!timingSafeEqual(request.headers.get("x-admin-key"), process.env.ADMIN_KEY)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 

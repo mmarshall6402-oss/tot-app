@@ -231,8 +231,11 @@ async function generateForDate(date, oddsGames, supabase, force = false, isToday
     if (!game.commenceTime) return false;
     const t = new Date(game.commenceTime);
     const utcDate = t.toISOString().split("T")[0];
-    const etDate  = new Date(t.getTime() - 5 * 3600000).toISOString().split("T")[0];
-    return utcDate === date || etDate === date;
+    const ctParts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit",
+    }).formatToParts(t);
+    const ctDate = `${ctParts.find(x=>x.type==="year").value}-${ctParts.find(x=>x.type==="month").value}-${ctParts.find(x=>x.type==="day").value}`;
+    return utcDate === date || ctDate === date;
   });
   if (!dateOdds.length) return { skipped: true, date, reason: "no odds games for date" };
   // Don't pre-cache tomorrow with a partial slate — odds APIs post games incrementally
@@ -334,6 +337,9 @@ async function generateForDate(date, oddsGames, supabase, force = false, isToday
         pick_form_ops:      pickForm?.ops != null ? parseFloat(pickForm.ops) : null,
         lineup_ops_vs_pitcher: pickLineup != null ? parseFloat(pickLineup) : null,
         half_size:          f.halfSize ?? false,
+        // CLV tracking — opening odds captured at cron generation time
+        open_home_odds:    result.homeOdds ?? null,
+        open_away_odds:    result.awayOdds ?? null,
       };
 
       return {
