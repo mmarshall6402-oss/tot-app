@@ -59,8 +59,8 @@ function Btn({ onClick, disabled, state, labels, style = {} }) {
   );
 }
 
-const NAVS = ["overview", "picks", "clv", "codes", "email", "tweet", "system"];
-const NAV_LABELS = { overview: "📊 Overview", picks: "⚾ Picks", clv: "📈 CLV", codes: "🔑 Codes", email: "✉️ Email", tweet: "𝕏 Tweet", system: "⚙️ System" };
+const NAVS = ["overview", "picks", "clv", "cal", "codes", "email", "tweet", "system"];
+const NAV_LABELS = { overview: "📊 Overview", picks: "⚾ Picks", clv: "📈 CLV", cal: "📐 Calibration", codes: "🔑 Codes", email: "✉️ Email", tweet: "𝕏 Tweet", system: "⚙️ System" };
 
 export default function AdminDash() {
   const [auth, setAuth]   = useState(false);
@@ -77,6 +77,7 @@ export default function AdminDash() {
   const [pending, setPend]  = useState([]);
   const [allTimePicks, setATP] = useState([]);
   const [modelRec, setModelRec] = useState(null);
+  const [calData, setCal] = useState(null);
 
   // form state
   const [codeLabel, setCL]      = useState("");
@@ -108,11 +109,12 @@ export default function AdminDash() {
     setBusy(true);
     const h = { Authorization: `Bearer ${tok}` };
 
-    const [statsR, codesR, pendR, recR] = await Promise.all([
+    const [statsR, codesR, pendR, recR, calR] = await Promise.all([
       fetch("/api/admin/tracker?action=stats&days=30", { headers: h }).then(r => r.json()).catch(() => null),
       fetch("/api/admin/codes", { headers: h }).then(r => r.json()).catch(() => ({ codes: [] })),
       fetch("/api/admin/tracker?action=pending", { headers: h }).then(r => r.json()).catch(() => ({ pending: [] })),
       fetch("/api/model-record").then(r => r.json()).catch(() => null),
+      fetch("/api/calibration").then(r => r.json()).catch(() => null),
     ]);
 
     const todayPicks = statsR?.todayPicks || [];
@@ -124,6 +126,7 @@ export default function AdminDash() {
     setPend(pendR.pending || []);
     setATP(statsR?.recent || []);
     setModelRec(recR ?? null);
+    setCal(calR ?? null);
     setBusy(false);
 
     // Auto-regen if no picks for today yet
@@ -621,6 +624,127 @@ export default function AdminDash() {
               </div>
             );
           })()}
+        </>
+      )}
+
+      {/* ── CALIBRATION ── */}
+      {tab === "cal" && (
+        <>
+          <span style={S.lbl}>PROBABILITY CALIBRATION</span>
+          <div style={{ fontSize: 11, color: "#444", marginBottom: 14, lineHeight: 1.6 }}>
+            Does a 57% predicted probability actually win 57% of the time?
+            Delta = actual − predicted. Negative = model overconfident. Positive = underconfident.
+          </div>
+          {calData?.avgDelta != null && (
+            <div style={{ ...S.card, marginBottom: 10, display: "flex", gap: 8 }}>
+              <Chip
+                label="OVERALL BIAS"
+                value={`${calData.avgDelta > 0 ? "+" : ""}${calData.avgDelta}pp`}
+                color={Math.abs(calData.avgDelta) <= 2 ? "#00FF87" : Math.abs(calData.avgDelta) <= 5 ? "#FFD600" : "#FF4D4D"}
+                sub={calData.avgDelta > 2 ? "underconfident" : calData.avgDelta < -2 ? "overconfident" : "well calibrated"}
+              />
+              <Chip label="RESOLVED BETS" value={calData.total ?? "—"} sub="all-time sample" />
+            </div>
+          )}
+          <div style={S.card}>
+            {!calData?.probBuckets?.length && <div style={{ color: "#555", fontSize: 12 }}>No resolved picks yet</div>}
+            {calData?.probBuckets?.length > 0 && (
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                <thead>
+                  <tr style={{ color: "#444", borderBottom: "1px solid #1a1a1a" }}>
+                    {["Bucket", "Predicted", "Actual", "Delta", "CLV", "n"].map((h, i) => (
+                      <th key={h} style={{ textAlign: i === 0 ? "left" : "right", paddingBottom: 8, fontWeight: 600 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {calData.probBuckets.map(b => {
+                    const delta = b.actual != null && b.predicted != null ? parseFloat((b.actual - b.predicted).toFixed(1)) : null;
+                    const deltaColor = delta == null ? "#333" : Math.abs(delta) <= 2 ? "#00FF87" : Math.abs(delta) <= 5 ? "#FFD600" : "#FF4D4D";
+                    const actColor   = b.actual == null ? "#333" : b.actual >= 55 ? "#00FF87" : b.actual >= 50 ? "#FFD600" : "#FF4D4D";
+                    const clvColor   = b.avgClv > 0 ? "#00FF87" : b.avgClv < 0 ? "#FF4D4D" : "#555";
+                    const thinSample = b.n < 20;
+                    return (
+                      <tr key={b.label} style={{ borderBottom: "1px solid #0d0d0d" }}>
+                        <td style={{ padding: "7px 0", color: thinSample ? "#444" : "#ccc" }}>{b.label}{thinSample ? " *" : ""}</td>
+                        <td style={{ textAlign: "right", ...S.mono, color: "#555" }}>{b.predicted != null ? `${b.predicted}%` : "—"}</td>
+                        <td style={{ textAlign: "right", ...S.mono, color: b.actual != null ? actColor : "#333", fontWeight: 700 }}>{b.actual != null ? `${b.actual}%` : "—"}</td>
+                        <td style={{ textAlign: "right", ...S.mono, color: deltaColor, fontWeight: 700 }}>{delta != null ? `${delta > 0 ? "+" : ""}${delta}pp` : "—"}</td>
+                        <td style={{ textAlign: "right", ...S.mono, color: b.avgClv != null ? clvColor : "#333" }}>{b.avgClv != null ? `${b.avgClv > 0 ? "+" : ""}${b.avgClv}pp` : "—"}</td>
+                        <td style={{ textAlign: "right", color: thinSample ? "#333" : "#555" }}>{b.n}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+            {calData?.probBuckets?.some(b => b.n < 20 && b.n > 0) && (
+              <div style={{ fontSize: 10, color: "#333", marginTop: 8 }}>* n &lt; 20 — too small to interpret</div>
+            )}
+          </div>
+
+          <span style={{ ...S.lbl, marginTop: 18, display: "block" }}>CONFIDENCE CALIBRATION</span>
+          <div style={{ fontSize: 11, color: "#444", marginBottom: 10, lineHeight: 1.6 }}>
+            Higher confidence should monotonically produce higher win rate. Non-monotone = miscalibration.
+          </div>
+          <div style={S.card}>
+            {!calData?.confBuckets?.length && <div style={{ color: "#555", fontSize: 12 }}>No data</div>}
+            {calData?.confBuckets?.length > 0 && (
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                <thead>
+                  <tr style={{ color: "#444", borderBottom: "1px solid #1a1a1a" }}>
+                    {["Confidence", "W-L", "Win%", "Avg CLV", "n"].map((h, i) => (
+                      <th key={h} style={{ textAlign: i === 0 ? "left" : "right", paddingBottom: 8, fontWeight: 600 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {calData.confBuckets.map(b => {
+                    const wPctColor = b.actual == null ? "#333" : b.actual >= 55 ? "#00FF87" : b.actual >= 50 ? "#FFD600" : "#FF4D4D";
+                    const clvColor  = b.avgClv > 0 ? "#00FF87" : b.avgClv < 0 ? "#FF4D4D" : "#555";
+                    return (
+                      <tr key={b.label} style={{ borderBottom: "1px solid #0d0d0d" }}>
+                        <td style={{ padding: "7px 0", color: "#ccc" }}>{b.label}</td>
+                        <td style={{ textAlign: "right", ...S.mono, color: "#888" }}>{b.n > 0 ? `${b.wins}-${b.n - b.wins}` : "—"}</td>
+                        <td style={{ textAlign: "right", ...S.mono, color: wPctColor, fontWeight: 700 }}>{b.actual != null ? `${b.actual}%` : "—"}</td>
+                        <td style={{ textAlign: "right", ...S.mono, color: b.avgClv != null ? clvColor : "#333" }}>{b.avgClv != null ? `${b.avgClv > 0 ? "+" : ""}${b.avgClv}pp` : "—"}</td>
+                        <td style={{ textAlign: "right", color: "#555" }}>{b.n || "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          <span style={{ ...S.lbl, marginTop: 18, display: "block" }}>VERDICT & VARIANCE BREAKDOWN</span>
+          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+            {(calData?.verdictBuckets || []).map(b => (
+              <div key={b.label} style={{ flex: 1, background: "#0a0a0a", border: `1px solid ${b.label === "CLEAN" ? "rgba(0,255,135,0.15)" : "#1a1a1a"}`, borderRadius: 12, padding: "11px 13px" }}>
+                <div style={{ fontSize: 10, color: b.label === "CLEAN" ? "#00FF87" : "#555", letterSpacing: 1.5, marginBottom: 5 }}>{b.label}</div>
+                <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 20, fontWeight: 700, color: b.actual >= 55 ? "#00FF87" : b.actual >= 50 ? "#FFD600" : b.actual != null ? "#FF4D4D" : "#333" }}>
+                  {b.actual != null ? `${b.actual}%` : "—"}
+                </div>
+                <div style={{ fontSize: 10, color: "#444", marginTop: 3 }}>{b.n} bets · {b.wins}W</div>
+                {b.avgClv != null && (
+                  <div style={{ fontSize: 10, color: b.avgClv > 0 ? "#00FF87" : "#FF4D4D", marginTop: 2 }}>CLV {b.avgClv > 0 ? "+" : ""}{b.avgClv}pp</div>
+                )}
+              </div>
+            ))}
+          </div>
+          {(calData?.varianceBuckets || []).length > 0 && (
+            <div style={{ display: "flex", gap: 8 }}>
+              {calData.varianceBuckets.map(b => (
+                <div key={b.label} style={{ flex: 1, background: "#0a0a0a", border: "1px solid #1a1a1a", borderRadius: 12, padding: "11px 13px" }}>
+                  <div style={{ fontSize: 10, color: "#555", letterSpacing: 1.5, marginBottom: 5 }}>{b.label} VAR</div>
+                  <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 20, fontWeight: 700, color: b.actual >= 55 ? "#00FF87" : b.actual >= 50 ? "#FFD600" : b.actual != null ? "#FF4D4D" : "#333" }}>
+                    {b.actual != null ? `${b.actual}%` : "—"}
+                  </div>
+                  <div style={{ fontSize: 10, color: "#444", marginTop: 3 }}>{b.n} bets</div>
+                </div>
+              ))}
+            </div>
+          )}
         </>
       )}
 
