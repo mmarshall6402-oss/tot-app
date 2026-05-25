@@ -53,6 +53,7 @@ export async function GET() {
       .order("date", { ascending: true }),
     supabase.from("model_picks").select("date, home_team, away_team, pick, result")
       .in("result", ["win","loss","push"])
+      .eq("is_bet", true)
       .gte("date", seasonStartStr),
   ]);
 
@@ -74,6 +75,7 @@ export async function GET() {
     if (!Array.isArray(picks)) continue;
 
     for (const p of picks) {
+      if (!p.isBet) continue;
       const homeTeam = p.homeTeam || p.home_team;
       const awayTeam = p.awayTeam || p.away_team;
       const pick = p.pick;

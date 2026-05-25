@@ -106,36 +106,41 @@ const ODDS_TTL_MS = 1000 * 60 * 15; // 15 min
 
 async function fetchOddsWithCache() {
   const supabase = getSupabase();
-  // 1. Try live API
+
+  // 1. Check Supabase cross-instance cache first — avoids redundant TOA calls on cold starts
+  const { data: sbCached } = await supabase
+    .from("picks_cache")
+    .select("picks, generated_at")
+    .eq("date", ODDS_CACHE_KEY)
+    .single();
+
+  if (sbCached?.picks?.length) {
+    const age = Date.now() - new Date(sbCached.generated_at).getTime();
+    if (age < ODDS_TTL_MS) {
+      console.log("[odds] Supabase cache hit, age:", Math.round(age / 60000) + "m");
+      return sbCached.picks;
+    }
+  }
+
+  // 2. Fetch live odds
   try {
     const games = await fetchMLBOdds();
     if (games?.length) {
-      // Persist to Supabase so the next cold instance can use it
       supabase
         .from("picks_cache")
         .upsert({ date: ODDS_CACHE_KEY, picks: games, generated_at: new Date().toISOString() }, { onConflict: "date" })
-        .then(() => {}).catch(() => {});
+        .then(() => {}).catch(e => console.warn("[odds] Supabase write failed:", e.message));
       return games;
     }
   } catch (e) {
     console.warn("[odds] live fetch failed:", e.message);
   }
 
-  // 2. Fall back to Supabase-cached odds (hard 2h limit — stale odds hide real lines)
-  const { data } = await supabase
-    .from("picks_cache")
-    .select("picks, generated_at")
-    .eq("date", ODDS_CACHE_KEY)
-    .single();
-
-  if (data?.picks?.length) {
-    const age = Date.now() - new Date(data.generated_at).getTime();
-    const TWO_HOURS = 2 * 60 * 60 * 1000;
-    if (age < TWO_HOURS) {
-      console.warn("[odds] using Supabase-cached odds, age:", Math.round(age / 60000) + "m");
-      return data.picks;
-    }
-    console.warn("[odds] Supabase odds too stale (>2h) — discarding, will try live");
+  // 3. Stale Supabase cache — better than nothing
+  if (sbCached?.picks?.length) {
+    const age = Date.now() - new Date(sbCached.generated_at).getTime();
+    console.warn("[odds] serving stale Supabase cache, age:", Math.round(age / 60000) + "m");
+    return sbCached.picks;
   }
 
   return [];
@@ -154,7 +159,11 @@ export async function GET(request) {
       timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit",
     }).formatToParts(new Date());
     const today = `${etParts.find(p => p.type === "year").value}-${etParts.find(p => p.type === "month").value}-${etParts.find(p => p.type === "day").value}`;
-    const date = searchParams.get("date") || today;
+    const dateParam = searchParams.get("date");
+    if (dateParam && !/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+      return Response.json({ error: "invalid date" }, { status: 400 });
+    }
+    const date = dateParam || today;
     const bust = searchParams.get("bust") === "1";
 
     const { data: cached } = await supabase

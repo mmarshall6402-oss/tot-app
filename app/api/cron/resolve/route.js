@@ -1,5 +1,5 @@
 // app/api/cron/resolve/route.js
-// Runs at 6 AM UTC (~1 AM ET). Resolves yesterday's pending model picks,
+// Runs at 8 AM UTC (3 AM CT). Resolves yesterday's pending model picks,
 // updates team ELO ratings, and records calibration data for model feedback.
 
 import { createClient } from "@supabase/supabase-js";
@@ -105,47 +105,24 @@ export async function GET(request) {
     }
 
     // Update model_daily_stats — only count actual bets, not PASS/TRAP picks
-    const resolvedPicks = pending.filter(p => {
-      if (!p.is_bet) return false;
-      const game = games.find(g => {
-        const ht = g.teams?.home?.team?.name?.toLowerCase() || "";
-        const at = g.teams?.away?.team?.name?.toLowerCase() || "";
-        const lw = s => s.split(" ").pop();
-        return ht.includes(lw(p.home_team?.toLowerCase() || "")) &&
-               at.includes(lw(p.away_team?.toLowerCase() || ""));
-      });
-      return game?.status?.abstractGameState === "Final";
+    const lw = s => (s || "").toLowerCase().split(" ").pop();
+    const findGame = p => games.find(g => {
+      const ht = g.teams?.home?.team?.name?.toLowerCase() || "";
+      const at = g.teams?.away?.team?.name?.toLowerCase() || "";
+      return ht.includes(lw(p.home_team)) && at.includes(lw(p.away_team));
     });
 
-    const dayWins   = resolvedPicks.filter(p => {
-      const g = games.find(g2 => {
-        const ht = g2.teams?.home?.team?.name?.toLowerCase() || "";
-        const at = g2.teams?.away?.team?.name?.toLowerCase() || "";
-        const lw = s => s.split(" ").pop();
-        return ht.includes(lw(p.home_team?.toLowerCase() || "")) &&
-               at.includes(lw(p.away_team?.toLowerCase() || ""));
-      });
-      if (!g) return false;
-      const hs = g.linescore?.teams?.home?.runs;
-      const as = g.linescore?.teams?.away?.runs;
-      if (hs == null || as == null) return false;
-      return p.home_team === p.pick ? hs > as : as > hs;
-    }).length;
-
-    const dayLosses = resolvedPicks.filter(p => {
-      const g = games.find(g2 => {
-        const ht = g2.teams?.home?.team?.name?.toLowerCase() || "";
-        const at = g2.teams?.away?.team?.name?.toLowerCase() || "";
-        const lw = s => s.split(" ").pop();
-        return ht.includes(lw(p.home_team?.toLowerCase() || "")) &&
-               at.includes(lw(p.away_team?.toLowerCase() || ""));
-      });
-      if (!g) return false;
-      const hs = g.linescore?.teams?.home?.runs;
-      const as = g.linescore?.teams?.away?.runs;
-      if (hs == null || as == null) return false;
-      return p.home_team === p.pick ? as > hs : hs > as;
-    }).length;
+    let dayWins = 0, dayLosses = 0;
+    for (const p of pending) {
+      if (!p.is_bet) continue;
+      const g = findGame(p);
+      if (!g || g.status?.abstractGameState !== "Final") continue;
+      const hs = g.linescore?.teams?.home?.runs ?? g.teams?.home?.score ?? null;
+      const as = g.linescore?.teams?.away?.runs ?? g.teams?.away?.score ?? null;
+      if (hs === null || as === null || hs === as) continue;
+      if (p.home_team === p.pick ? hs > as : as > hs) dayWins++;
+      else dayLosses++;
+    }
 
     if (dayWins + dayLosses > 0) {
       await supabase.from("model_daily_stats").upsert({

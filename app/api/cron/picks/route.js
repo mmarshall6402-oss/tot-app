@@ -1,5 +1,5 @@
 // app/api/cron/picks/route.js
-// Runs at 11 AM UTC daily. Generates full picks with Claude breakdowns
+// Runs at 3 PM UTC (10 AM CT) daily. Generates full picks with Claude breakdowns
 // and writes to Supabase cache. On-demand /api/picks serves from this cache.
 import { createClient } from "@supabase/supabase-js";
 import { fetchMLBOdds } from "../../../../lib/odds.js";

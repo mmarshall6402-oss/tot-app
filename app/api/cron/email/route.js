@@ -1,5 +1,6 @@
-// Runs at 11 AM UTC (7 AM ET) daily — sends today's free pick to email list.
+// Runs at 3:30 PM UTC (10:30 AM CT) daily — sends today's free pick to email list.
 import { createClient } from "@supabase/supabase-js";
+import { createHmac } from "crypto";
 import { Resend } from "resend";
 import { timingSafeEqual } from "../../../../lib/auth.js";
 
@@ -118,7 +119,7 @@ function buildEmailHtml(pick, topPicks, yWins, yLosses, yesterday) {
     <div style="text-align:center;font-size:11px;color:#222;line-height:1.8;">
       <a href="${APP_URL}/landing" style="color:#222;text-decoration:none;">tot-app.vercel.app</a>
       &nbsp;·&nbsp;
-      <a href="${APP_URL}/api/unsubscribe?email={{email}}" style="color:#222;text-decoration:none;">Unsubscribe</a>
+      <a href="${APP_URL}/api/unsubscribe?email={{email}}&token={{token}}" style="color:#222;text-decoration:none;">Unsubscribe</a>
     </div>
   </div>
 </body>
@@ -177,14 +178,15 @@ export async function GET(request) {
   const BATCH = 50;
   for (let i = 0; i < subscribers.length; i += BATCH) {
     const batch = subscribers.slice(i, i + BATCH);
-    const results = await Promise.all(batch.map(({ email }) =>
-      resend.emails.send({
+    const results = await Promise.all(batch.map(({ email }) => {
+      const token = createHmac("sha256", process.env.SUPABASE_SERVICE_ROLE_KEY || "").update(email).digest("hex");
+      return resend.emails.send({
         from:    fromAddr,
         to:      email,
         subject,
-        html:    html.replace("{{email}}", encodeURIComponent(email)),
-      }).then(() => ({ ok: true })).catch(err => ({ ok: false, err: err.message }))
-    ));
+        html:    html.replace("{{email}}", encodeURIComponent(email)).replace("{{token}}", token),
+      }).then(() => ({ ok: true })).catch(err => ({ ok: false, err: err.message }));
+    }));
     for (const r of results) {
       if (r.ok) sent++;
       else { failed++; if (errors.length < 3) errors.push(r.err); }
