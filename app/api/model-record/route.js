@@ -42,5 +42,29 @@ export async function GET() {
     ? Math.round(clvData.filter(r => r.features.clv > 0).length / clvData.length * 1000) / 10
     : null;
 
-  return Response.json({ wins, losses, pushes, pct, total, byTier, avgEdge, avgClv, pctPositiveClv, clvSampleSize: clvData.length });
+  // CLV bucketed by edge size — reveals if large-edge picks are actually model noise.
+  // Red flag: biggest edges = worst CLV = model is over-amplifying certainty at extremes.
+  const edgeBuckets = [
+    { label: "0-2%",  lo: 0, hi: 2   },
+    { label: "2-4%",  lo: 2, hi: 4   },
+    { label: "4-6%",  lo: 4, hi: 6   },
+    { label: "6%+",   lo: 6, hi: 999 },
+  ].map(({ label, lo, hi }) => {
+    const bucket    = data.filter(r => (r.edge || 0) >= lo && (r.edge || 0) < hi);
+    const bClv      = bucket.filter(r => r.features?.clv != null);
+    const bWins     = bucket.filter(r => r.result === "win").length;
+    const bTotal    = bucket.filter(r => r.result !== "push").length;
+    const bAvgClv   = bClv.length > 0
+      ? Math.round(bClv.reduce((s, r) => s + r.features.clv, 0) / bClv.length * 10) / 10
+      : null;
+    return {
+      label,
+      wins: bWins, total: bTotal,
+      pct: bTotal > 0 ? Math.round(bWins / bTotal * 1000) / 10 : null,
+      avgClv: bAvgClv,
+      clvSamples: bClv.length,
+    };
+  });
+
+  return Response.json({ wins, losses, pushes, pct, total, byTier, avgEdge, avgClv, pctPositiveClv, clvSampleSize: clvData.length, edgeBuckets });
 }
