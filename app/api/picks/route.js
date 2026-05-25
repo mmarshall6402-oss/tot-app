@@ -181,12 +181,19 @@ export async function GET(request) {
     // Past games hit the gameStarted lock (status === "Final") so the filter
     // verdict is preserved as-is; only the liveScore overlay updates.
     if (!bust && !cacheStale && cached?.picks?.length) {
-      // Fetch fresh MLB data — update live scores, pitchers, AND recompute filter.
-      // Critical: cron runs at 7 AM ET before pitchers are announced, so cached filter
-      // may be PASS due to NO_PITCHER_DATA. Recompute with current data so picks flip
-      // to BET/CLEAN once starters post (~90 min before first pitch).
-      const mlbRes = await fetch(`${BASE_URL}/api/mlb?date=${date}`).then(r => r.json()).catch(() => ({ games: [] }));
+      // Fetch fresh MLB data and live odds in parallel.
+      // MLB: update live scores, pitchers, recompute filter (pitchers post ~90 min before first pitch).
+      // Odds: update homeOdds/awayOdds to current line — enables closing line signal vs openHomeOdds stored at cron time.
+      const [mlbRes, liveOdds] = await Promise.all([
+        fetch(`${BASE_URL}/api/mlb?date=${date}`).then(r => r.json()).catch(() => ({ games: [] })),
+        date >= today ? fetchOddsWithCache().catch(() => []) : Promise.resolve([]),
+      ]);
       const mlbGames = mlbRes?.games || [];
+      const normLast = s => (s || "").toLowerCase().split(" ").pop();
+      const findLiveOdds = (pick) => liveOdds.find(g =>
+        normLast(g.homeTeam) === normLast(pick.homeTeam) &&
+        normLast(g.awayTeam) === normLast(pick.awayTeam)
+      ) || null;
       const ipStr = (p) => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";
       const picks = mlbGames.length
         ? cached.picks.map(pick => {
@@ -196,13 +203,18 @@ export async function GET(request) {
             const homePStr = mlb.homePitcher ? `${mlb.homePitcher.name} (${mlb.homePitcher.wins}-${mlb.homePitcher.losses}, ${mlb.homePitcher.era} ERA, ${mlb.homePitcher.whip} WHIP${ipStr(mlb.homePitcher)})` : null;
             const awayPStr = mlb.awayPitcher ? `${mlb.awayPitcher.name} (${mlb.awayPitcher.wins}-${mlb.awayPitcher.losses}, ${mlb.awayPitcher.era} ERA, ${mlb.awayPitcher.whip} WHIP${ipStr(mlb.awayPitcher)})` : null;
 
-            // Reconstruct homeImplied from stored odds so model + filter can run
-            let gameWithImplied = pick;
-            if (pick.homeOdds && pick.awayOdds) {
-              const hDec = americanToDecimal(pick.homeOdds);
-              const aDec = americanToDecimal(pick.awayOdds);
+            // Overlay current odds (closing line) while preserving opening odds for signal
+            const currentOdds = findLiveOdds(pick);
+            const freshHomeOdds = currentOdds?.homeOdds ?? pick.homeOdds;
+            const freshAwayOdds = currentOdds?.awayOdds ?? pick.awayOdds;
+
+            // Reconstruct homeImplied from current odds so model + filter run on live market
+            let gameWithImplied = { ...pick, homeOdds: freshHomeOdds, awayOdds: freshAwayOdds };
+            if (freshHomeOdds && freshAwayOdds) {
+              const hDec = americanToDecimal(freshHomeOdds);
+              const aDec = americanToDecimal(freshAwayOdds);
               const { fairHome, fairAway } = removeVig(decimalToImplied(hDec), decimalToImplied(aDec));
-              gameWithImplied = { ...pick, homeImplied: fairHome, awayImplied: fairAway };
+              gameWithImplied = { ...gameWithImplied, homeImplied: fairHome, awayImplied: fairAway };
             }
 
             const liveScore = { status: mlb.status, homeScore: mlb.homeScore, awayScore: mlb.awayScore, inning: mlb.inning, inningHalf: mlb.inningHalf };
@@ -238,6 +250,8 @@ export async function GET(request) {
             return {
               ...pick,
               pick: freshPick,
+              homeOdds: freshHomeOdds,
+              awayOdds: freshAwayOdds,
               edge: edgePct,
               isBet: filteredIsBet,
               tier,

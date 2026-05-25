@@ -28,7 +28,7 @@ function localDateStr(d) {
 function getWeekDates() {
   const dates = [];
   const today = new Date();
-  for (let i = -1; i < 7; i++) {
+  for (let i = -7; i < 7; i++) {
     const d = new Date(today);
     d.setDate(today.getDate() + i);
     dates.push(localDateStr(d));
@@ -132,7 +132,10 @@ export default function ToT() {
   const [freePick, setFreePick] = useState(null);
   const [carouselIdx, setCarouselIdx] = useState(0);
   const weekDates = getWeekDates();
-  const [selectedDate, setSelectedDate] = useState(weekDates[1]);
+  const todayStr = weekDates[7];
+  const [selectedDate, setSelectedDate] = useState(todayStr);
+  const dateScrollRef = useRef(null);
+  const todayBtnRef = useRef(null);
   const [steals, setSteals] = useState(null);
   const [parlayLegs, setParlayLegs] = useState(new Map()); // id -> { game, teamPick }
   const [parlayStake, setParlayStake] = useState(10);
@@ -155,6 +158,7 @@ export default function ToT() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [upgradeModal, setUpgradeModal] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [activatingPro, setActivatingPro] = useState(false);
 
   // Auth state — use the shared singleton so getAuthHeaders() shares the same session.
   useEffect(() => {
@@ -199,17 +203,19 @@ export default function ToT() {
     if (!user) return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("checkout") !== "success") return;
-    window.history.replaceState({}, "", "/");
+    window.history.replaceState({}, "", "/app");
+    setActivatingPro(true);
     let attempts = 0;
     const poll = setInterval(async () => {
       attempts++;
       const { data } = await getSupabase().from("subscriptions").select("status").eq("user_id", user.id).single();
       if (["active", "trialing"].includes(data?.status)) {
         setIsPro(true);
+        setActivatingPro(false);
         try { localStorage.setItem("tot-pro", JSON.stringify({ v: true, e: Date.now() + 5 * 60 * 1000 })); } catch {}
         clearInterval(poll);
       }
-      if (attempts >= 6) clearInterval(poll);
+      if (attempts >= 6) { setActivatingPro(false); clearInterval(poll); }
     }, 2000);
     return () => clearInterval(poll);
   }, [user?.id]);
@@ -220,6 +226,15 @@ export default function ToT() {
     fetch("/api/model-record").then(r => r.json()).then(d => setModelRecord(d)).catch(() => {});
     const t = setInterval(() => setCarouselIdx(i => i + 1), 3000);
     return () => clearInterval(t);
+  }, []);
+
+  // Scroll date strip to Today on load
+  useEffect(() => {
+    if (todayBtnRef.current && dateScrollRef.current) {
+      const strip = dateScrollRef.current;
+      const btn = todayBtnRef.current;
+      strip.scrollLeft = btn.offsetLeft - strip.clientWidth / 2 + btn.offsetWidth / 2;
+    }
   }, []);
 
   // Capture Android/Chrome native install prompt before it fires
@@ -360,8 +375,9 @@ export default function ToT() {
 
   const savePick = async (pick) => {
     if (saving[pick.id] === "saved") return;
+    if (savedPicks.some(p => p.game_id === pick.id)) return;
     setSaving(s => ({ ...s, [pick.id]: "saving" }));
-    await getSupabase().from("saved_picks").insert({
+    await getSupabase().from("saved_picks").upsert({
       user_id: user.id,
       game_id: pick.id,
       home_team: pick.homeTeam,
@@ -812,9 +828,10 @@ export default function ToT() {
   );
 
   if (isPro === null) return (
-    <div style={{ minHeight: "100vh", background: "#000", display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <div style={{ minHeight: "100vh", background: "#000", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12 }}>
       <style>{css}</style>
       <div style={S.spinner} />
+      {activatingPro && <div style={{ color: "#00FF87", fontSize: 13, fontWeight: 600 }}>Activating your account…</div>}
     </div>
   );
 
@@ -996,10 +1013,11 @@ export default function ToT() {
       </div>
 
       {(activeTab === "picks" || activeTab === "steals" || activeTab === "parlay") && (
-        <div style={S.dateScroll}>
+        <div ref={dateScrollRef} style={S.dateScroll}>
           {weekDates.map(date => (
             <button
               key={date}
+              ref={date === todayStr ? todayBtnRef : null}
               style={{
                 ...S.dateBtn,
                 borderColor: selectedDate === date ? "#00FF87" : "#333",

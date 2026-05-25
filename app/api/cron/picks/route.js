@@ -188,6 +188,7 @@ function buildPick(game, mlb, breakdown, precomputedFilter) {
     id: game.id, homeTeam: game.homeTeam, awayTeam: game.awayTeam,
     commenceTime: mlb?.commenceTime || game.commenceTime,
     homeOdds: game.homeOdds, awayOdds: game.awayOdds,
+    openHomeOdds: game.homeOdds, openAwayOdds: game.awayOdds,
     pick, edge: edgePct, isBet: filteredIsBet, tier,
     breakdown: { ...(breakdown || {}), pitcher_home: homePStr, pitcher_away: awayPStr },
     filter,

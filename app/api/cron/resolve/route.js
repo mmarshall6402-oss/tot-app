@@ -19,9 +19,13 @@ export async function GET(request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const ctFormatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit",
+  });
+  const ctParts = (d) => { const p = ctFormatter.formatToParts(d); return `${p.find(x=>x.type==="year").value}-${p.find(x=>x.type==="month").value}-${p.find(x=>x.type==="day").value}`; };
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
-  const date = yesterday.toISOString().split("T")[0];
+  const date = ctParts(yesterday);
   const supabase = getSupabase();
 
   try {
