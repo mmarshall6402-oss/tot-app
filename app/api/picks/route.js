@@ -328,6 +328,8 @@ export async function GET(request) {
       // Sort: CLEAN first, then BET, then PASS, then TRAP — by edge within each group
       const verdictRank = v => ({ CLEAN: 0, BET: 1, PASS: 2, TRAP: 3 }[v] ?? 4);
       picks.sort((a, b) => {
+        const betDiff = (b.isBet ? 1 : 0) - (a.isBet ? 1 : 0);
+        if (betDiff !== 0) return betDiff;
         const vd = verdictRank(a.filter?.verdict) - verdictRank(b.filter?.verdict);
         if (vd !== 0) return vd;
         return (b.filter?.trueEdgePct || 0) - (a.filter?.trueEdgePct || 0);
@@ -444,6 +446,8 @@ export async function GET(request) {
 
     const verdictRank2 = v => ({ CLEAN: 0, BET: 1, PASS: 2, TRAP: 3 }[v] ?? 4);
     results.sort((a, b) => {
+      const betDiff = (b.isBet ? 1 : 0) - (a.isBet ? 1 : 0);
+      if (betDiff !== 0) return betDiff;
       const vd = verdictRank2(a.filter?.verdict) - verdictRank2(b.filter?.verdict);
       if (vd !== 0) return vd;
       return (b.filter?.trueEdgePct || 0) - (a.filter?.trueEdgePct || 0);
