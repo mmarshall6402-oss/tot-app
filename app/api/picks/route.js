@@ -268,15 +268,20 @@ export async function GET(request) {
 
       // Add any MLB games that have no odds line and weren't in the cache
       if (mlbGames.length) {
-        const norm = s => (s || "").toLowerCase().trim();
-        const lastWord = s => norm(s).split(" ").pop();
-        const coveredIds = new Set(picks.map(p => String(p.id)));
-        const uncovered = mlbGames.filter(g =>
-          !picks.some(p =>
-            norm(p.homeTeam).includes(lastWord(g.homeTeam)) &&
-            norm(p.awayTeam).includes(lastWord(g.awayTeam))
-          )
-        );
+        const norm2 = s => (s || "").toLowerCase().trim();
+        const lw2   = s => norm2(s).split(" ").pop();
+        const skip2 = new Set(["the","los","san","new","york","city"]);
+        const covered2 = (p, g) => {
+          const ph = norm2(p.homeTeam), pa = norm2(p.awayTeam);
+          const gh = norm2(g.homeTeam), ga = norm2(g.awayTeam);
+          if (ph === gh && pa === ga) return true;
+          if (ph.includes(lw2(gh)) && pa.includes(lw2(ga))) return true;
+          const tail = s => norm2(s).split(" ").slice(-2).join(" ");
+          if (ph.includes(tail(gh)) && pa.includes(tail(ga))) return true;
+          const mw = s => norm2(s).split(" ").filter(w => w.length > 3 && !skip2.has(w));
+          return mw(gh).some(w => ph.includes(w)) && mw(ga).some(w => pa.includes(w));
+        };
+        const uncovered = mlbGames.filter(g => !picks.some(p => covered2(p, g)));
         for (const g of uncovered) {
           const ipStr2 = (p) => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";
           const modelProb = getModelProbability({ homeTeam: g.homeTeam, awayTeam: g.awayTeam, homeImplied: 0.5, commenceTime: g.commenceTime }, g);
@@ -366,9 +371,22 @@ export async function GET(request) {
     // Games with no odds show as informational (no edge, no BET label).
     const norm = s => (s || "").toLowerCase().trim();
     const lastWord = s => norm(s).split(" ").pop();
+    // Multi-strategy matching: last word → 2-word suffix → any shared meaningful token
+    const matchTeams = (oddsName, mlbName) => {
+      const on = norm(oddsName), mn = norm(mlbName);
+      if (on === mn) return true;
+      if (on.includes(lastWord(mn))) return true;
+      // 2-word suffix for "White Sox", "Red Sox", "Blue Jays"
+      const tail2 = mn.split(" ").slice(-2).join(" ");
+      if (tail2.length > 3 && on.includes(tail2)) return true;
+      // shared meaningful word (>3 chars, ignoring "the", "of", "los", "san", etc.)
+      const skip = new Set(["the","los","san","new","york","city"]);
+      const mWords = mn.split(" ").filter(w => w.length > 3 && !skip.has(w));
+      return mWords.some(w => on.includes(w));
+    };
     const findOdds = (mlbGame) => oddsGames.find(g =>
-      norm(g.homeTeam).includes(lastWord(mlbGame.homeTeam)) &&
-      norm(g.awayTeam).includes(lastWord(mlbGame.awayTeam))
+      matchTeams(g.homeTeam, mlbGame.homeTeam) &&
+      matchTeams(g.awayTeam, mlbGame.awayTeam)
     ) || null;
 
     const ipStr2 = (p) => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";
