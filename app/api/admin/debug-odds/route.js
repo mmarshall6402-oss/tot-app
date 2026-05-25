@@ -1,22 +1,9 @@
-import { requireAuth } from "../../../../lib/auth.js";
-
 const TOA_KEY  = process.env.THE_ODDS_API_KEY;
 const TOA_BASE = "https://api.the-odds-api.com/v4";
 const SGO_KEY  = process.env.SPORTSGAMEODDS_API_KEY;
 const SGO_BASE = "https://api.sportsgameodds.com/v2";
 
-async function checkAdmin(request) {
-  const { user } = await requireAuth(request);
-  if (!user) return false;
-  const admins = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || process.env.NEXT_PUBLIC_ADMIN_EMAIL || "")
-    .split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
-  return admins.includes(user.email?.toLowerCase());
-}
-
 export async function GET(request) {
-  if (!await checkAdmin(request)) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   const results = {};
 
