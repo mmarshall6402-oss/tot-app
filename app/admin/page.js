@@ -59,8 +59,8 @@ function Btn({ onClick, disabled, state, labels, style = {} }) {
   );
 }
 
-const NAVS = ["overview", "picks", "codes", "email", "tweet", "system"];
-const NAV_LABELS = { overview: "📊 Overview", picks: "⚾ Picks", codes: "🔑 Codes", email: "✉️ Email", tweet: "𝕏 Tweet", system: "⚙️ System" };
+const NAVS = ["overview", "picks", "clv", "codes", "email", "tweet", "system"];
+const NAV_LABELS = { overview: "📊 Overview", picks: "⚾ Picks", clv: "📈 CLV", codes: "🔑 Codes", email: "✉️ Email", tweet: "𝕏 Tweet", system: "⚙️ System" };
 
 export default function AdminDash() {
   const [auth, setAuth]   = useState(false);
@@ -76,6 +76,7 @@ export default function AdminDash() {
   const [subCount, setSC]   = useState(null);
   const [pending, setPend]  = useState([]);
   const [allTimePicks, setATP] = useState([]);
+  const [modelRec, setModelRec] = useState(null);
 
   // form state
   const [codeLabel, setCL]      = useState("");
@@ -107,10 +108,11 @@ export default function AdminDash() {
     setBusy(true);
     const h = { Authorization: `Bearer ${tok}` };
 
-    const [statsR, codesR, pendR] = await Promise.all([
+    const [statsR, codesR, pendR, recR] = await Promise.all([
       fetch("/api/admin/tracker?action=stats&days=30", { headers: h }).then(r => r.json()).catch(() => null),
       fetch("/api/admin/codes", { headers: h }).then(r => r.json()).catch(() => ({ codes: [] })),
       fetch("/api/admin/tracker?action=pending", { headers: h }).then(r => r.json()).catch(() => ({ pending: [] })),
+      fetch("/api/model-record").then(r => r.json()).catch(() => null),
     ]);
 
     const todayPicks = statsR?.todayPicks || [];
@@ -121,6 +123,7 @@ export default function AdminDash() {
     setSC(statsR?.subCount   ?? 0);
     setPend(pendR.pending || []);
     setATP(statsR?.recent || []);
+    setModelRec(recR ?? null);
     setBusy(false);
 
     // Auto-regen if no picks for today yet
@@ -504,6 +507,123 @@ export default function AdminDash() {
         </>
       )}
 
+      {/* ── CLV ── */}
+      {tab === "clv" && (
+        <>
+          <span style={S.lbl}>CLOSING LINE VALUE (CLV)</span>
+          <div style={{ fontSize: 11, color: "#444", marginBottom: 14, lineHeight: 1.6 }}>
+            CLV = closing implied prob − opening implied prob for the picked side (in pp).
+            Positive = beat the closing line. Healthy models average ≥ +1pp over time.
+          </div>
+
+          <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+            <Chip label="AVG CLV"
+              value={modelRec?.avgClv != null ? `${modelRec.avgClv > 0 ? "+" : ""}${modelRec.avgClv}pp` : "—"}
+              color={modelRec?.avgClv > 0 ? "#00FF87" : modelRec?.avgClv < 0 ? "#FF4D4D" : "#fff"} />
+            <Chip label="% POSITIVE"
+              value={modelRec?.pctPositiveClv != null ? `${modelRec.pctPositiveClv}%` : "—"}
+              color={modelRec?.pctPositiveClv >= 55 ? "#00FF87" : modelRec?.pctPositiveClv >= 45 ? "#FFD600" : modelRec?.pctPositiveClv != null ? "#FF4D4D" : "#fff"} />
+            <Chip label="SAMPLES" value={modelRec?.clvSampleSize ?? "—"} sub="picks w/ closing odds" />
+          </div>
+
+          <span style={S.lbl}>CLV BY EDGE BUCKET</span>
+          {(() => {
+            const buckets = modelRec?.edgeBuckets || [];
+            const b6 = buckets.find(b => b.label === "6%+");
+            const others = buckets.filter(b => b.label !== "6%+" && b.avgClv != null);
+            const redFlag = b6?.avgClv != null && (b6.avgClv < 0 || (others.length > 0 && others.every(b => b6.avgClv <= b.avgClv)));
+            return (
+              <div style={{ ...S.card, marginBottom: 14 }}>
+                {redFlag && (
+                  <div style={{ fontSize: 11, color: "#FF4D4D", marginBottom: 10, padding: "7px 10px", background: "rgba(255,77,77,0.05)", borderRadius: 6, border: "1px solid rgba(255,77,77,0.15)", lineHeight: 1.6 }}>
+                    🚨 Red flag: 6%+ bucket has the worst CLV ({b6.avgClv > 0 ? "+" : ""}{b6.avgClv}pp).
+                    Large-edge picks are likely model over-amplification, not genuine inefficiency.
+                  </div>
+                )}
+                {buckets.length === 0 && <div style={{ color: "#555", fontSize: 12 }}>No CLV data yet</div>}
+                {buckets.length > 0 && (
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                    <thead>
+                      <tr style={{ color: "#444", borderBottom: "1px solid #1a1a1a" }}>
+                        {["Bucket","W-L","Win%","Avg CLV","n"].map((h, i) => (
+                          <th key={h} style={{ textAlign: i === 0 ? "left" : "right", paddingBottom: 8, fontWeight: 600 }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {buckets.map(b => {
+                        const isBad = redFlag && b.label === "6%+";
+                        const clvColor = b.avgClv > 0 ? "#00FF87" : b.avgClv < 0 ? "#FF4D4D" : "#555";
+                        const wPctColor = b.pct >= 55 ? "#00FF87" : b.pct >= 50 ? "#FFD600" : b.pct != null ? "#FF4D4D" : "#555";
+                        return (
+                          <tr key={b.label} style={{ borderBottom: "1px solid #0d0d0d" }}>
+                            <td style={{ padding: "7px 0", color: isBad ? "#FF4D4D" : "#ccc" }}>{b.label}{isBad ? " 🚨" : ""}</td>
+                            <td style={{ textAlign: "right", ...S.mono, color: "#888" }}>
+                              {b.total > 0 ? `${b.wins}-${b.total - b.wins}` : "—"}
+                            </td>
+                            <td style={{ textAlign: "right", ...S.mono, color: wPctColor }}>
+                              {b.pct != null ? `${b.pct}%` : "—"}
+                            </td>
+                            <td style={{ textAlign: "right", ...S.mono, color: clvColor, fontWeight: 700 }}>
+                              {b.avgClv != null ? `${b.avgClv > 0 ? "+" : ""}${b.avgClv}pp` : "—"}
+                            </td>
+                            <td style={{ textAlign: "right", color: "#555" }}>{b.clvSamples || "—"}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            );
+          })()}
+
+          <span style={S.lbl}>PER-PICK CLV LOG</span>
+          {(() => {
+            const clvPicks = allTimePicks.filter(p => p.features?.clv != null).sort((a, b) => b.date.localeCompare(a.date));
+            if (!clvPicks.length) return (
+              <div style={{ color: "#555", fontSize: 12, padding: "12px 0" }}>
+                No CLV data yet — snapshot cron captures closing odds at 6 PM CT daily
+              </div>
+            );
+            return (
+              <div style={S.card}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                  <thead>
+                    <tr style={{ color: "#444", borderBottom: "1px solid #1a1a1a" }}>
+                      {["Date","Pick","Result","Edge","CLV"].map((h, i) => (
+                        <th key={h} style={{ textAlign: i < 2 ? "left" : "right", paddingBottom: 8, fontWeight: 600 }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {clvPicks.map((p, i) => {
+                      const clv = p.features.clv;
+                      const team = p.pick?.split(" ").slice(-1)[0] || p.pick;
+                      const resColor = p.result === "win" ? "#00FF87" : p.result === "loss" ? "#FF4D4D" : p.result === "push" ? "#FFD600" : "#555";
+                      const clvColor = clv > 0 ? "#00FF87" : clv < 0 ? "#FF4D4D" : "#888";
+                      return (
+                        <tr key={i} style={{ borderBottom: "1px solid #0a0a0a" }}>
+                          <td style={{ padding: "6px 0", color: "#555" }}>{p.date}</td>
+                          <td style={{ padding: "6px 0", color: "#ccc" }}>{team}</td>
+                          <td style={{ textAlign: "right", color: resColor, ...S.mono }}>{p.result || "—"}</td>
+                          <td style={{ textAlign: "right", color: "#888", ...S.mono }}>
+                            {p.edge != null ? `+${parseFloat(p.edge).toFixed(1)}%` : "—"}
+                          </td>
+                          <td style={{ textAlign: "right", color: clvColor, ...S.mono, fontWeight: 700 }}>
+                            {`${clv > 0 ? "+" : ""}${clv.toFixed(1)}pp`}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+        </>
+      )}
+
       {/* ── SYSTEM ── */}
       {tab === "system" && (
         <>
@@ -522,6 +642,7 @@ export default function AdminDash() {
               ["🔍 Resolve Results",    "0 8 * * *",   "3:00 AM CT"],
               ["✉️ Email Digest",       "30 15 * * *", "10:30 AM CT"],
               ["𝕏 Tweet Bot",          "15 15 * * *", "10:15 AM CT (disabled — X requires paid plan)"],
+              ["📸 CLV Snapshot",       "0 23 * * *",  "6:00 PM CT — captures closing odds"],
             ].map(([name, sched, ct]) => (
               <div key={name} style={{ ...S.row, padding: "9px 0", borderBottom: "1px solid #0d0d0d" }}>
                 <div>
