@@ -35,10 +35,19 @@ export async function GET() {
 
   // picks_cache has every game the model analyzed, all verdicts, every date
   // model_picks has settled results from the nightly resolve cron
+  // Limit to current season (last 210 days) to avoid full-table scans
+  const seasonStart = new Date();
+  seasonStart.setDate(seasonStart.getDate() - 210);
+  const seasonStartStr = seasonStart.toISOString().split("T")[0];
+
   const [{ data: cacheRows }, { data: resolvedRows }] = await Promise.all([
-    supabase.from("picks_cache").select("date, picks").order("date", { ascending: true }),
+    supabase.from("picks_cache").select("date, picks")
+      .gte("date", seasonStartStr)
+      .neq("date", "__odds__")
+      .order("date", { ascending: true }),
     supabase.from("model_picks").select("date, home_team, away_team, pick, result")
-      .in("result", ["win","loss","push"]),
+      .in("result", ["win","loss","push"])
+      .gte("date", seasonStartStr),
   ]);
 
   // Fast lookup for already-settled results

@@ -11,7 +11,8 @@ export async function GET() {
   const { data } = await supabase
     .from("model_picks")
     .select("result, is_bet, tier, edge")
-    .in("result", ["win", "loss", "push"]);
+    .in("result", ["win", "loss", "push"])
+    .eq("is_bet", true);
 
   if (!data?.length) return Response.json({ wins: 0, losses: 0, pushes: 0, pct: null, total: 0 });
 
