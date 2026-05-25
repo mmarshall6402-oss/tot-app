@@ -5,6 +5,27 @@ const getSupabase = () => createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+// Score a pick for "best available" selection — confidence is primary, edge secondary.
+// Works for CLEAN, BET, and PASS picks alike.
+function leanScore(p) {
+  const conf = p.filter?.confidence || 0;
+  const edge = Math.max(p.filter?.trueEdgePct || 0, 0);
+  return conf * 2 + edge;
+}
+
+// A pick is promotable if it's not a trap, not Coors, and has some pitcher data.
+function isPromotable(p) {
+  if (p.filter?.verdict === "TRAP") return false;
+  if (p.homeTeam === "Colorado Rockies") return false;
+  const f = p.filter;
+  if (!f) return false; // no filter = no line, can't evaluate
+  // exclude picks where the only reason is a catastrophic SP failure
+  const catFlags = ["NO_PITCHER_DATA","ERA_XFIP_GAP"];
+  const pickSide = p.pick === p.homeTeam ? "HOME_SP" : "AWAY_SP";
+  if (catFlags.some(fl => (f.flags || []).includes(`${pickSide}_${fl}`))) return false;
+  return true;
+}
+
 export async function GET() {
   try {
     const ctParts = new Intl.DateTimeFormat("en-US", {
@@ -20,24 +41,36 @@ export async function GET() {
       .single();
 
     const picks = cached?.picks || [];
+    const promotable = picks.filter(isPromotable);
 
-    // Prefer CLEAN, then BET — never show a PASS pick
-    const raw = picks.find(p => p.filter?.verdict === "CLEAN")
-             || picks.find(p => p.isBet)
-             || null;
+    // Tier 1: CLEAN — full edge, passes every filter condition
+    const clean = promotable.find(p => p.filter?.verdict === "CLEAN");
+    // Tier 2: BET — passes most conditions
+    const bet   = promotable.filter(p => p.isBet).sort((a, b) => leanScore(b) - leanScore(a))[0];
+    // Tier 3: Best PASS — highest confidence lean even without full filter pass
+    const lean  = promotable
+      .filter(p => !p.isBet && p.filter?.verdict !== "CLEAN")
+      .sort((a, b) => leanScore(b) - leanScore(a))[0];
 
-    if (!raw) return Response.json({ pick: null });
+    const raw = clean || bet || lean || null;
 
-    // Override tier from filter verdict — cached tier reflects edge magnitude
-    // which is calibrated to 2-8%, but CLEAN/BET designation is the real signal.
+    if (!raw) {
+      // Truly no games worth showing — quiet day
+      return Response.json({ pick: null, quietDay: true });
+    }
+
     const verdict = raw.filter?.verdict;
+    const isEdgePick = verdict === "CLEAN" || raw.isBet;
+
     const tier = verdict === "CLEAN"
       ? { level: "High",   label: "🔥 Value Pick", emoji: "🔥" }
-      : verdict === "BET" && (raw.filter?.confidence || 0) >= 7
+      : raw.isBet && (raw.filter?.confidence || 0) >= 7
       ? { level: "Medium", label: "✅ Solid Pick",  emoji: "✅" }
-      : { level: "Low",    label: "👀 Lean",         emoji: "👀" };
+      : raw.isBet
+      ? { level: "Low",    label: "✅ Bet",          emoji: "✅" }
+      : { level: "Low",    label: "👀 Today's Lean", emoji: "👀" };
 
-    return Response.json({ pick: { ...raw, tier } });
+    return Response.json({ pick: { ...raw, tier }, isEdgePick, promoType: isEdgePick ? "edge" : "lean" });
   } catch (e) {
     return Response.json({ pick: null, error: e.message });
   }

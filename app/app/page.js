@@ -222,7 +222,10 @@ export default function ToT() {
 
   // Load free pick, global model record, start carousel
   useEffect(() => {
-    fetch("/api/free-pick").then(r => r.json()).then(d => setFreePick(d.pick || null)).catch(() => {});
+    fetch("/api/free-pick").then(r => r.json()).then(d => {
+      setFreePick(d.pick || null);
+      if (d.quietDay) setFreePick({ _quietDay: true });
+    }).catch(() => {});
     fetch("/api/model-record").then(r => r.json()).then(d => setModelRecord(d)).catch(() => {});
     const t = setInterval(() => setCarouselIdx(i => i + 1), 3000);
     return () => clearInterval(t);
@@ -1095,43 +1098,81 @@ export default function ToT() {
           </div>
         )}
 
-        {activeTab === "picks" && picks?.length > 0 && (
-          <div style={{ display: "flex", gap: 12, padding: "6px 0", borderBottom: "1px solid #0d0d0d", marginBottom: 4 }}>
-            <span style={{ fontSize: 11, color: "#777" }}>{picks.length} games</span>
-            <span style={{ fontSize: 11, color: "#00FF87" }}>{picks.filter(p => p.isBet).length} BET</span>
-            <span style={{ fontSize: 11, color: "#888" }}>{picks.filter(p => !p.isBet).length} PASS</span>
-            {picks.filter(p => p.filter?.verdict === "CLEAN").length > 0 && (
-              <span style={{ fontSize: 11, color: "#00FF87", fontWeight: 700 }}>⚡ {picks.filter(p => p.filter?.verdict === "CLEAN").length} CLEAN</span>
-            )}
-          </div>
-        )}
+        {activeTab === "picks" && picks?.length > 0 && (() => {
+          const nBet   = picks.filter(p => p.isBet).length;
+          const nClean = picks.filter(p => p.filter?.verdict === "CLEAN").length;
+          const nPass  = picks.filter(p => !p.isBet).length;
+          const quietDay = isPro && nBet === 0 && picks.filter(p => p.filter != null).length > 0;
+          return (
+            <>
+              <div style={{ display: "flex", gap: 12, padding: "6px 0", borderBottom: "1px solid #0d0d0d", marginBottom: 4 }}>
+                <span style={{ fontSize: 11, color: "#777" }}>{picks.filter(p => p.filter != null).length} games</span>
+                {nBet > 0 && <span style={{ fontSize: 11, color: "#00FF87" }}>{nBet} BET</span>}
+                {nClean > 0 && <span style={{ fontSize: 11, color: "#00FF87", fontWeight: 700 }}>⚡ {nClean} CLEAN</span>}
+                <span style={{ fontSize: 11, color: "#555" }}>{nPass} PASS</span>
+              </div>
+              {quietDay && (
+                <div style={{ background: "rgba(255,214,0,0.04)", border: "1px solid rgba(255,214,0,0.12)", borderRadius: 10, padding: "10px 14px", marginBottom: 10, display: "flex", gap: 10, alignItems: "flex-start" }}>
+                  <span style={{ fontSize: 16 }}>😴</span>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "#FFD600" }}>Quiet day — no bets pass the filter</div>
+                    <div style={{ fontSize: 11, color: "#555", marginTop: 3 }}>All games are PASS or TRAP. Best picks shown below as leans only. Skipping is the correct play.</div>
+                  </div>
+                </div>
+              )}
+            </>
+          );
+        })()}
 
         {activeTab === "picks" && !isPro && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {freePick ? (
-              <div style={{ ...S.card, borderColor: "rgba(0,255,135,0.25)" }}>
-                <div style={{ fontSize: 10, color: "#00FF87", fontWeight: 700, letterSpacing: 1.5, marginBottom: 8 }}>TODAY'S FREE PICK</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                  {freePick.filter?.verdict === "CLEAN" ? (
-                    <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, background: "rgba(0,255,135,0.15)", color: "#00FF87", border: "1px solid rgba(0,255,135,0.3)" }}>⚡ CLEAN</span>
-                  ) : freePick.isBet ? (
-                    <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, background: "rgba(0,255,135,0.08)", color: "#00FF87", border: "1px solid rgba(0,255,135,0.2)" }}>BET</span>
-                  ) : null}
-                  {freePick.edge != null && <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: "#555" }}>+{freePick.edge.toFixed(1)}% edge</span>}
+            {freePick && !freePick._quietDay ? (() => {
+              const isEdge = freePick.filter?.verdict === "CLEAN" || freePick.isBet;
+              const isLean = !isEdge;
+              const pickOdds = freePick.pick === freePick.homeTeam ? freePick.homeOdds : freePick.awayOdds;
+              const accentColor = isEdge ? "#00FF87" : "#FFD600";
+              const borderColor = isEdge ? "rgba(0,255,135,0.25)" : "rgba(255,214,0,0.18)";
+              return (
+                <div style={{ ...S.card, borderColor }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                    <div style={{ fontSize: 10, color: accentColor, fontWeight: 700, letterSpacing: 1.5 }}>
+                      {isEdge ? "TODAY'S FREE PICK" : "TODAY'S LEAN"}
+                    </div>
+                    {isEdge ? (
+                      freePick.filter?.verdict === "CLEAN"
+                        ? <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 9px", borderRadius: 5, letterSpacing: 1.5, background: "rgba(0,255,135,0.15)", color: "#00FF87", border: "1px solid rgba(0,255,135,0.3)" }}>⚡ CLEAN</span>
+                        : <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 9px", borderRadius: 5, letterSpacing: 1.5, background: "rgba(0,255,135,0.08)", color: "#00FF87", border: "1px solid rgba(0,255,135,0.2)" }}>BET</span>
+                    ) : (
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 9px", borderRadius: 5, background: "rgba(255,214,0,0.08)", color: "#FFD600", border: "1px solid rgba(255,214,0,0.2)" }}>👀 LEAN</span>
+                    )}
+                  </div>
+                  <div style={S.cardMatchup}>{freePick.awayTeam} @ {freePick.homeTeam}</div>
+                  <div style={S.cardMeta}>
+                    {fmtGameTime(freePick.commenceTime)} · Take{" "}
+                    <span style={{ color: accentColor, fontWeight: 700 }}>{freePick.pick}</span>
+                    {pickOdds != null && <span style={{ fontFamily: "'JetBrains Mono',monospace" }}>{" "}{fmtOdds(pickOdds)}</span>}
+                    {isEdge && freePick.edge > 0 && <span style={{ color: "#555", fontFamily: "'JetBrains Mono',monospace" }}>{" "}+{freePick.edge?.toFixed(1)}% edge</span>}
+                  </div>
+                  {isLean && (
+                    <div style={{ fontSize: 10, color: "#555", marginTop: 6, lineHeight: 1.5 }}>
+                      No sharp edge today — model's highest-conviction lean. Not a bet, just a direction.
+                    </div>
+                  )}
+                  {freePick.breakdown?.preview && <div style={{ ...S.preview, marginTop: 6 }}>{freePick.breakdown.preview.slice(0, 100)}…</div>}
                 </div>
-                <div style={S.cardMatchup}>{freePick.awayTeam} @ {freePick.homeTeam}</div>
-                <div style={S.cardMeta}>
-                  {fmtGameTime(freePick.commenceTime)} · Take{" "}
-                  <span style={{ color: "#00FF87", fontWeight: 700 }}>{freePick.pick}</span>
-                  {freePick.homeOdds != null && <span style={{ fontFamily: "'JetBrains Mono',monospace" }}>{" "}{fmtOdds(freePick.pick === freePick.homeTeam ? freePick.homeOdds : freePick.awayOdds)}</span>}
+              );
+            })() : freePick?._quietDay ? (
+              <div style={{ ...S.card, textAlign: "center", padding: "28px 16px", borderColor: "#1a1a1a" }}>
+                <div style={{ fontSize: 24, marginBottom: 8 }}>😴</div>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>Quiet day</div>
+                <div style={{ fontSize: 13, color: "#555", marginTop: 5, lineHeight: 1.5 }}>
+                  No games worth highlighting today.<br/>The model doesn't force picks — zero bets is correct.
                 </div>
-                {freePick.breakdown?.preview && <div style={S.preview}>{freePick.breakdown.preview}</div>}
               </div>
             ) : (
-              <div style={{ ...S.card, textAlign: "center", padding: "32px 16px" }}>
+              <div style={{ ...S.card, textAlign: "center", padding: "28px 16px" }}>
                 <div style={{ fontSize: 22, marginBottom: 8 }}>⚾</div>
-                <div style={{ fontWeight: 700 }}>No free pick today</div>
-                <div style={{ fontSize: 13, color: "#777", marginTop: 4 }}>Check back tomorrow morning</div>
+                <div style={{ fontWeight: 700 }}>Loading today's pick…</div>
               </div>
             )}
             {[
