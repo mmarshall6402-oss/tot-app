@@ -16,8 +16,8 @@ export async function POST(request) {
       customer_email: email,
       metadata: { userId },
       subscription_data: { metadata: { userId } },
-      success_url: `${APP_URL}/?checkout=success`,
-      cancel_url:  `${APP_URL}/`,
+      success_url: `${APP_URL}/app?checkout=success`,
+      cancel_url:  `${APP_URL}/app`,
     });
 
     return Response.json({ url: session.url });

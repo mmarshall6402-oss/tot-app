@@ -7,7 +7,10 @@ const getSupabase = () => createClient(
 
 export async function GET() {
   try {
-    const date = new Date().toISOString().split("T")[0];
+    const ctParts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit",
+    }).formatToParts(new Date());
+    const date = `${ctParts.find(p => p.type === "year").value}-${ctParts.find(p => p.type === "month").value}-${ctParts.find(p => p.type === "day").value}`;
     const supabase = getSupabase();
 
     const { data: cached } = await supabase

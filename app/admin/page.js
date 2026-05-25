@@ -1,0 +1,570 @@
+"use client";
+import { useState, useEffect } from "react";
+import { createClient } from "@supabase/supabase-js";
+
+let _sb = null;
+const getSB = () => {
+  if (!_sb) _sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  return _sb;
+};
+const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || process.env.NEXT_PUBLIC_ADMIN_EMAIL || "")
+  .split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
+
+function etDate(offset = 0) {
+  const d = new Date(Date.now() + offset * 86400000);
+  const p = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(d);
+  return `${p.find(x => x.type === "year").value}-${p.find(x => x.type === "month").value}-${p.find(x => x.type === "day").value}`;
+}
+function fmtOdds(o) { return o == null ? "—" : o > 0 ? `+${o}` : `${o}`; }
+function fmtTime(iso) {
+  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "America/Chicago" }) + " CT";
+}
+function shortTeam(t) {
+  const m = {"Los Angeles Dodgers":"Dodgers","New York Yankees":"Yankees","New York Mets":"Mets","Chicago White Sox":"White Sox","Chicago Cubs":"Cubs","Boston Red Sox":"Red Sox","Tampa Bay Rays":"Rays","San Francisco Giants":"Giants","San Diego Padres":"Padres","Kansas City Royals":"Royals","Toronto Blue Jays":"Blue Jays","Colorado Rockies":"Rockies","Los Angeles Angels":"Angels","Seattle Mariners":"Mariners","Houston Astros":"Astros","Texas Rangers":"Rangers","Cleveland Guardians":"Guardians","Detroit Tigers":"Tigers","Baltimore Orioles":"Orioles","Atlanta Braves":"Braves","Philadelphia Phillies":"Phillies","Washington Nationals":"Nationals","Miami Marlins":"Marlins","Pittsburgh Pirates":"Pirates","St. Louis Cardinals":"Cardinals","Milwaukee Brewers":"Brewers","Cincinnati Reds":"Reds","Arizona Diamondbacks":"D-backs","Minnesota Twins":"Twins","Oakland Athletics":"Athletics"};
+  return m[t] || t.split(" ").pop();
+}
+
+const css = `*{box-sizing:border-box;margin:0;padding:0;}body{background:#000;color:#fff;font-family:'Space Grotesk',sans-serif;}input,textarea{outline:none;}button{cursor:pointer;font-family:inherit;}a{color:#00FF87;text-decoration:none;}`;
+const S = {
+  page:  { minHeight: "100vh", background: "#000", padding: "20px 16px", maxWidth: 640, margin: "0 auto" },
+  card:  { background: "#0a0a0a", border: "1px solid #1a1a1a", borderRadius: 14, padding: "14px 16px", marginBottom: 10 },
+  lbl:   { fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 2, marginBottom: 8, display: "block" },
+  row:   { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 },
+  btn:   { border: "1px solid #333", borderRadius: 8, padding: "9px 14px", fontSize: 12, fontWeight: 700, background: "#111", color: "#fff", cursor: "pointer" },
+  input: { background: "#111", border: "1px solid #222", borderRadius: 8, padding: "10px 12px", color: "#fff", fontSize: 13, width: "100%" },
+  mono:  { fontFamily: "'JetBrains Mono',monospace" },
+};
+
+function Chip({ label, value, color, sub }) {
+  const c = color || "#fff";
+  return (
+    <div style={{ flex: 1, background: "#0a0a0a", border: "1px solid #1a1a1a", borderRadius: 12, padding: "11px 13px" }}>
+      <div style={{ fontSize: 10, color: "#555", letterSpacing: 1.5, marginBottom: 5 }}>{label}</div>
+      <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 18, fontWeight: 700, color: c }}>{value ?? "—"}</div>
+      {sub && <div style={{ fontSize: 10, color: "#444", marginTop: 2 }}>{sub}</div>}
+    </div>
+  );
+}
+
+function Btn({ onClick, disabled, state, labels, style = {} }) {
+  const s = state;
+  const bg = s === "ok" ? "rgba(0,255,135,0.08)" : s === "err" ? "rgba(255,77,77,0.08)" : "#111";
+  const cl = s === "ok" ? "#00FF87" : s === "err" ? "#FF4D4D" : "#fff";
+  const bd = s === "ok" ? "rgba(0,255,135,0.2)" : s === "err" ? "rgba(255,77,77,0.2)" : "#333";
+  return (
+    <button onClick={onClick} disabled={disabled || s === "loading"}
+      style={{ ...S.btn, background: bg, color: cl, border: `1px solid ${bd}`, ...style }}>
+      {s === "loading" ? (labels?.loading || "…") : s === "ok" ? (labels?.ok || "✓ Done") : s === "err" ? (labels?.err || "✗ Failed") : (labels?.default || "Run")}
+    </button>
+  );
+}
+
+const NAVS = ["overview", "picks", "codes", "email", "tweet", "system"];
+const NAV_LABELS = { overview: "📊 Overview", picks: "⚾ Picks", codes: "🔑 Codes", email: "✉️ Email", tweet: "𝕏 Tweet", system: "⚙️ System" };
+
+export default function AdminDash() {
+  const [auth, setAuth]   = useState(false);
+  const [token, setToken] = useState("");
+  const [busy, setBusy]   = useState(true);
+  const [tab, setTab]     = useState("overview");
+
+  // data
+  const [stats, setStats]   = useState(null);
+  const [codes, setCodes]   = useState([]);
+  const [picks, setPicks]   = useState([]);
+  const [emailCount, setEC] = useState(null);
+  const [subCount, setSC]   = useState(null);
+  const [pending, setPend]  = useState([]);
+  const [allTimePicks, setATP] = useState([]);
+
+  // form state
+  const [codeLabel, setCL]      = useState("");
+  const [codeMax, setCM]        = useState("");
+  const [testEmail, setTE]      = useState("");
+
+  // action state
+  const [regenS, setRegenS]     = useState(null);
+  const [resolveS, setResolveS] = useState(null);
+  const [createS, setCreateS]   = useState(null);
+  const [testS, setTestS]       = useState(null);
+  const [copied, setCopied]     = useState({});
+
+  useEffect(() => {
+    getSB().auth.getSession().then(async ({ data: { session } }) => {
+      const email = session?.user?.email?.toLowerCase();
+      if (email && ADMIN_EMAILS.includes(email)) {
+        setAuth(true);
+        setToken(session.access_token);
+        setTE(session.user.email);
+        load(session.access_token, true);
+      } else {
+        setBusy(false);
+      }
+    });
+  }, []);
+
+  async function load(tok, autoRegen = false) {
+    setBusy(true);
+    const h = { Authorization: `Bearer ${tok}` };
+
+    const [statsR, codesR, pendR] = await Promise.all([
+      fetch("/api/admin/tracker?action=stats&days=30", { headers: h }).then(r => r.json()).catch(() => null),
+      fetch("/api/admin/codes", { headers: h }).then(r => r.json()).catch(() => ({ codes: [] })),
+      fetch("/api/admin/tracker?action=pending", { headers: h }).then(r => r.json()).catch(() => ({ pending: [] })),
+    ]);
+
+    const todayPicks = statsR?.todayPicks || [];
+    setStats(statsR);
+    setCodes(codesR.codes || []);
+    setPicks(todayPicks);
+    setEC(statsR?.emailCount ?? 0);
+    setSC(statsR?.subCount   ?? 0);
+    setPend(pendR.pending || []);
+    setATP(statsR?.recent || []);
+    setBusy(false);
+
+    // Auto-regen if no picks for today yet
+    if (autoRegen && todayPicks.length === 0) {
+      setRegenS("loading");
+      fetch("/api/admin/regen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+        body: JSON.stringify({}),
+      }).then(r => {
+        setRegenS(r.ok ? "ok" : "err");
+        if (r.ok) setTimeout(() => load(tok), 8000);
+      }).catch(() => setRegenS("err"))
+        .finally(() => setTimeout(() => setRegenS(null), 10000));
+    }
+  }
+
+  // Computed
+  const today = etDate(0);
+  const todayBets   = picks.filter(p => p.isBet).length;
+  const todayClean  = picks.filter(p => p.filter?.verdict === "CLEAN").length;
+  const hasBreaks   = picks.some(p => p.breakdown?.preview);
+
+  const atWins = stats?.allTime?.wins  ?? 0;
+  const atLoss = stats?.allTime?.losses ?? 0;
+  const atPct  = stats?.allTime?.winPct ?? null;
+  const atTotal = stats?.allTime?.settled ?? 0;
+
+  const cutoff30 = etDate(-30);
+  const recent30 = allTimePicks.filter(p => p.date >= cutoff30);
+  const r30s   = recent30.filter(p => ["win","loss"].includes(p.result));
+  const r30W   = r30s.filter(p => p.result === "win").length;
+  const r30L   = r30s.filter(p => p.result === "loss").length;
+  const r30Pct = r30s.length ? ((r30W / r30s.length) * 100).toFixed(1) : null;
+
+  const bets = picks.filter(p => p.isBet).sort((a,b) => {
+    const vr = { CLEAN:3, BET:2 };
+    return (vr[b.filter?.verdict]||0) - (vr[a.filter?.verdict]||0);
+  }).slice(0, 5);
+
+  function buildTweet(p, i) {
+    const verdict = p.filter?.verdict === "CLEAN" ? "🔥 CLEAN" : "✅ BET";
+    const odds = p.pick === p.homeTeam ? fmtOdds(p.homeOdds) : fmtOdds(p.awayOdds);
+    const edge = p.filter?.trueEdgePct ? `+${p.filter.trueEdgePct}% edge` : p.edge ? `+${p.edge.toFixed(1)}% edge` : "";
+    const preview = p.breakdown?.preview ? `\n${p.breakdown.preview.slice(0,120)}${p.breakdown.preview.length>120?"…":""}` : "";
+    return `${i+1}/${bets.length} — ${verdict}\n${shortTeam(p.awayTeam)} @ ${shortTeam(p.homeTeam)}\nTake ${shortTeam(p.pick)} ${odds} ${edge}${preview}\n\ntot-app.vercel.app | @ThisorThatPicks`;
+  }
+
+  function copyText(key, text) {
+    navigator.clipboard.writeText(text);
+    setCopied(prev => ({ ...prev, [key]: true }));
+    setTimeout(() => setCopied(prev => ({ ...prev, [key]: false })), 2000);
+  }
+
+  async function regen() {
+    setRegenS("loading");
+    try {
+      const r = await fetch("/api/admin/regen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({}),
+      });
+      setRegenS(r.ok ? "ok" : "err");
+      if (r.ok) setTimeout(() => load(token), 5000);
+    } catch { setRegenS("err"); }
+    setTimeout(() => setRegenS(null), 8000);
+  }
+
+  async function resolveYesterday() {
+    setResolveS("loading");
+    try {
+      const r = await fetch("/api/admin/tracker", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: "resolve", date: etDate(-1) }),
+      });
+      const d = await r.json();
+      setResolveS(d.resolved != null ? `ok:Resolved ${d.resolved}/${d.total}` : "err");
+      load(token);
+    } catch { setResolveS("err"); }
+    setTimeout(() => setResolveS(null), 5000);
+  }
+
+  async function createCode() {
+    setCreateS("loading");
+    const r = await fetch("/api/admin/codes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ label: codeLabel || "Unnamed", uses_max: codeMax ? parseInt(codeMax) : null }),
+    });
+    const d = await r.json();
+    if (d.code) { setCL(""); setCM(""); load(token); setCreateS("ok"); }
+    else setCreateS("err");
+    setTimeout(() => setCreateS(null), 3000);
+  }
+
+  async function deleteCode(id) {
+    await fetch(`/api/admin/codes?id=${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+    setCodes(prev => prev.filter(c => c.id !== id));
+  }
+
+  async function sendTest() {
+    if (!testEmail) return;
+    setTestS("loading");
+    try {
+      const r = await fetch("/api/admin/send-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ to: testEmail }),
+      });
+      const d = await r.json();
+      setTestS(d.ok ? "ok" : `err:${d.error || "send failed"}`);
+    } catch (e) { setTestS(`err:${e.message}`); }
+    setTimeout(() => setTestS(null), 6000);
+  }
+
+  // ──── RENDER ────────────────────────────────────────────────
+
+  if (busy && !auth) return (
+    <div style={{ minHeight: "100vh", background: "#000", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <style>{css}</style>
+      <div style={{ width: 22, height: 22, border: "2px solid #222", borderTopColor: "#00FF87", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
+
+  if (!auth) return (
+    <div style={{ minHeight: "100vh", background: "#000", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <style>{css}</style>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 20, fontWeight: 700, marginBottom: 12 }}>T<span style={{ color: "#00FF87" }}>|</span>T</div>
+        <div style={{ color: "#FF4D4D", fontSize: 13, marginBottom: 12 }}>Not authorized</div>
+        <a href="/app" style={{ fontSize: 12, color: "#555" }}>← Sign in first</a>
+      </div>
+    </div>
+  );
+
+  const resolveLabel = resolveS?.startsWith("ok:") ? resolveS.slice(3) : resolveS === "loading" ? "Resolving…" : resolveS === "err" ? "✗ Failed" : "Resolve Yesterday";
+  const testLabel = testS?.startsWith("err:") ? `✗ ${testS.slice(4)}` : testS === "loading" ? "Sending…" : testS === "ok" ? "✓ Sent — check inbox" : "Send Test Email";
+  const testColor = testS === "ok" ? "#00FF87" : testS?.startsWith("err:") ? "#FF4D4D" : "#fff";
+
+  return (
+    <div style={S.page}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap');${css}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+
+      {/* Header */}
+      <div style={{ ...S.row, marginBottom: 20 }}>
+        <div>
+          <div style={{ fontSize: 10, color: "#444", letterSpacing: 2 }}>ADMIN</div>
+          <div style={{ ...S.mono, fontSize: 20, fontWeight: 700, marginTop: 1 }}>T<span style={{ color: "#00FF87" }}>|</span>T Dashboard</div>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {busy && <div style={{ width: 14, height: 14, border: "2px solid #222", borderTopColor: "#00FF87", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />}
+          <a href="/app" style={{ fontSize: 11, color: "#444" }}>← App</a>
+        </div>
+      </div>
+
+      {/* Nav */}
+      <div style={{ display: "flex", gap: 5, overflowX: "auto", marginBottom: 20, paddingBottom: 2 }}>
+        {NAVS.map(n => (
+          <button key={n} onClick={() => setTab(n)}
+            style={{ ...S.btn, whiteSpace: "nowrap", background: tab === n ? "#00FF87" : "#111", color: tab === n ? "#000" : "#666", border: `1px solid ${tab === n ? "#00FF87" : "#222"}`, fontWeight: tab === n ? 800 : 600, padding: "7px 12px" }}>
+            {NAV_LABELS[n]}
+          </button>
+        ))}
+      </div>
+
+      {/* ── OVERVIEW ── */}
+      {tab === "overview" && (
+        <>
+          <span style={S.lbl}>ALL-TIME RECORD</span>
+          <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+            <Chip label="WINS"    value={atWins}  color="#00FF87" />
+            <Chip label="LOSSES"  value={atLoss}  color="#FF4D4D" />
+            <Chip label="WIN RATE" value={atPct ? `${atPct}%` : "—"} sub={`${atTotal} settled`}
+              color={parseFloat(atPct) >= 55 ? "#00FF87" : parseFloat(atPct) >= 50 ? "#FFD600" : atPct ? "#FF4D4D" : "#fff"} />
+          </div>
+
+          <span style={S.lbl}>LAST 30 DAYS</span>
+          <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+            <Chip label="RECORD" value={r30s.length ? `${r30W}-${r30L}` : "—"} />
+            <Chip label="WIN %" value={r30Pct ? `${r30Pct}%` : "—"}
+              color={parseFloat(r30Pct) >= 55 ? "#00FF87" : parseFloat(r30Pct) >= 50 ? "#FFD600" : r30Pct ? "#FF4D4D" : "#fff"} />
+            <Chip label="PENDING" value={pending.length} sub="all dates" />
+          </div>
+
+          <span style={S.lbl}>TODAY — {today}</span>
+          <div style={{ ...S.card, display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <Chip label="GAMES"  value={picks.length} />
+            <Chip label="BETS"   value={todayBets}  color={todayBets > 0 ? "#00FF87" : "#fff"} />
+            <Chip label="CLEAN"  value={todayClean} color={todayClean > 0 ? "#00FF87" : "#fff"} />
+            <Chip label="BREAKDOWNS" value={hasBreaks ? "✓" : "✗"} color={hasBreaks ? "#00FF87" : "#FF4D4D"} />
+          </div>
+
+          <span style={S.lbl}>USERS</span>
+          <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+            <Chip label="ACTIVE SUBS" value={subCount} color="#00FF87" />
+            <Chip label="EMAIL LIST"  value={emailCount} />
+            <Chip label="CODES"       value={codes.length} />
+          </div>
+
+          <span style={S.lbl}>QUICK ACTIONS</span>
+          <div style={{ ...S.card, display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <Btn onClick={regen} state={regenS} style={{ flex: 1 }}
+              labels={{ loading: "⏳ Generating…", ok: "✓ Done", err: "✗ Failed", default: "⚡ Regen Picks" }} />
+            <button onClick={() => setTab("email")}  style={{ ...S.btn, flex: 1 }}>✉️ Test Email</button>
+            <button onClick={resolveYesterday}        style={{ ...S.btn, flex: 1 }}>{resolveLabel}</button>
+          </div>
+        </>
+      )}
+
+      {/* ── PICKS ── */}
+      {tab === "picks" && (
+        <>
+          <span style={S.lbl}>TODAY'S PICKS — {today}</span>
+          <div style={{ ...S.card, marginBottom: 14 }}>
+            <div style={{ fontSize: 12, color: "#666", marginBottom: 12 }}>
+              {picks.length} games · {todayBets} BET · {todayClean} CLEAN · breakdowns: <strong style={{ color: hasBreaks ? "#00FF87" : "#FF4D4D" }}>{hasBreaks ? "YES ✓" : "NO ✗"}</strong>
+            </div>
+            <Btn onClick={regen} state={regenS}
+              labels={{ loading: "⏳ Generating (~60s)…", ok: "✓ Done — refresh in 5s", err: "✗ Failed", default: "⚡ Force Regen Picks + Breakdowns" }} />
+            {regenS === "loading" && (
+              <div style={{ fontSize: 11, color: "#555", marginTop: 8 }}>Claude is analyzing all {picks.length} games. This takes ~60 seconds. Picks will auto-refresh.</div>
+            )}
+          </div>
+
+          {picks.length > 0 && picks.map((p, i) => (
+            <div key={p.id || i} style={{ ...S.card, padding: "11px 13px" }}>
+              <div style={{ ...S.row, marginBottom: 5 }}>
+                <span style={{ ...S.mono, fontSize: 11, fontWeight: 700, color: p.filter?.verdict === "CLEAN" ? "#00FF87" : p.isBet ? "#FFD600" : "#444" }}>
+                  {p.filter?.verdict || (p.isBet ? "BET" : "PASS")}
+                </span>
+                <span style={{ fontSize: 10, color: "#444" }}>{p.commenceTime ? fmtTime(p.commenceTime) : ""}</span>
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 700 }}>{shortTeam(p.awayTeam)} @ {shortTeam(p.homeTeam)}</div>
+              <div style={{ fontSize: 11, color: "#00FF87", marginTop: 3 }}>
+                Take {shortTeam(p.pick)} · {p.pick === p.homeTeam ? fmtOdds(p.homeOdds) : fmtOdds(p.awayOdds)} · {p.edge?.toFixed(1)}% edge
+              </div>
+              {p.breakdown?.pitcher_home && (
+                <div style={{ fontSize: 10, color: "#444", marginTop: 4 }}>
+                  🏠 {p.breakdown.pitcher_home} · ✈️ {p.breakdown.pitcher_away}
+                </div>
+              )}
+              {p.breakdown?.preview && (
+                <div style={{ fontSize: 11, color: "#666", marginTop: 6, lineHeight: 1.5, paddingTop: 6, borderTop: "1px solid #111" }}>{p.breakdown.preview}</div>
+              )}
+            </div>
+          ))}
+        </>
+      )}
+
+      {/* ── CODES ── */}
+      {tab === "codes" && (
+        <>
+          <span style={S.lbl}>CREATE ACCESS CODE</span>
+          <div style={{ ...S.card, marginBottom: 14 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <input style={S.input} placeholder="Label (e.g. brother Mike)" value={codeLabel} onChange={e => setCL(e.target.value)} />
+              <input style={S.input} placeholder="Max uses (blank = unlimited)" type="number" value={codeMax} onChange={e => setCM(e.target.value)} />
+              <Btn onClick={createCode} state={createS} labels={{ loading: "Creating…", ok: "✓ Created", err: "✗ Failed", default: "Generate Code" }}
+                style={{ background: "#00FF87", color: "#000", border: "none", fontWeight: 800 }} />
+            </div>
+          </div>
+
+          <span style={S.lbl}>ACTIVE CODES ({codes.length})</span>
+          {codes.length === 0 && <div style={{ color: "#555", fontSize: 13, padding: "16px 0" }}>No codes yet</div>}
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {codes.map(c => (
+              <div key={c.id} style={{ ...S.card, ...S.row }}>
+                <div>
+                  <div style={{ ...S.mono, fontSize: 16, fontWeight: 700, color: "#00FF87", letterSpacing: 2 }}>{c.code}</div>
+                  <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>{c.label || "Unnamed"} · {c.uses_count}/{c.uses_max ?? "∞"} uses</div>
+                  {c.expires_at && <div style={{ fontSize: 10, color: "#333", marginTop: 1 }}>Expires {new Date(c.expires_at).toLocaleDateString()}</div>}
+                </div>
+                <button onClick={() => deleteCode(c.id)}
+                  style={{ ...S.btn, color: "#FF4D4D", border: "1px solid rgba(255,77,77,0.2)", background: "rgba(255,77,77,0.06)", padding: "6px 12px" }}>
+                  Delete
+                </button>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* ── EMAIL ── */}
+      {tab === "email" && (
+        <>
+          <span style={S.lbl}>TEST EMAIL</span>
+          <div style={{ ...S.card, marginBottom: 14 }}>
+            <div style={{ fontSize: 12, color: "#666", marginBottom: 10, lineHeight: 1.6 }}>
+              Sends a test email with today's top pick to verify your Resend setup is working.
+              If this fails, your <code style={{ color: "#fff", background: "#111", padding: "1px 5px", borderRadius: 4 }}>RESEND_FROM</code> domain is not verified.
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input style={{ ...S.input }} placeholder="Send test to email…" value={testEmail} onChange={e => setTE(e.target.value)} />
+              <button onClick={sendTest} disabled={!testEmail || testS === "loading"}
+                style={{ ...S.btn, flexShrink: 0, color: testColor, background: testS === "ok" ? "rgba(0,255,135,0.08)" : testS?.startsWith("err:") ? "rgba(255,77,77,0.08)" : "#111", border: `1px solid ${testS === "ok" ? "rgba(0,255,135,0.3)" : testS?.startsWith("err:") ? "rgba(255,77,77,0.3)" : "#333"}` }}>
+                {testLabel}
+              </button>
+            </div>
+          </div>
+
+          <span style={S.lbl}>EMAIL CONFIGURATION</span>
+          <div style={S.card}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {[
+                ["From address",   "RESEND_FROM env var (defaults to onboarding@resend.dev)"],
+                ["Subscribers",    `${emailCount ?? "?"} on email_list`],
+                ["Cron schedule",  "10:30 AM CT daily (30 15 * * * UTC)"],
+                ["Domain",         "thisorthatpicks.com — must be verified in Resend dashboard"],
+              ].map(([k, v]) => (
+                <div key={k} style={S.row}>
+                  <span style={{ fontSize: 12, color: "#555", flexShrink: 0 }}>{k}</span>
+                  <span style={{ fontSize: 12, color: "#888", textAlign: "right" }}>{v}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <span style={S.lbl}>HOW TO FIX DOMAIN (if emails fail)</span>
+          <div style={S.card}>
+            <div style={{ fontSize: 12, color: "#666", lineHeight: 1.8 }}>
+              1. Go to <a href="https://resend.com/domains" target="_blank">resend.com/domains</a><br/>
+              2. Add domain <code style={{ color: "#fff" }}>thisorthatpicks.com</code><br/>
+              3. Add the DNS records they give you to your domain registrar<br/>
+              4. Once verified, set env var in Vercel:<br/>
+              <code style={{ color: "#00FF87" }}>RESEND_FROM = T|T Picks &lt;picks@thisorthatpicks.com&gt;</code>
+            </div>
+          </div>
+
+          <span style={S.lbl}>OR — USE YOUR OWN EMAIL (no domain needed)</span>
+          <div style={S.card}>
+            <div style={{ fontSize: 12, color: "#666", lineHeight: 1.8, marginBottom: 8 }}>
+              Resend allows sending from any email you registered with. Set this in Vercel env vars:
+            </div>
+            <pre style={{ ...S.mono, fontSize: 11, color: "#00FF87", background: "#060606", padding: "10px 12px", borderRadius: 8, lineHeight: 1.6 }}>RESEND_FROM = T|T Picks &lt;mmarshall1011@icloud.com&gt;</pre>
+            <div style={{ fontSize: 11, color: "#444", marginTop: 6 }}>Note: Resend free plan requires your own email or a verified domain.</div>
+          </div>
+        </>
+      )}
+
+      {/* ── TWEET ── */}
+      {tab === "tweet" && (
+        <>
+          {!hasBreaks && (
+            <div style={{ ...S.card, marginBottom: 14, border: "1px solid rgba(255,214,0,0.2)", background: "rgba(255,214,0,0.04)" }}>
+              <div style={{ fontSize: 12, color: "#FFD600" }}>⚠️ No breakdowns yet — go to Picks tab → ⚡ Regen for better tweet content</div>
+            </div>
+          )}
+
+          {bets.length === 0 && (
+            <div style={{ color: "#555", fontSize: 13, padding: "16px 0" }}>No BET picks today</div>
+          )}
+
+          {bets.length > 0 && (
+            <>
+              <div style={{ ...S.row, marginBottom: 12 }}>
+                <span style={S.lbl}>TODAY'S TWEET THREAD ({bets.length} picks)</span>
+                <button onClick={() => copyText("all", bets.map((p,i) => buildTweet(p,i)).join("\n\n---\n\n"))}
+                  style={{ ...S.btn, color: copied.all ? "#00FF87" : "#fff", border: `1px solid ${copied.all ? "rgba(0,255,135,0.3)" : "#333"}`, padding: "6px 12px", fontSize: 11 }}>
+                  {copied.all ? "✓ Copied All" : "Copy All"}
+                </button>
+              </div>
+
+              {bets.map((p, i) => (
+                <div key={p.id || i} style={{ ...S.card }}>
+                  <div style={{ ...S.row, marginBottom: 8 }}>
+                    <span style={{ fontSize: 10, color: "#444", fontWeight: 700 }}>TWEET {i + 1}/{bets.length}</span>
+                    <button onClick={() => copyText(i, buildTweet(p, i))}
+                      style={{ ...S.btn, padding: "5px 10px", fontSize: 11, color: copied[i] ? "#00FF87" : "#fff", border: `1px solid ${copied[i] ? "rgba(0,255,135,0.3)" : "#333"}`, background: copied[i] ? "rgba(0,255,135,0.08)" : "#111" }}>
+                      {copied[i] ? "✓ Copied" : "Copy"}
+                    </button>
+                  </div>
+                  <pre style={{ fontSize: 12, color: "#bbb", lineHeight: 1.8, fontFamily: "'Space Grotesk',sans-serif", whiteSpace: "pre-wrap", wordBreak: "break-word", background: "#060606", padding: "10px 12px", borderRadius: 8, margin: 0 }}>
+                    {buildTweet(p, i)}
+                  </pre>
+                </div>
+              ))}
+            </>
+          )}
+        </>
+      )}
+
+      {/* ── SYSTEM ── */}
+      {tab === "system" && (
+        <>
+          <span style={S.lbl}>MANUAL ACTIONS</span>
+          <div style={{ ...S.card, display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ ...S.row }}>
+              <span style={{ fontSize: 12, color: "#777" }}>Resolve yesterday's picks vs MLB final scores</span>
+              <button onClick={resolveYesterday} style={{ ...S.btn, flexShrink: 0, color: "#00FF87", border: "1px solid rgba(0,255,135,0.2)", background: "rgba(0,255,135,0.06)" }}>{resolveLabel}</button>
+            </div>
+          </div>
+
+          <span style={S.lbl}>CRON SCHEDULE (Vercel)</span>
+          <div style={S.card}>
+            {[
+              ["⚾ Picks + Breakdowns", "0 15 * * *",  "10:00 AM CT"],
+              ["🔍 Resolve Results",    "0 8 * * *",   "3:00 AM CT"],
+              ["✉️ Email Digest",       "30 15 * * *", "10:30 AM CT"],
+              ["𝕏 Tweet Bot",          "15 15 * * *", "10:15 AM CT (disabled — X requires paid plan)"],
+            ].map(([name, sched, ct]) => (
+              <div key={name} style={{ ...S.row, padding: "9px 0", borderBottom: "1px solid #0d0d0d" }}>
+                <div>
+                  <div style={{ fontSize: 13 }}>{name}</div>
+                  <div style={{ fontSize: 11, color: "#444", marginTop: 1 }}>{ct}</div>
+                </div>
+                <div style={{ ...S.mono, fontSize: 11, color: "#333" }}>{sched}</div>
+              </div>
+            ))}
+          </div>
+
+          <span style={S.lbl}>DASHBOARD LINKS</span>
+          <div style={S.card}>
+            {[
+              ["Vercel Cron Logs", "https://vercel.com/mmarshall6402-7451s-projects/tot-app/settings/crons"],
+              ["Vercel Env Vars",  "https://vercel.com/mmarshall6402-7451s-projects/tot-app/settings/environment-variables"],
+              ["Supabase Tables",  "https://supabase.com/dashboard/project/yazpmhcdvdbnqwhvrfdp/editor"],
+              ["Resend Domains",   "https://resend.com/domains"],
+              ["Stripe Dashboard", "https://dashboard.stripe.com"],
+            ].map(([label, url]) => (
+              <div key={label} style={{ padding: "8px 0", borderBottom: "1px solid #0a0a0a" }}>
+                <a href={url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13 }}>{label} ↗</a>
+              </div>
+            ))}
+          </div>
+
+          <span style={S.lbl}>REQUIRED SQL (run in Supabase if not done)</span>
+          {[
+            { title: "ML features column", sql: "alter table model_picks add column if not exists features jsonb;" },
+            { title: "Access codes table", sql: `create table if not exists access_codes (\n  id uuid primary key default gen_random_uuid(),\n  code text unique not null,\n  label text,\n  uses_max int default null,\n  uses_count int default 0,\n  expires_at timestamptz default null,\n  created_at timestamptz default now()\n);\nalter table access_codes enable row level security;\ncreate policy "public read access_codes"\n  on access_codes for select using (true);` },
+          ].map(({ title, sql }) => (
+            <div key={title} style={{ ...S.card, marginBottom: 8 }}>
+              <div style={{ ...S.row, marginBottom: 8 }}>
+                <span style={{ fontSize: 11, color: "#555" }}>{title}</span>
+                <button onClick={() => copyText(title, sql)} style={{ ...S.btn, padding: "4px 10px", fontSize: 10, color: copied[title] ? "#00FF87" : "#fff" }}>
+                  {copied[title] ? "✓" : "Copy"}
+                </button>
+              </div>
+              <pre style={{ ...S.mono, fontSize: 10, color: "#00FF87", whiteSpace: "pre-wrap", lineHeight: 1.6, background: "#060606", padding: "8px 10px", borderRadius: 6, margin: 0 }}>{sql}</pre>
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  );
+}

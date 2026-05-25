@@ -30,10 +30,19 @@ function resolveResult(pick, games) {
     return ht.includes(lastWord(pick.home_team)) && at.includes(lastWord(pick.away_team));
   });
 
-  if (!game || game.status?.abstractGameState !== "Final") return null;
+  if (!game) return null;
 
-  const homeScore = game.linescore?.teams?.home?.runs ?? null;
-  const awayScore = game.linescore?.teams?.away?.runs ?? null;
+  const detailed = game.status?.detailedState || "";
+  // Postponed / suspended / cancelled = stake returned → push
+  if (["Postponed", "Suspended", "Cancelled", "Canceled"].some(s => detailed.includes(s))) {
+    return "push";
+  }
+
+  if (game.status?.abstractGameState !== "Final") return null;
+
+  // Try linescore first, fall back to teams.home.score (set on Final games)
+  const homeScore = game.linescore?.teams?.home?.runs ?? game.teams?.home?.score ?? null;
+  const awayScore = game.linescore?.teams?.away?.runs ?? game.teams?.away?.score ?? null;
   if (homeScore === null || awayScore === null) return null;
 
   if (homeScore === awayScore) return "push";

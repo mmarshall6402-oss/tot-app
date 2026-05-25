@@ -1,4 +1,4 @@
-import { fetchPitcherHardHit } from "../../../lib/savant.js";
+import { fetchPitcherHardHit, fetchBatterStatcast } from "../../../lib/savant.js";
 
 const MLB            = "https://statsapi.mlb.com/api/v1";
 const CURRENT_SEASON = new Date().getFullYear();
@@ -181,12 +181,16 @@ export async function GET(request) {
       return Response.json(cached.data);
     }
 
+    const past3   = getPastDate(3);
     const past7   = getPastDate(7);
     const past10  = getPastDate(10);
     const past14  = getPastDate(14);
 
-    // Fetch Savant hard-hit data once for all games
-    const savantMap = await fetchPitcherHardHit(CURRENT_SEASON);
+    // Fetch Savant data once for all games (both pitcher and batter leaderboards)
+    const [savantMap, savantBatterMap] = await Promise.all([
+      fetchPitcherHardHit(CURRENT_SEASON),
+      fetchBatterStatcast(CURRENT_SEASON),
+    ]);
 
     const [schedRes, standings] = await Promise.all([
       fetch(`${MLB}/schedule?sportId=1&hydrate=probablePitcher,linescore,lineups,teams&date=${date}`),
@@ -207,6 +211,8 @@ export async function GET(request) {
         homePStats, awayPStats,
         homePHand,  awayPHand,
         homeForm,   awayForm,
+        homeForm7d, awayForm7d,
+        homeRolling3, awayRolling3,
         homeRolling7, awayRolling7,
         homeRolling14, awayRolling14,
         homeSeason,  awaySeason,
@@ -219,6 +225,10 @@ export async function GET(request) {
         fetchPitcherHand(awayPitcher?.id),
         fetchTeamHitting(homeId, past10, date),
         fetchTeamHitting(awayId, past10, date),
+        fetchTeamHitting(homeId, past7,  date),
+        fetchTeamHitting(awayId, past7,  date),
+        fetchRollingPitching(homeId, past3,  date),
+        fetchRollingPitching(awayId, past3,  date),
         fetchRollingPitching(homeId, past7,  date),
         fetchRollingPitching(awayId, past7,  date),
         fetchRollingPitching(homeId, past14, date),
@@ -269,14 +279,40 @@ export async function GET(request) {
         ? (homePHand === "L" ? awaySplits.vsLeft : awaySplits.vsRight) ?? null
         : null;
 
-      // Prefer 7-day bullpen (most current) → 14-day → season aggregate
-      const buildBullpen = (r7, r14, season) => {
+      // Prefer 7-day bullpen (most current) → 14-day → season aggregate.
+      // Adds fatigue signal: if 3-day ERA is 1.5+ worse than 14-day, bullpen is overworked.
+      const buildBullpen = (r3, r7, r14, season) => {
         const src = (r7?.ip ?? 0) >= 4 ? r7 : (r14?.ip ?? 0) >= 8 ? r14 : season;
         if (!src) return null;
+        const era3  = r3?.era  != null ? parseFloat(r3.era)  : null;
+        const era14 = r14?.era != null ? parseFloat(r14.era) : null;
+        const eraInflation = (era3 !== null && era14 !== null)
+          ? parseFloat((era3 - era14).toFixed(2)) : null;
         return {
           era: src.era ?? null, whip: src.whip ?? null, k9: src.k9 ?? null,
           isRolling: src === r7 || src === r14,
-          window: src === r7 ? 7 : src === r14 ? 14 : null,
+          window:    src === r7 ? 7 : src === r14 ? 14 : null,
+          era3d:        era3,
+          eraInflation, // positive = ERA recently worse than 14-day baseline
+          fatigued:     eraInflation !== null && eraInflation > 1.5,
+        };
+      };
+
+      // Lineup quality from Baseball Savant when lineups are confirmed (~90 min pre-game).
+      // Returns avg wOBA/ISO/barrelPct across the batting order — quality signal, not streak.
+      const homeLineupIds = (game.lineups?.homeBatters || []).map(p => p.id).filter(Boolean);
+      const awayLineupIds = (game.lineups?.awayBatters || []).map(p => p.id).filter(Boolean);
+      const buildLineupSavant = (batterIds) => {
+        if (!batterIds.length) return null;
+        const stats = batterIds.slice(0, 9).map(id => savantBatterMap.get(id)).filter(Boolean);
+        if (!stats.length) return null;
+        const avg = (arr) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
+        return {
+          avgWoba:      avg(stats.map(s => s.woba).filter(v => v != null)),
+          avgXwoba:     avg(stats.map(s => s.xwoba).filter(v => v != null)),
+          avgIso:       avg(stats.map(s => s.iso).filter(v => v != null)),
+          avgBarrelPct: avg(stats.map(s => s.barrelPct).filter(v => v != null)),
+          batterCount:  batterIds.length,
         };
       };
 
@@ -294,13 +330,18 @@ export async function GET(request) {
         homePitcher:  homePitcherObj,
         awayPitcher:  awayPitcherObj,
         homeForm, awayForm,
-        homeBullpen:  buildBullpen(homeRolling7, homeRolling14, homeSeason),
-        awayBullpen:  buildBullpen(awayRolling7, awayRolling14, awaySeason),
+        homeBullpen:  buildBullpen(homeRolling3, homeRolling7, homeRolling14, homeSeason),
+        awayBullpen:  buildBullpen(awayRolling3, awayRolling7, awayRolling14, awaySeason),
         homeStandings: standings[homeId] ?? null,
         awayStandings: standings[awayId] ?? null,
         // Lineup vs handedness (null until lineups post ~90 min before game)
         homeLineupOpsVsPitcher: homeLineupAdj,
         awayLineupOpsVsPitcher: awayLineupAdj,
+        // 7-day hitting form (more sensitive to recent hot/cold streaks than 10-day)
+        homeForm7d, awayForm7d,
+        // Lineup quality from Savant (wOBA, ISO, barrel% — when lineup posted)
+        homeLineupSavant: buildLineupSavant(homeLineupIds),
+        awayLineupSavant: buildLineupSavant(awayLineupIds),
       };
     }));
 

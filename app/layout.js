@@ -11,11 +11,11 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const APP_URL = "https://tot-app.vercel.app";
+const APP_URL = "https://thisorthatpicks.com";
 
 export const metadata = {
   title: "T|T Picks — Sharp MLB Picks",
-  description: "Sharp MLB model. Free pick every day. Full breakdowns, edge data, and filter for serious bettors.",
+  description: "We outperform Vegas odds with data. Sharp MLB model with pitcher analysis, edge scoring, and a 6-layer filter. Free pick every morning.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -24,10 +24,10 @@ export const metadata = {
   },
   openGraph: {
     title: "T|T Picks — Sharp MLB Picks",
-    description: "Free pick daily. Full model breakdowns. Edge analytics for serious bettors.",
+    description: "We outperform Vegas odds with data. Free pick daily. Full model breakdowns and edge analytics.",
     url: APP_URL,
     siteName: "T|T Picks",
-    images: [{ url: `${APP_URL}/api/og`, width: 1200, height: 630, alt: "T|T Picks — Today's Free Pick" }],
+    images: [{ url: `${APP_URL}/api/og`, width: 1200, height: 630, alt: "T|T — Sharp MLB Picks" }],
     type: "website",
   },
   twitter: {
@@ -35,7 +35,7 @@ export const metadata = {
     site: "@ThisorThatPicks",
     creator: "@ThisorThatPicks",
     title: "T|T Picks — Sharp MLB Picks",
-    description: "Free pick daily. Full model breakdowns. Edge analytics for serious bettors.",
+    description: "We outperform Vegas odds with data. Free pick daily. Full model breakdowns and edge analytics.",
     images: [`${APP_URL}/api/og`],
   },
 };

@@ -169,21 +169,27 @@ export async function GET(request) {
   const html    = buildEmailHtml(pick, topPicks, yWins, yLosses, yesterday);
   const subject = `Today's Pick: ${pick.awayTeam} @ ${pick.homeTeam} — Take ${pick.pick}`;
 
+  const fromAddr = process.env.RESEND_FROM || "T|T Picks <onboarding@resend.dev>";
+
   // Send in batches of 50 (Resend rate limit)
-  let sent = 0;
+  let sent = 0, failed = 0;
+  const errors = [];
   const BATCH = 50;
   for (let i = 0; i < subscribers.length; i += BATCH) {
     const batch = subscribers.slice(i, i + BATCH);
-    await Promise.all(batch.map(({ email }) =>
+    const results = await Promise.all(batch.map(({ email }) =>
       resend.emails.send({
-        from:    "T|T Picks <picks@thisorthatpicks.com>",
+        from:    fromAddr,
         to:      email,
         subject,
         html:    html.replace("{{email}}", encodeURIComponent(email)),
-      }).catch(err => console.error(`Failed to send to ${email}:`, err.message))
+      }).then(() => ({ ok: true })).catch(err => ({ ok: false, err: err.message }))
     ));
-    sent += batch.length;
+    for (const r of results) {
+      if (r.ok) sent++;
+      else { failed++; if (errors.length < 3) errors.push(r.err); }
+    }
   }
 
-  return Response.json({ sent, date, pick: `${pick.awayTeam} @ ${pick.homeTeam}` });
+  return Response.json({ sent, failed, errors, today, pick: `${pick.awayTeam} @ ${pick.homeTeam}` });
 }

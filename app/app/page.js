@@ -164,8 +164,11 @@ export default function ToT() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // After 6 PM local time today's games are done — default to tomorrow's picks.
+  // Must be useEffect (not useState initializer) to avoid SSR/client hydration mismatch.
   useEffect(() => {
     if (new Date().getHours() >= 18) setSelectedDate(d => d === weekDates[1] ? weekDates[2] : d);
+    // Restore cached pro status client-side only (localStorage not available during SSR)
     try {
       const c = localStorage.getItem("tot-pro");
       if (c) { const { v, e } = JSON.parse(c); if (Date.now() < e) setIsPro(v); }
@@ -1897,7 +1900,7 @@ export default function ToT() {
 
               {totalW + totalL === 0 && (
                 <div style={{ textAlign: "center", color: "#555", fontSize: 12, marginTop: 12, padding: "10px 0" }}>
-                  No resolved picks yet — results post once games go final.
+                  No resolved picks yet — results post the morning after each game.
                 </div>
               )}
 

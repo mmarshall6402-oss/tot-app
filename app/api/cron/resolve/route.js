@@ -57,16 +57,24 @@ export async function GET(request) {
         );
       });
 
-      if (!mlbGame || mlbGame.status?.abstractGameState !== "Final") continue;
+      if (!mlbGame) continue;
 
-      const homeScore = mlbGame.linescore?.teams?.home?.runs ?? null;
-      const awayScore = mlbGame.linescore?.teams?.away?.runs ?? null;
-      if (homeScore === null || awayScore === null) continue;
+      const detailed = mlbGame.status?.detailedState || "";
+      let result;
+      let homeScore = null, awayScore = null;
 
-      const homeWon = homeScore > awayScore;
-      let result = "push";
-      if (homeScore > awayScore) result = pick.home_team === pick.pick ? "win" : "loss";
-      else if (awayScore > homeScore) result = pick.away_team === pick.pick ? "win" : "loss";
+      // Postponed / suspended / cancelled → push (stake returned, game didn't happen)
+      if (["Postponed", "Suspended", "Cancelled", "Canceled"].some(s => detailed.includes(s))) {
+        result = "push";
+      } else {
+        if (mlbGame.status?.abstractGameState !== "Final") continue;
+        homeScore = mlbGame.linescore?.teams?.home?.runs ?? mlbGame.teams?.home?.score ?? null;
+        awayScore = mlbGame.linescore?.teams?.away?.runs ?? mlbGame.teams?.away?.score ?? null;
+        if (homeScore === null || awayScore === null) continue;
+        result = "push";
+        if (homeScore > awayScore) result = pick.home_team === pick.pick ? "win" : "loss";
+        else if (awayScore > homeScore) result = pick.away_team === pick.pick ? "win" : "loss";
+      }
 
       // Resolve the pick and record actual scores
       await supabase
@@ -82,6 +90,7 @@ export async function GET(request) {
       // Update ELO only once per unique game (avoid double-counting doubleheaders)
       const gameKey = `${pick.home_team}|${pick.away_team}`;
       if (!eloUpdatedTeams.has(gameKey) && result !== "push") {
+        const homeWon = homeScore > awayScore;
         currentElo = await updateEloAfterGame(
           supabase, pick.home_team, pick.away_team, homeWon, currentElo
         );
@@ -92,12 +101,6 @@ export async function GET(request) {
     }
 
     // Update model_daily_stats for today's resolved picks
-    const wins   = pending.filter((_, i) => {
-      const pick = pending[i];
-      // recount from updated data — just use resolved count for now
-      return false; // will be recomputed below
-    }).length;
-
     const resolvedPicks = pending.filter(p => {
       const game = games.find(g => {
         const ht = g.teams?.home?.team?.name?.toLowerCase() || "";

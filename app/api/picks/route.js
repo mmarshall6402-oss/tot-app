@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { fetchMLBOdds } from "../../../lib/odds.js";
-import { calculateEdge, BET_THRESHOLD, getConfidenceTier, americanToDecimal, decimalToImplied, removeVig } from "../../../lib/edge.js";
+import { calculateEdge, getConfidenceTier, americanToDecimal, decimalToImplied, removeVig } from "../../../lib/edge.js";
 import { getModelProbability } from "../../../lib/probability.js";
 import { applyFilterLayer, buildParlayCards } from "../../../lib/filter.js";
 import { requirePro } from "../../../lib/auth.js";
@@ -16,32 +16,25 @@ const getSupabase = () => createClient(
 function buildPick(game, mlb, breakdown) {
   const modelProbRaw = getModelProbability(game, mlb);
 
-  // Market calibration: the market already prices in most public information.
-  // Our model provides ~20% incremental signal on top of market pricing.
-  // This shrinks raw edges to realistic MLB magnitudes (1–8%) and prevents
-  // data corruption from inflating phantom edges to 20–40%.
+  // Market calibration determines pick DIRECTION only.
+  // Displayed edge comes from filter.trueEdgePct — the filter already applies
+  // shrinkFactor, compression, and decay. The 20% factor collapses edges to 1-3%.
   const homeImplied  = game.homeImplied || 0.5;
   const modelProb    = homeImplied + (modelProbRaw - homeImplied) * 0.20;
-
-  const rawEdge  = calculateEdge(modelProb, homeImplied);
-  const pick     = rawEdge >= 0 ? game.homeTeam : game.awayTeam;
-  // Hard cap: >8% displayed edge almost never exists in liquid MLB markets
-  const edgePct  = Math.min(Math.abs(rawEdge) * 100, 8.0);
-  const isBet    = edgePct >= BET_THRESHOLD * 100;
-
+  const rawEdge      = calculateEdge(modelProb, homeImplied);
+  const pick         = rawEdge >= 0 ? game.homeTeam : game.awayTeam;
   const homePitcher = mlb?.homePitcher;
   const awayPitcher = mlb?.awayPitcher;
   // Filter uses RAW model probability — it has its own shrinkFactor calibration
-  const filter    = applyFilterLayer(pick, { ...game, source: game.source }, mlb, modelProbRaw);
+  const filter        = applyFilterLayer(pick, { ...game, source: game.source }, mlb, modelProbRaw);
   const filteredIsBet = ["CLEAN", "BET"].includes(filter.verdict);
+  const edgePct       = Math.min(Math.max(filter.trueEdgePct, 0), 12.0);
 
   // Tier from Claude breakdown if available; otherwise derive from filter verdict.
-  // Edge-based tier (getConfidenceTier) maps 2-8% → Low for almost all picks after
-  // market calibration, so we prefer the verdict signal instead.
   const verdictTier = filteredIsBet
     ? (filter?.verdict === "CLEAN" || (filter?.confidence || 0) >= 7.5)
       ? { level: "High",   label: "🔥 Value Pick", emoji: "🔥" }
-      : (filter?.confidence || 0) >= 6
+      : (filter?.confidence || 0) >= 6.5
       ? { level: "Medium", label: "✅ Solid Pick",  emoji: "✅" }
       : { level: "Low",    label: "👀 Lean",         emoji: "👀" }
     : { level: "Low", label: "👀 Lean", emoji: "👀" };
@@ -74,7 +67,7 @@ function buildPick(game, mlb, breakdown) {
 function matchMLBGame(game, mlbGames) {
   const norm = s => (s || "").toLowerCase().trim();
   const lastWord = s => norm(s).split(" ").pop();
-  // Reject matches where game times differ by more than 6 hours (prevents
+  // Reject matches where game times differ by more than 12 hours (prevents
   // cross-game contamination when last-word matching is ambiguous).
   const timeClose = (t1, t2) => {
     if (!t1 || !t2) return true;
@@ -184,9 +177,10 @@ export async function GET(request) {
     const cacheCtDate = cached?.generated_at ? ctPartsOf(cached.generated_at) : null;
     const cacheStale  = cacheCtDate && cacheCtDate !== date;
 
-    // Only serve from cache for today — past dates use the MLB-direct path which
-    // always returns final scores. Future dates are never cached (no-op here).
-    if (!bust && !cacheStale && cached?.picks?.length && date >= today) {
+    // Serve from cache for today AND past dates the cron populated.
+    // Past games hit the gameStarted lock (status === "Final") so the filter
+    // verdict is preserved as-is; only the liveScore overlay updates.
+    if (!bust && !cacheStale && cached?.picks?.length) {
       // Fetch fresh MLB data — update live scores, pitchers, AND recompute filter.
       // Critical: cron runs at 7 AM ET before pitchers are announced, so cached filter
       // may be PASS due to NO_PITCHER_DATA. Recompute with current data so picks flip
@@ -211,14 +205,32 @@ export async function GET(request) {
               gameWithImplied = { ...pick, homeImplied: fairHome, awayImplied: fairAway };
             }
 
-            const modelProbRaw = getModelProbability(gameWithImplied, mlb);
-            const homeImplied  = gameWithImplied.homeImplied || 0.5;
-            const modelProb    = homeImplied + (modelProbRaw - homeImplied) * 0.20;
-            const rawEdge      = calculateEdge(modelProb, homeImplied);
-            const freshPick    = rawEdge >= 0 ? pick.homeTeam : pick.awayTeam;
-            const edgePct      = Math.min(Math.abs(rawEdge) * 100, 8.0);
-            const freshFilter  = applyFilterLayer(freshPick, { ...gameWithImplied, source: pick.filter?.isSquareLine ? "sportsdata" : undefined }, mlb, modelProbRaw);
+            const liveScore = { status: mlb.status, homeScore: mlb.homeScore, awayScore: mlb.awayScore, inning: mlb.inning, inningHalf: mlb.inningHalf };
+
+            // Lock pick/filter/edge once the game has started — only overlay live score.
+            // Re-running the model during a game shifts verdicts as in-game data changes,
+            // which is misleading: the pre-game signal is what the bet was based on.
+            const gameStarted = mlb.status === "Live" || mlb.status === "Final";
+            if (gameStarted) {
+              return {
+                ...pick,
+                liveScore,
+                breakdown: {
+                  ...pick.breakdown,
+                  pitcher_home: homePStr || pick.breakdown?.pitcher_home,
+                  pitcher_away: awayPStr || pick.breakdown?.pitcher_away,
+                },
+              };
+            }
+
+            const modelProbRaw  = getModelProbability(gameWithImplied, mlb);
+            const homeImplied   = gameWithImplied.homeImplied || 0.5;
+            const modelProb     = homeImplied + (modelProbRaw - homeImplied) * 0.20;
+            const rawEdge       = calculateEdge(modelProb, homeImplied);
+            const freshPick     = rawEdge >= 0 ? pick.homeTeam : pick.awayTeam;
+            const freshFilter   = applyFilterLayer(freshPick, { ...gameWithImplied, source: pick.filter?.isSquareLine ? "sportsdata" : undefined }, mlb, modelProbRaw);
             const filteredIsBet = ["CLEAN", "BET"].includes(freshFilter.verdict);
+            const edgePct       = Math.min(Math.max(freshFilter.trueEdgePct, 0), 12.0);
             const tier = pick.breakdown?.tier?.level
               ? { label: pick.breakdown.tier.level === "High" ? "🔥 Value Pick" : pick.breakdown.tier.level === "Medium" ? "✅ Solid Pick" : "👀 Lean", level: pick.breakdown.tier.level }
               : getConfidenceTier(edgePct / 100) || { label: "👀 Lean", level: "Low" };
@@ -230,7 +242,7 @@ export async function GET(request) {
               isBet: filteredIsBet,
               tier,
               filter: freshFilter,
-              liveScore: { status: mlb.status, homeScore: mlb.homeScore, awayScore: mlb.awayScore, inning: mlb.inning, inningHalf: mlb.inningHalf },
+              liveScore,
               breakdown: {
                 ...pick.breakdown,
                 pitcher_home: homePStr || pick.breakdown?.pitcher_home,
@@ -239,6 +251,62 @@ export async function GET(request) {
             };
           })
         : cached.picks;
+
+      // Add any MLB games that have no odds line and weren't in the cache
+      if (mlbGames.length) {
+        const norm = s => (s || "").toLowerCase().trim();
+        const lastWord = s => norm(s).split(" ").pop();
+        const coveredIds = new Set(picks.map(p => String(p.id)));
+        const uncovered = mlbGames.filter(g =>
+          !picks.some(p =>
+            norm(p.homeTeam).includes(lastWord(g.homeTeam)) &&
+            norm(p.awayTeam).includes(lastWord(g.awayTeam))
+          )
+        );
+        for (const g of uncovered) {
+          const ipStr2 = (p) => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";
+          const modelProb = getModelProbability({ homeTeam: g.homeTeam, awayTeam: g.awayTeam, homeImplied: 0.5, commenceTime: g.commenceTime }, g);
+          const rawPick = modelProb >= 0.5 ? g.homeTeam : g.awayTeam;
+          const isPastGame = g.status === "Final" || g.status === "Completed" || date < today;
+          picks.push({
+            id: String(g.gameId),
+            homeTeam: g.homeTeam, awayTeam: g.awayTeam,
+            commenceTime: g.commenceTime,
+            homeOdds: null, awayOdds: null,
+            pick: rawPick, edge: 0, isBet: false,
+            tier: isPastGame
+              ? { label: "📋 Result", level: "Low", emoji: "📋" }
+              : { label: "📋 No Line", level: "Low", emoji: "📋" },
+            breakdown: {
+              pitcher_home: g.homePitcher ? `${g.homePitcher.name} (${g.homePitcher.wins}-${g.homePitcher.losses}, ${g.homePitcher.era} ERA${ipStr2(g.homePitcher)})` : "TBD",
+              pitcher_away: g.awayPitcher ? `${g.awayPitcher.name} (${g.awayPitcher.wins}-${g.awayPitcher.losses}, ${g.awayPitcher.era} ERA${ipStr2(g.awayPitcher)})` : "TBD",
+            },
+            filter: null,
+            liveScore: { status: g.status, homeScore: g.homeScore, awayScore: g.awayScore, inning: g.inning, inningHalf: g.inningHalf },
+          });
+        }
+      }
+
+      // Sort: CLEAN first, then BET, then PASS, then TRAP — by edge within each group
+      const verdictRank = v => ({ CLEAN: 0, BET: 1, PASS: 2, TRAP: 3 }[v] ?? 4);
+      picks.sort((a, b) => {
+        const vd = verdictRank(a.filter?.verdict) - verdictRank(b.filter?.verdict);
+        if (vd !== 0) return vd;
+        return (b.filter?.trueEdgePct || 0) - (a.filter?.trueEdgePct || 0);
+      });
+
+      // Lock pick: highest-conviction CLEAN/BET pick (confidence × edge).
+      // Pass through isLock from cache, or re-derive from freshly computed filters.
+      const anyLocked = picks.some(p => p.isLock);
+      if (!anyLocked) {
+        const lockScore = p => {
+          if (!["CLEAN", "BET"].includes(p.filter?.verdict)) return 0;
+          return (p.filter?.confidence || 0) * Math.max(p.filter?.trueEdgePct || 0, 0);
+        };
+        const lockPick = picks.reduce((best, p) => lockScore(p) > lockScore(best) ? p : best, picks[0]);
+        if (lockPick && lockScore(lockPick) > 0) lockPick.isLock = true;
+      }
+
       return Response.json({ picks, cached: true, generated_at: cached.generated_at });
     }
 
@@ -297,13 +365,22 @@ export async function GET(request) {
           if (oddsGame) {
             return buildPick({ ...oddsGame, commenceTime: mlbGame.commenceTime }, mlbGame, null);
           }
-          // No odds yet — show game as informational
+          // No odds yet — show game as informational with model's directional lean.
+          // Future dates: "📋 Scheduled" (lines not posted yet).
+          // Today with missing line: "📋 No Line" (book hasn't posted or coverage gap).
           const modelProb = getModelProbability({ homeTeam: mlbGame.homeTeam, awayTeam: mlbGame.awayTeam, homeImplied: 0.5, commenceTime: mlbGame.commenceTime }, mlbGame);
           const pick = modelProb >= 0.5 ? mlbGame.homeTeam : mlbGame.awayTeam;
+          const isFuture = date > today;
+          const isStarted = mlbGame.status === "Live" || mlbGame.status === "Final" || mlbGame.status === "Completed";
           return {
             id: String(mlbGame.gameId), homeTeam: mlbGame.homeTeam, awayTeam: mlbGame.awayTeam,
             commenceTime: mlbGame.commenceTime, homeOdds: null, awayOdds: null,
-            pick, edge: 0, isBet: false, tier: { label: "📋 No Line", level: "Low", emoji: "📋" },
+            pick, edge: 0, isBet: false,
+            tier: isFuture
+              ? { label: "📅 Scheduled", level: "Low", emoji: "📅" }
+              : isStarted
+              ? { label: "📋 Result",    level: "Low", emoji: "📋" }
+              : { label: "📋 No Line",   level: "Low", emoji: "📋" },
             breakdown: {
               pitcher_home: mlbGame.homePitcher ? `${mlbGame.homePitcher.name} (${mlbGame.homePitcher.wins}-${mlbGame.homePitcher.losses}, ${mlbGame.homePitcher.era} ERA${ipStr2(mlbGame.homePitcher)})` : "TBD",
               pitcher_away: mlbGame.awayPitcher ? `${mlbGame.awayPitcher.name} (${mlbGame.awayPitcher.wins}-${mlbGame.awayPitcher.losses}, ${mlbGame.awayPitcher.era} ERA${ipStr2(mlbGame.awayPitcher)})` : "TBD",
@@ -314,16 +391,34 @@ export async function GET(request) {
         }).filter(Boolean)
       : oddsGames.map(game => buildPick(game, null, null)).filter(Boolean);
 
-    results.sort((a, b) => b.edge - a.edge);
+    const verdictRank2 = v => ({ CLEAN: 0, BET: 1, PASS: 2, TRAP: 3 }[v] ?? 4);
+    results.sort((a, b) => {
+      const vd = verdictRank2(a.filter?.verdict) - verdictRank2(b.filter?.verdict);
+      if (vd !== 0) return vd;
+      return (b.filter?.trueEdgePct || 0) - (a.filter?.trueEdgePct || 0);
+    });
 
     const { safeCard, balancedCard, aggressiveCard } = buildParlayCards(results);
 
     // Only cache today's picks — future dates have moving odds/pitchers and should
-    // always be fetched fresh. Caching them would block the cron from adding breakdowns.
+    // always be fetched fresh. Preserve any Claude breakdowns from the stale cache so
+    // the live path doesn't wipe breakdown data written by yesterday's pre-cache run.
     if (results.length && date === today) {
+      let picksToCache = results;
+      if (cached?.picks?.some(p => p.breakdown?.preview)) {
+        const bdMap = {};
+        for (const p of cached.picks) {
+          if (p.breakdown?.preview) bdMap[`${p.homeTeam}|${p.awayTeam}`] = p.breakdown;
+        }
+        picksToCache = results.map(r => {
+          const bd = bdMap[`${r.homeTeam}|${r.awayTeam}`];
+          if (!bd) return r;
+          return { ...r, breakdown: { ...bd, pitcher_home: r.breakdown?.pitcher_home || bd.pitcher_home, pitcher_away: r.breakdown?.pitcher_away || bd.pitcher_away } };
+        });
+      }
       await supabase
         .from("picks_cache")
-        .upsert({ date, picks: results, generated_at: new Date().toISOString() }, { onConflict: "date" });
+        .upsert({ date, picks: picksToCache, generated_at: new Date().toISOString() }, { onConflict: "date" });
     }
 
     return Response.json({ picks: results, safeCard, balancedCard, aggressiveCard, cached: false });

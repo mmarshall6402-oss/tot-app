@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://tot-app.vercel.app/sitemap.xml

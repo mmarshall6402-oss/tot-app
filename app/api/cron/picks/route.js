@@ -3,7 +3,7 @@
 // and writes to Supabase cache. On-demand /api/picks serves from this cache.
 import { createClient } from "@supabase/supabase-js";
 import { fetchMLBOdds } from "../../../../lib/odds.js";
-import { calculateEdge, BET_THRESHOLD, getConfidenceTier } from "../../../../lib/edge.js";
+import { calculateEdge, getConfidenceTier } from "../../../../lib/edge.js";
 import { getModelProbability, setEloRatings } from "../../../../lib/probability.js";
 import { applyFilterLayer, buildParlayCards } from "../../../../lib/filter.js";
 import { getEloRatings } from "../../../../lib/elo-db.js";
@@ -16,39 +16,44 @@ const getSupabase = () => createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-function matchMLBGame(game, mlbGames) {
+// Returns { match, idx } so callers can mark the index as used.
+// skipIndices prevents two odds entries (doubleheader) from claiming the same MLB game.
+function matchMLBGame(game, mlbGames, skipIndices = null) {
   const norm = s => (s || "").toLowerCase().trim();
   const lastWord = s => norm(s).split(" ").pop();
   const timeClose = (t1, t2) => {
     if (!t1 || !t2) return true;
     return Math.abs(new Date(t1) - new Date(t2)) < 12 * 3_600_000;
   };
+  const ok = (i) => !skipIndices?.has(i);
 
   // 1. Exact normalized full name (most reliable)
-  let match = mlbGames.find(g =>
+  let idx = mlbGames.findIndex((g, i) =>
+    ok(i) &&
     norm(g.homeTeam) === norm(game.homeTeam) &&
     norm(g.awayTeam) === norm(game.awayTeam) &&
     timeClose(g.commenceTime, game.commenceTime)
   );
-  if (match) return match;
+  if (idx >= 0) return { match: mlbGames[idx], idx };
 
   // 2. Last-word substring with time guard
-  match = mlbGames.find(g =>
+  idx = mlbGames.findIndex((g, i) =>
+    ok(i) &&
     norm(g.homeTeam).includes(lastWord(game.homeTeam)) &&
     norm(g.awayTeam).includes(lastWord(game.awayTeam)) &&
     timeClose(g.commenceTime, game.commenceTime)
   );
-  if (match) return match;
+  if (idx >= 0) return { match: mlbGames[idx], idx };
 
   // 3. Two-word suffix (Red Sox / White Sox / Blue Jays) with time guard
-  match = mlbGames.find(g => {
+  idx = mlbGames.findIndex((g, i) => {
     const hw = norm(game.homeTeam).split(" ").slice(-2).join(" ");
     const aw = norm(game.awayTeam).split(" ").slice(-2).join(" ");
-    return norm(g.homeTeam).includes(hw) && norm(g.awayTeam).includes(aw) &&
+    return ok(i) && norm(g.homeTeam).includes(hw) && norm(g.awayTeam).includes(aw) &&
       timeClose(g.commenceTime, game.commenceTime);
   });
 
-  return match || null;
+  return idx >= 0 ? { match: mlbGames[idx], idx } : { match: null, idx: -1 };
 }
 
 async function callClaudeBatch(gameContexts) {
@@ -91,49 +96,76 @@ Return ONLY a JSON array, no markdown. Each element:
   "tier": { "level": "High" }
 }`;
 
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": process.env.ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-6",
-      max_tokens: 4096,
-      messages: [{ role: "user", content: prompt }],
-    }),
-  });
-  const data = await res.json();
-  if (!res.ok || data.error) throw new Error(`Claude API error: ${JSON.stringify(data.error || data)}`);
-  const text = data.content?.[0]?.text || "[]";
+  let res, data;
   try {
-    return JSON.parse(text.replace(/```json|```/g, "").trim());
+    res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 16000,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+    data = await res.json();
   } catch (e) {
-    throw new Error(`Claude returned invalid JSON: ${text.slice(0, 200)}`);
+    console.warn("[claude] fetch failed, using stub breakdowns:", e.message);
+    return gameContexts.map(() => null);
+  }
+
+  // Low credits, rate limit, or any non-2xx — degrade gracefully, picks still generate
+  if (!res.ok || data.error) {
+    console.warn("[claude] API error, using stub breakdowns:", JSON.stringify(data.error || data).slice(0, 200));
+    return gameContexts.map(() => null);
+  }
+
+  const text = data.content?.[0]?.text || "[]";
+  const clean = text.replace(/```json|```/g, "").trim();
+  try {
+    return JSON.parse(clean);
+  } catch {
+    // Partial truncation: extract as many complete objects as possible from the array
+    const partial = [];
+    const objRe = /\{[^{}]*(?:\{[^{}]*\}[^{}]*)?\}/g;
+    for (const m of clean.matchAll(objRe)) {
+      try { partial.push(JSON.parse(m[0])); } catch {}
+    }
+    if (partial.length) {
+      console.warn(`[claude] partial parse: got ${partial.length} of ${gameContexts.length} breakdowns`);
+      return partial;
+    }
+    console.warn("[claude] invalid JSON, using stub breakdowns");
+    return gameContexts.map(() => null);
   }
 }
 
 function buildPick(game, mlb, breakdown, precomputedFilter) {
   const modelProbRaw = getModelProbability(game, mlb);
 
-  // Market calibration: model provides ~20% incremental signal over efficient market pricing.
-  // Shrinks raw edges to realistic MLB magnitudes and dampens data-corruption artifacts.
+  // Market calibration determines pick DIRECTION only — used to decide home vs away.
+  // Edge displayed to users comes from filter.trueEdgePct, which already applies
+  // shrinkFactor, SQUARE_LINE_COMPRESSION, and decay penalties. This avoids the
+  // (modelProbRaw - homeImplied) * 0.20 value that collapses all edges to 1-3%.
   const homeImplied = game.homeImplied || 0.5;
   const modelProb   = homeImplied + (modelProbRaw - homeImplied) * 0.20;
+  const rawEdge     = calculateEdge(modelProb, homeImplied);
+  const pick        = rawEdge >= 0 ? game.homeTeam : game.awayTeam;
 
-  const rawEdge  = calculateEdge(modelProb, homeImplied);
-  const pick     = rawEdge >= 0 ? game.homeTeam : game.awayTeam;
-  const edgePct  = Math.min(Math.abs(rawEdge) * 100, 8.0); // hard cap at 8%
-  const isBet    = edgePct >= BET_THRESHOLD * 100;
   // Filter uses RAW model probability — it has its own shrinkFactor calibration
-  const filter    = precomputedFilter || applyFilterLayer(pick, { ...game, source: game.source }, mlb, modelProbRaw);
+  const filter        = precomputedFilter || applyFilterLayer(pick, { ...game, source: game.source }, mlb, modelProbRaw);
   const filteredIsBet = ["CLEAN", "BET"].includes(filter.verdict);
+  // Use filter's true edge as the displayed edge — it is the meaningful signal number.
+  // Cap at 12%: values above that are almost always model noise vs. a market that has extra info.
+  const edgePct = Math.min(Math.max(filter.trueEdgePct, 0), 12.0);
 
   const verdictTier = filteredIsBet
     ? (filter?.verdict === "CLEAN" || (filter?.confidence || 0) >= 7.5)
       ? { level: "High",   label: "🔥 Value Pick", emoji: "🔥" }
-      : (filter?.confidence || 0) >= 6
+      : (filter?.confidence || 0) >= 6.5
       ? { level: "Medium", label: "✅ Solid Pick",  emoji: "✅" }
       : { level: "Low",    label: "👀 Lean",         emoji: "👀" }
     : { level: "Low", label: "👀 Lean", emoji: "👀" };
@@ -163,11 +195,30 @@ function buildPick(game, mlb, breakdown, precomputedFilter) {
   };
 }
 
-async function generateForDate(date, oddsGames, supabase) {
+async function generateForDate(date, oddsGames, supabase, force = false, isToday = true) {
   const { data: existing } = await supabase
-    .from("picks_cache").select("picks").eq("date", date).single();
-  if (existing?.picks?.some(p => p.breakdown?.preview)) {
+    .from("picks_cache").select("picks, generated_at").eq("date", date).single();
+
+  // Only skip if the cache was generated TODAY (same CT date) and already has breakdowns.
+  // Don't skip for yesterday's pre-generated "tomorrow" cache — re-run with fresh odds/pitchers.
+  const ctFormatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit",
+  });
+  const cacheCtDate = existing?.generated_at
+    ? (() => { const p = ctFormatter.formatToParts(new Date(existing.generated_at)); return `${p.find(x=>x.type==="year").value}-${p.find(x=>x.type==="month").value}-${p.find(x=>x.type==="day").value}`; })()
+    : null;
+  if (!force && cacheCtDate === date && existing?.picks?.some(p => p.breakdown?.preview)) {
     return { skipped: true, date };
+  }
+
+  // Never overwrite today's picks once games are in progress — the odds API only
+  // returns games that haven't started, so any regen after 1 PM CT would replace
+  // the full slate with only the remaining evening games.
+  if (isToday && existing?.picks?.length >= 3) {
+    const ctHour = parseInt(new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Chicago", hour: "numeric", hour12: false,
+    }).format(new Date()), 10);
+    if (ctHour >= 13) return { skipped: true, date, reason: "games in progress — preserving today's cache" };
   }
 
   const mlbRes = await fetch(`${BASE_URL}/api/mlb?date=${date}`).then(r => r.json()).catch(() => ({}));
@@ -183,14 +234,31 @@ async function generateForDate(date, oddsGames, supabase) {
     return utcDate === date || etDate === date;
   });
   if (!dateOdds.length) return { skipped: true, date, reason: "no odds games for date" };
+  // Don't pre-cache tomorrow with a partial slate — odds APIs post games incrementally
+  // and an early run produces stale TBD-pitcher entries that block today's proper run.
+  if (!force && !isToday && dateOdds.length < 6) return { skipped: true, date, reason: "tomorrow slate incomplete (<6 games) — will cache at next run" };
 
   const ipStr = (p) => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";
   const bullStr = b => b
     ? `${b.era} ERA, ${b.whip ?? "?"} WHIP, K/9 ${b.k9 ?? "?"}${b.isRolling ? ` (${b.window}d rolling)` : " (season)"}`
     : "no data";
 
-  const gameContexts = dateOdds.map(game => {
-    const mlb          = matchMLBGame(game, mlbGames);
+  // Deduplicate identical odds entries (same teams + same odds = same game listed twice by API).
+  // Different odds on the same team pair = genuine doubleheader — keep both.
+  const seen = new Map();
+  const dedupedOdds = dateOdds.filter(game => {
+    const key = `${game.homeTeam}|${game.awayTeam}|${game.homeOdds}|${game.awayOdds}`;
+    if (seen.has(key)) return false;
+    seen.set(key, true);
+    return true;
+  });
+
+  // Exclusive MLB game assignment: once an MLB game is claimed, it won't be reused.
+  // This ensures doubleheader game 2 gets matched to a different MLB game entry.
+  const usedMLBIndices = new Set();
+  const gameContexts = dedupedOdds.map(game => {
+    const { match: mlb, idx: mlbIdx } = matchMLBGame(game, mlbGames, usedMLBIndices);
+    if (mlbIdx >= 0) usedMLBIndices.add(mlbIdx);
     const modelProbRaw = getModelProbability(game, mlb);
     const homeImplied  = game.homeImplied || 0.5;
     const modelProb    = homeImplied + (modelProbRaw - homeImplied) * 0.20;
@@ -223,29 +291,26 @@ async function generateForDate(date, oddsGames, supabase) {
   });
 
   const breakdowns = await callClaudeBatch(gameContexts);
-  const results = gameContexts.map((ctx, i) =>
+
+  // Build unsorted results first — preserves 1:1 alignment with gameContexts for model_picks.
+  // Sorting after this would break that alignment since results.length may differ from gameContexts.length
+  // if buildPick ever returns null.
+  const unsortedResults = gameContexts.map((ctx, i) =>
     buildPick(ctx.game, ctx.mlb, breakdowns[i] || {}, ctx.filter)
-  ).filter(Boolean);
+  );
 
-  results.sort((a, b) => b.edge - a.edge);
-
-  await supabase.from("picks_cache")
-    .upsert({ date, picks: results, generated_at: new Date().toISOString() }, { onConflict: "date" });
-
-  // Log BET picks to model_picks — but only insert new rows, never overwrite
-  // resolved results. Check if any settled picks exist for this date first.
+  // Build model_picks rows BEFORE sorting, while index alignment is guaranteed.
   const { data: existingSettled } = await supabase.from("model_picks")
     .select("id").eq("date", date).in("result", ["win", "loss", "push"]).limit(1);
   if (!existingSettled?.length) {
     const pickRows = gameContexts.map((ctx, i) => {
-      const result = results[i];
+      const result = unsortedResults[i];
       if (!result) return null;
-      const pickIsHome = result.pick === ctx.game.homeTeam;
-      const odds = pickIsHome ? ctx.game.homeOdds : ctx.game.awayOdds;
+      const pickIsHome = result.pick === result.homeTeam;
+      const odds = pickIsHome ? result.homeOdds : result.awayOdds;
       // game_id is NOT NULL — derive a stable hash from date + teams
-      const gameId = Buffer.from(`${date}|${ctx.game.homeTeam}|${ctx.game.awayTeam}`).toString("base64").replace(/[^a-z0-9]/gi, "").slice(0, 32);
+      const gameId = Buffer.from(`${date}|${result.homeTeam}|${result.awayTeam}`).toString("base64").replace(/[^a-z0-9]/gi, "").slice(0, 32);
       // Feature vector for future ML training — stored as JSONB.
-      // Captures everything the filter used so we can train on outcomes later.
       const f = result.filter || {};
       const mlb = ctx.mlb || {};
       const pickBullpen = pickIsHome ? mlb.homeBullpen : mlb.awayBullpen;
@@ -285,11 +350,36 @@ async function generateForDate(date, oddsGames, supabase) {
       };
     }).filter(Boolean);
     if (pickRows.length) {
-      // Delete existing rows for this date first so we don't get duplicates on re-runs
       await supabase.from("model_picks").delete().eq("date", date);
-      await supabase.from("model_picks").insert(pickRows);
+      const { error: insErr } = await supabase.from("model_picks").insert(pickRows);
+      if (insErr) {
+        // features column likely missing — retry without it so picks still land in DB
+        console.warn("[cron] insert failed, retrying without features:", insErr.message);
+        const rowsNoFeatures = pickRows.map(({ features: _f, ...r }) => r);
+        await supabase.from("model_picks").insert(rowsNoFeatures);
+      }
     }
   }
+
+  // Sort for display AFTER model_picks insert — sort doesn't affect stored data
+  const results = unsortedResults.filter(Boolean);
+  const verdictRank = v => ({ CLEAN: 0, BET: 1, PASS: 2, TRAP: 3 }[v] ?? 4);
+  results.sort((a, b) => {
+    const vd = verdictRank(a.filter?.verdict) - verdictRank(b.filter?.verdict);
+    if (vd !== 0) return vd;
+    return (b.filter?.trueEdgePct || 0) - (a.filter?.trueEdgePct || 0);
+  });
+
+  // Lock pick: highest-conviction CLEAN/BET pick by confidence × edge
+  const lockScore = p => {
+    if (!["CLEAN", "BET"].includes(p.filter?.verdict)) return 0;
+    return (p.filter?.confidence || 0) * Math.max(p.filter?.trueEdgePct || 0, 0);
+  };
+  const lockPick = results.reduce((best, p) => lockScore(p) > lockScore(best) ? p : best, results[0]);
+  if (lockPick && lockScore(lockPick) > 0) lockPick.isLock = true;
+
+  await supabase.from("picks_cache")
+    .upsert({ date, picks: results, generated_at: new Date().toISOString() }, { onConflict: "date" });
 
   return { date, count: results.length };
 }
@@ -318,9 +408,10 @@ export async function GET(request) {
     ]);
     setEloRatings(liveElo);
 
+    const force = new URL(request.url).searchParams.get("force") === "1";
     // Generate today then tomorrow sequentially — each Claude call needs its own context
-    const todayResult    = await generateForDate(today, oddsGames, supabase);
-    const tomorrowResult = await generateForDate(tomorrow, oddsGames, supabase);
+    const todayResult    = await generateForDate(today, oddsGames, supabase, force, true);
+    const tomorrowResult = await generateForDate(tomorrow, oddsGames, supabase, force, false);
 
     return Response.json({ today: todayResult, tomorrow: tomorrowResult });
   } catch (e) {
