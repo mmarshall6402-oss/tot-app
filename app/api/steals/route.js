@@ -22,7 +22,7 @@ function matchMLBGame(game, mlbGames) {
   const lastWord = s => norm(s).split(" ").pop();
   const timeClose = (t1, t2) => {
     if (!t1 || !t2) return true;
-    return Math.abs(new Date(t1) - new Date(t2)) < 6 * 3_600_000;
+    return Math.abs(new Date(t1) - new Date(t2)) < 12 * 3_600_000;
   };
   return mlbGames.find(g =>
     norm(g.homeTeam).includes(lastWord(game.homeTeam)) &&
@@ -63,12 +63,14 @@ export async function GET(request) {
     const steals = games
       .map(game => {
         const mlb = matchMLBGame(game, mlbGames);
-        const modelProb = getModelProbability(game, mlb);
-        const rawEdge = calculateEdge(modelProb, game.homeImplied);
-        const pick = rawEdge >= 0 ? game.homeTeam : game.awayTeam;
-        const edgePct = Math.abs(rawEdge) * 100;
-        const filter = applyFilterLayer(pick, { ...game, source: game.source }, mlb, modelProb);
+        const modelProbRaw = getModelProbability(game, mlb);
+        const homeImplied  = game.homeImplied || 0.5;
+        const modelProb    = homeImplied + (modelProbRaw - homeImplied) * 0.20;
+        const rawEdge  = calculateEdge(modelProb, homeImplied);
+        const pick     = rawEdge >= 0 ? game.homeTeam : game.awayTeam;
+        const filter = applyFilterLayer(pick, { ...game, source: game.source }, mlb, modelProbRaw);
         if (filter.verdict !== "CLEAN") return null;
+        const edgePct  = filter.trueEdgePct;
         const hp = mlb?.homePitcher;
         const ap = mlb?.awayPitcher;
         const ipStr = p => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";

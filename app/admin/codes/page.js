@@ -19,6 +19,7 @@ export default function CodesAdmin() {
   const [maxUses, setMaxUses]       = useState("");
   const [creating, setCreating]     = useState(false);
   const [token, setToken]           = useState("");
+  const [regen, setRegen]           = useState(null); // null | "loading" | "ok" | "err"
 
   useEffect(() => {
     getSupabase().auth.getSession().then(async ({ data: { session } }) => {
@@ -57,6 +58,17 @@ export default function CodesAdmin() {
     fetchCodes();
   };
 
+  const regenBreakdowns = async () => {
+    setRegen("loading");
+    try {
+      const cronSecret = prompt("Enter CRON_SECRET:");
+      if (!cronSecret) { setRegen(null); return; }
+      const res = await fetch("/api/cron/picks?force=1", { headers: { Authorization: `Bearer ${cronSecret}` } });
+      setRegen(res.ok ? "ok" : "err");
+      setTimeout(() => setRegen(null), 4000);
+    } catch { setRegen("err"); setTimeout(() => setRegen(null), 4000); }
+  };
+
   const css = `*{box-sizing:border-box;margin:0;padding:0;}body{background:#000;color:#fff;font-family:'Space Grotesk',sans-serif;}input{outline:none;}button{cursor:pointer;font-family:inherit;}`;
 
   if (loading) return <div style={{minHeight:"100vh",background:"#000",display:"flex",alignItems:"center",justifyContent:"center"}}><style>{css}</style><div style={{color:"#555"}}>Loading…</div></div>;
@@ -66,9 +78,15 @@ export default function CodesAdmin() {
     <div style={{minHeight:"100vh",background:"#000",padding:"24px 20px",maxWidth:500,margin:"0 auto"}}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap');${css}`}</style>
 
-      <div style={{marginBottom:24}}>
-        <div style={{fontSize:11,color:"#555",letterSpacing:2,marginBottom:4}}>ACCESS CODES</div>
-        <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:22,fontWeight:700}}>T<span style={{color:"#00FF87"}}>|</span>T Admin</div>
+      <div style={{marginBottom:24,display:"flex",alignItems:"flex-end",justifyContent:"space-between"}}>
+        <div>
+          <div style={{fontSize:11,color:"#555",letterSpacing:2,marginBottom:4}}>ACCESS CODES</div>
+          <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:22,fontWeight:700}}>T<span style={{color:"#00FF87"}}>|</span>T Admin</div>
+        </div>
+        <button onClick={regenBreakdowns} disabled={regen==="loading"}
+          style={{background:regen==="ok"?"rgba(0,255,135,0.1)":regen==="err"?"rgba(255,77,77,0.1)":"#111",color:regen==="ok"?"#00FF87":regen==="err"?"#FF4D4D":"#777",border:`1px solid ${regen==="ok"?"rgba(0,255,135,0.3)":regen==="err"?"rgba(255,77,77,0.3)":"#222"}`,borderRadius:8,padding:"8px 12px",fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
+          {regen==="loading"?"Generating…":regen==="ok"?"✓ Done":regen==="err"?"✗ Failed":"⚡ Regen Picks"}
+        </button>
       </div>
 
       {/* Create new code */}

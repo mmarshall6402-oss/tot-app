@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/tweet",
       "schedule": "15 15 * * *"
+    },
+    {
+      "path": "/api/cron/snapshot",
+      "schedule": "0 23 * * *"
     }
   ],
   "functions": {
@@ -22,6 +26,7 @@
     "app/api/cron/picks/route.js": { "maxDuration": 300 },
     "app/api/cron/resolve/route.js": { "maxDuration": 60 },
     "app/api/cron/email/route.js": { "maxDuration": 60 },
-    "app/api/cron/tweet/route.js": { "maxDuration": 60 }
+    "app/api/cron/tweet/route.js": { "maxDuration": 60 },
+    "app/api/cron/snapshot/route.js": { "maxDuration": 60 }
   }
 }

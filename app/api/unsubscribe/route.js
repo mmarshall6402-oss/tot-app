@@ -1,15 +1,28 @@
 import { createClient } from "@supabase/supabase-js";
+import { createHmac, timingSafeEqual } from "crypto";
 
 const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-export async function GET(request) {
-  const email = new URL(request.url).searchParams.get("email");
-  if (!email) return new Response("Missing email", { status: 400 });
+function unsubToken(email) {
+  return createHmac("sha256", process.env.SUPABASE_SERVICE_ROLE_KEY || "").update(email).digest("hex");
+}
 
-  await getSupabase().from("email_list").delete().eq("email", decodeURIComponent(email).toLowerCase());
+export async function GET(request) {
+  const { searchParams } = new URL(request.url);
+  const email = searchParams.get("email");
+  const token = searchParams.get("token");
+  if (!email || !token) return new Response("Invalid link", { status: 400 });
+
+  const clean = decodeURIComponent(email).toLowerCase();
+  const expected = Buffer.from(unsubToken(clean));
+  const provided  = Buffer.from(token);
+  const valid = expected.length === provided.length && timingSafeEqual(expected, provided);
+  if (!valid) return new Response("Invalid link", { status: 400 });
+
+  await getSupabase().from("email_list").delete().eq("email", clean);
 
   return new Response(
     `<!DOCTYPE html><html><body style="background:#000;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;">

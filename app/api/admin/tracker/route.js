@@ -38,46 +38,48 @@ export async function GET(request) {
     since.setDate(since.getDate() - days);
     const sinceStr = since.toISOString().split("T")[0];
 
-    const [dailyRes, tierRes, recentRes] = await Promise.all([
-      getSupabase().from("model_daily_stats").select("*").gte("date", sinceStr),
-      getSupabase().from("model_tier_stats").select("*"),
-      getSupabase().from("model_picks")
-        .select("*")
-        .gte("date", sinceStr)
-        .order("date", { ascending: false })
-        .order("edge", { ascending: false })
-        .limit(500),
+    // CT date for picks_cache lookup
+    const ctParts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit",
+    }).formatToParts(new Date());
+    const today = `${ctParts.find(x=>x.type==="year").value}-${ctParts.find(x=>x.type==="month").value}-${ctParts.find(x=>x.type==="day").value}`;
+
+    const sb = getSupabase();
+    const [dailyRes, tierRes, recentRes, allTimeRes, cacheRes, emailRes, subRes] = await Promise.all([
+      sb.from("model_daily_stats").select("*").gte("date", sinceStr),
+      sb.from("model_tier_stats").select("*"),
+      sb.from("model_picks").select("*").gte("date", sinceStr).order("date", { ascending: false }).order("edge", { ascending: false }).limit(500),
+      sb.from("model_picks").select("result"),
+      sb.from("picks_cache").select("picks").eq("date", today).single(),
+      sb.from("email_list").select("id", { count: "exact", head: true }),
+      sb.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "active"),
     ]);
 
-    // Overall stats
-    const picks = recentRes.data || [];
-    const bets   = picks.filter(p => p.is_bet);
-    const settled = bets.filter(p => ["win","loss"].includes(p.result));
-    const wins   = settled.filter(p => p.result === "win").length;
-    const losses = settled.filter(p => p.result === "loss").length;
-    const winPct = settled.length > 0 ? (wins / settled.length * 100).toFixed(1) : null;
-    const avgEdge = bets.length > 0
-      ? (bets.reduce((s,p) => s + (p.edge||0), 0) / bets.length).toFixed(2)
-      : null;
-    // ROI: flat betting -110 (risk 100, win 90.9)
-    const roi = settled.length > 0
-      ? ((wins * 90.9 - losses * 100) / settled.length).toFixed(1)
-      : null;
+    // Overall stats (last N days)
+    const picks   = recentRes.data || [];
+    const settled = picks.filter(p => ["win","loss"].includes(p.result));
+    const wins    = settled.filter(p => p.result === "win").length;
+    const losses  = settled.filter(p => p.result === "loss").length;
+    const winPct  = settled.length > 0 ? (wins / settled.length * 100).toFixed(1) : null;
+    const avgEdge = picks.length > 0 ? (picks.reduce((s,p) => s + (p.edge||0), 0) / picks.length).toFixed(2) : null;
+    const roi     = settled.length > 0 ? ((wins * 90.9 - losses * 100) / settled.length).toFixed(1) : null;
 
-    // All-time record
-    const allTimeRes = await getSupabase().from('model_picks').select('result').eq('is_bet', true);
-    const allTime    = allTimeRes.data || [];
-    const atSettled  = allTime.filter(p => ['win','loss'].includes(p.result));
-    const atWins     = atSettled.filter(p => p.result === 'win').length;
-    const atLosses   = atSettled.filter(p => p.result === 'loss').length;
-    const atWinPct   = atSettled.length > 0 ? (atWins/atSettled.length*100).toFixed(1) : null;
+    // All-time record (all picks, no is_bet filter)
+    const allTime   = allTimeRes.data || [];
+    const atSettled = allTime.filter(p => ["win","loss"].includes(p.result));
+    const atWins    = atSettled.filter(p => p.result === "win").length;
+    const atLosses  = atSettled.filter(p => p.result === "loss").length;
+    const atWinPct  = atSettled.length > 0 ? (atWins/atSettled.length*100).toFixed(1) : null;
 
     return Response.json({
-      allTime: { wins: atWins, losses: atLosses, winPct: atWinPct, settled: atSettled.length },
-      overall: { bets: bets.length, wins, losses, pending: bets.length - settled.length, winPct, avgEdge, roi },
-      daily:   dailyRes.data || [],
-      byTier:  tierRes.data  || [],
-      recent:  picks,
+      allTime:    { wins: atWins, losses: atLosses, winPct: atWinPct, settled: atSettled.length },
+      overall:    { picks: picks.length, wins, losses, pending: picks.length - settled.length, winPct, avgEdge, roi },
+      daily:      dailyRes.data || [],
+      byTier:     tierRes.data  || [],
+      recent:     picks,
+      todayPicks: cacheRes.data?.picks || [],
+      emailCount: emailRes.count ?? 0,
+      subCount:   subRes.count   ?? 0,
     });
   }
 
