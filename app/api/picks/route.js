@@ -427,9 +427,7 @@ export async function GET(request) {
           if (oddsGame) {
             return buildPick({ ...oddsGame, commenceTime: mlbGame.commenceTime }, mlbGame, null);
           }
-          // Future dates with no odds yet — skip entirely, nothing useful to show.
-          if (date > today) return null;
-          // Today with missing line: show as No Line (book hasn't posted or coverage gap).
+          // No odds yet — show the game card with pitcher matchup but no pick/edge.
           const modelProb = getModelProbability({ homeTeam: mlbGame.homeTeam, awayTeam: mlbGame.awayTeam, homeImplied: 0.5, commenceTime: mlbGame.commenceTime }, mlbGame);
           const pick = modelProb >= 0.5 ? mlbGame.homeTeam : mlbGame.awayTeam;
           const isStarted = mlbGame.status === "Live" || mlbGame.status === "Final" || mlbGame.status === "Completed";
