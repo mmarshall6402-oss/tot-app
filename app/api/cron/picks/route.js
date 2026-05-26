@@ -160,7 +160,7 @@ function buildPick(game, mlb, breakdown, precomputedFilter) {
   const filteredIsBet = ["CLEAN", "BET"].includes(filter.verdict);
   // Use filter's true edge as the displayed edge — it is the meaningful signal number.
   // Cap at 12%: values above that are almost always model noise vs. a market that has extra info.
-  const edgePct = Math.min(Math.max(filter.trueEdgePct, 0), 12.0);
+  const edgePct = filter.trueEdgePct;
 
   const verdictTier = filteredIsBet
     ? (filter?.verdict === "CLEAN" || (filter?.confidence || 0) >= 7.5)

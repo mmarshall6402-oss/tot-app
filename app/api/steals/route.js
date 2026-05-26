@@ -70,7 +70,7 @@ export async function GET(request) {
         const pick     = rawEdge >= 0 ? game.homeTeam : game.awayTeam;
         const filter = applyFilterLayer(pick, { ...game, source: game.source }, mlb, modelProbRaw);
         if (filter.verdict !== "CLEAN") return null;
-        const edgePct  = Math.min(Math.max(filter.trueEdgePct, 0), 12.0);
+        const edgePct  = filter.trueEdgePct;
         const hp = mlb?.homePitcher;
         const ap = mlb?.awayPitcher;
         const ipStr = p => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";

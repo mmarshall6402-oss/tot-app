@@ -28,7 +28,7 @@ function buildPick(game, mlb, breakdown) {
   // Filter uses RAW model probability — it has its own shrinkFactor calibration
   const filter        = applyFilterLayer(pick, { ...game, source: game.source }, mlb, modelProbRaw);
   const filteredIsBet = ["CLEAN", "BET"].includes(filter.verdict);
-  const edgePct       = Math.min(Math.max(filter.trueEdgePct, 0), 12.0);
+  const edgePct       = filter.trueEdgePct;
 
   // Tier from Claude breakdown if available; otherwise derive from filter verdict.
   const verdictTier = filteredIsBet
@@ -260,7 +260,7 @@ export async function GET(request) {
             const freshPick     = rawEdge >= 0 ? pick.homeTeam : pick.awayTeam;
             const freshFilter   = applyFilterLayer(freshPick, { ...gameWithImplied, source: pick.filter?.isSquareLine ? "sportsdata" : undefined }, mlb, modelProbRaw);
             const filteredIsBet = ["CLEAN", "BET"].includes(freshFilter.verdict);
-            const edgePct       = Math.min(Math.max(freshFilter.trueEdgePct, 0), 12.0);
+            const edgePct       = freshFilter.trueEdgePct;
             const tier = pick.breakdown?.tier?.level
               ? { label: pick.breakdown.tier.level === "High" ? "🔥 Value Pick" : pick.breakdown.tier.level === "Medium" ? "✅ Solid Pick" : "👀 Lean", level: pick.breakdown.tier.level }
               : getConfidenceTier(edgePct / 100) || { label: "👀 Lean", level: "Low" };
