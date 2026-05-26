@@ -427,22 +427,19 @@ export async function GET(request) {
           if (oddsGame) {
             return buildPick({ ...oddsGame, commenceTime: mlbGame.commenceTime }, mlbGame, null);
           }
-          // No odds yet — show game as informational with model's directional lean.
-          // Future dates: "📋 Scheduled" (lines not posted yet).
-          // Today with missing line: "📋 No Line" (book hasn't posted or coverage gap).
+          // Future dates with no odds yet — skip entirely, nothing useful to show.
+          if (date > today) return null;
+          // Today with missing line: show as No Line (book hasn't posted or coverage gap).
           const modelProb = getModelProbability({ homeTeam: mlbGame.homeTeam, awayTeam: mlbGame.awayTeam, homeImplied: 0.5, commenceTime: mlbGame.commenceTime }, mlbGame);
           const pick = modelProb >= 0.5 ? mlbGame.homeTeam : mlbGame.awayTeam;
-          const isFuture = date > today;
           const isStarted = mlbGame.status === "Live" || mlbGame.status === "Final" || mlbGame.status === "Completed";
           return {
             id: String(mlbGame.gameId), homeTeam: mlbGame.homeTeam, awayTeam: mlbGame.awayTeam,
             commenceTime: mlbGame.commenceTime, homeOdds: null, awayOdds: null,
             pick, edge: 0, isBet: false,
-            tier: isFuture
-              ? { label: "📅 Scheduled", level: "Low", emoji: "📅" }
-              : isStarted
-              ? { label: "📋 Result",    level: "Low", emoji: "📋" }
-              : { label: "📋 No Line",   level: "Low", emoji: "📋" },
+            tier: isStarted
+              ? { label: "📋 Result",  level: "Low", emoji: "📋" }
+              : { label: "📋 No Line", level: "Low", emoji: "📋" },
             breakdown: {
               pitcher_home: mlbGame.homePitcher ? `${mlbGame.homePitcher.name} (${mlbGame.homePitcher.wins}-${mlbGame.homePitcher.losses}, ${mlbGame.homePitcher.era} ERA${ipStr2(mlbGame.homePitcher)})` : "TBD",
               pitcher_away: mlbGame.awayPitcher ? `${mlbGame.awayPitcher.name} (${mlbGame.awayPitcher.wins}-${mlbGame.awayPitcher.losses}, ${mlbGame.awayPitcher.era} ERA${ipStr2(mlbGame.awayPitcher)})` : "TBD",
