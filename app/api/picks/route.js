@@ -186,9 +186,12 @@ export async function GET(request) {
     const cacheStale  = cacheCtDate && cacheCtDate !== date;
 
     // Serve from cache for today AND past dates the cron populated.
+    // Future dates always bypass cache — lines open throughout the day and we
+    // want new games to appear immediately, not wait for the next cron run.
     // Past games hit the gameStarted lock (status === "Final") so the filter
     // verdict is preserved as-is; only the liveScore overlay updates.
-    if (!bust && !cacheStale && cached?.picks?.length) {
+    const isFutureDate = date > today;
+    if (!bust && !cacheStale && !isFutureDate && cached?.picks?.length) {
       // Fetch fresh MLB data and live odds in parallel.
       // MLB: update live scores, pitchers, recompute filter (pitchers post ~90 min before first pitch).
       // Odds: update homeOdds/awayOdds to current line — enables closing line signal vs openHomeOdds stored at cron time.
