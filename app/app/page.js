@@ -1,6 +1,7 @@
 "use client";
 export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef } from "react";
+import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { createClient } from "@supabase/supabase-js";
 
 // Single shared instance — sign-out and auth listeners must share the same client
@@ -404,6 +405,15 @@ export default function ToT() {
   const markResult = async (id, result) => {
     await getSupabase().from("saved_picks").update({ result }).eq("id", id);
     setSavedPicks(p => p.map(x => x.id === id ? { ...x, result } : x));
+  };
+
+  const handleDragEnd = (result) => {
+    const { source, destination } = result;
+    if (!destination) return;
+    const newPicks = Array.from(savedPicks);
+    const [moved] = newPicks.splice(source.index, 1);
+    newPicks.splice(destination.index, 0, moved);
+    setSavedPicks(newPicks);
   };
 
   const signIn = async () => {
@@ -1836,35 +1846,62 @@ export default function ToT() {
                 <div style={{ color: "#fff", fontWeight: 700, marginTop: 8 }}>No saved picks yet</div>
                 <div style={{ color: "#777", fontSize: 13, marginTop: 4 }}>Tap + Save on any pick to track it</div>
               </div>
-            ) : savedPicks.map(p => (
-              <div key={p.id} style={{ ...S.card, borderColor: p.result === "win" ? "rgba(0,255,135,0.2)" : p.result === "loss" ? "rgba(255,77,77,0.2)" : "#1a1a1a" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={S.cardMatchup}>{p.away_team} @ {p.home_team}</div>
-                    <div style={S.cardMeta}>Pick: <span style={{ color: "#00FF87" }}>{p.pick}</span> · {fmtOdds(p.odds)}</div>
-                    <div style={{ fontSize: 11, color: "#777", marginTop: 3 }}>
-                      {new Date(p.commence_time).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+            ) : (
+              <DragDropContext onDragEnd={handleDragEnd}>
+                <Droppable droppableId="tracker">
+                  {(provided) => (
+                    <div {...provided.droppableProps} ref={provided.innerRef}>
+                      {savedPicks.map((p, idx) => (
+                        <Draggable key={p.id} draggableId={String(p.id)} index={idx}>
+                          {(provided, snapshot) => (
+                            <div
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              style={{
+                                ...S.card,
+                                borderColor: snapshot.isDragging ? "#00FF87" : p.result === "win" ? "rgba(0,255,135,0.2)" : p.result === "loss" ? "rgba(255,77,77,0.2)" : "#1a1a1a",
+                                marginBottom: 8,
+                                ...provided.draggableProps.style,
+                              }}
+                            >
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                                <div style={{ display: "flex", alignItems: "flex-start", gap: 8, flex: 1 }}>
+                                  <div {...provided.dragHandleProps} style={{ color: "#444", fontSize: 16, paddingTop: 2, cursor: "grab", userSelect: "none" }}>⠿</div>
+                                  <div style={{ flex: 1 }}>
+                                    <div style={S.cardMatchup}>{p.away_team} @ {p.home_team}</div>
+                                    <div style={S.cardMeta}>Pick: <span style={{ color: "#00FF87" }}>{p.pick}</span> · {fmtOdds(p.odds)}</div>
+                                    <div style={{ fontSize: 11, color: "#777", marginTop: 3 }}>
+                                      {new Date(p.commence_time).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                  <span style={{
+                                    ...S.badge,
+                                    background: p.result === "win" ? "rgba(0,255,135,0.1)" : p.result === "loss" ? "rgba(255,77,77,0.1)" : p.result === "push" ? "rgba(255,214,0,0.1)" : "rgba(136,136,136,0.1)",
+                                    color: p.result === "win" ? "#00FF87" : p.result === "loss" ? "#FF4D4D" : p.result === "push" ? "#FFD600" : "#888",
+                                  }}>
+                                    {p.result === "push" ? "TIE" : p.result.toUpperCase()}
+                                  </span>
+                                  <button style={S.trashBtn} onClick={() => deleteSaved(p.id)}>🗑</button>
+                                </div>
+                              </div>
+                              {p.result === "pending" && (
+                                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                                  <button style={{ ...S.resultBtn, background: "rgba(0,255,135,0.1)", color: "#00FF87", borderColor: "#00FF87" }} onClick={() => markResult(p.id, "win")}>✓ Win</button>
+                                  <button style={{ ...S.resultBtn, background: "rgba(255,77,77,0.1)", color: "#FF4D4D", borderColor: "#FF4D4D" }} onClick={() => markResult(p.id, "loss")}>✗ Loss</button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </Draggable>
+                      ))}
+                      {provided.placeholder}
                     </div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{
-                      ...S.badge,
-                      background: p.result === "win" ? "rgba(0,255,135,0.1)" : p.result === "loss" ? "rgba(255,77,77,0.1)" : p.result === "push" ? "rgba(255,214,0,0.1)" : "rgba(136,136,136,0.1)",
-                      color: p.result === "win" ? "#00FF87" : p.result === "loss" ? "#FF4D4D" : p.result === "push" ? "#FFD600" : "#888",
-                    }}>
-                      {p.result === "push" ? "TIE" : p.result.toUpperCase()}
-                    </span>
-                    <button style={S.trashBtn} onClick={() => deleteSaved(p.id)}>🗑</button>
-                  </div>
-                </div>
-                {p.result === "pending" && (
-                  <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                    <button style={{ ...S.resultBtn, background: "rgba(0,255,135,0.1)", color: "#00FF87", borderColor: "#00FF87" }} onClick={() => markResult(p.id, "win")}>✓ Win</button>
-                    <button style={{ ...S.resultBtn, background: "rgba(255,77,77,0.1)", color: "#FF4D4D", borderColor: "#FF4D4D" }} onClick={() => markResult(p.id, "loss")}>✗ Loss</button>
-                  </div>
-                )}
-              </div>
-            ))}
+                  )}
+                </Droppable>
+              </DragDropContext>
+            )}
           </>
         )}
 
