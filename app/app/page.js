@@ -1459,11 +1459,11 @@ export default function ToT() {
                     <div style={S.expSection}>
                       <div style={S.expLabel}>RECENT FORM</div>
                       <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
-                        <span style={{ color: "#00FF87", fontWeight: 700, fontSize: 12, flexShrink: 0 }}>{pick.homeTeam} →</span>
+                        <span style={{ color: pick.pick === pick.homeTeam ? "#00FF87" : "#888", fontWeight: 700, fontSize: 12, flexShrink: 0 }}>{pick.homeTeam} →</span>
                         <span style={S.expText}>{b.form_home || "—"}</span>
                       </div>
                       <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-                        <span style={{ color: "#FF4D4D", fontWeight: 700, fontSize: 12, flexShrink: 0 }}>{pick.awayTeam} →</span>
+                        <span style={{ color: pick.pick === pick.awayTeam ? "#00FF87" : "#888", fontWeight: 700, fontSize: 12, flexShrink: 0 }}>{pick.awayTeam} →</span>
                         <span style={S.expText}>{b.form_away || "—"}</span>
                       </div>
                     </div>

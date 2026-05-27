@@ -170,13 +170,10 @@ function buildPick(game, mlb, breakdown, precomputedFilter) {
       : { level: "Low",    label: "👀 Lean",         emoji: "👀" }
     : { level: "Low", label: "👀 Lean", emoji: "👀" };
 
-  const tier = breakdown?.tier?.level
-    ? {
-        label: breakdown.tier.level === "High" ? "🔥 Value Pick" : breakdown.tier.level === "Medium" ? "✅ Solid Pick" : "👀 Lean",
-        level: breakdown.tier.level,
-        emoji: breakdown.tier.level === "High" ? "🔥" : breakdown.tier.level === "Medium" ? "✅" : "👀",
-      }
-    : verdictTier;
+  // Always use the filter-derived tier — Claude's breakdown tier is not constrained to
+  // match the filter's confidence/verdict, so using it here creates a contradiction
+  // between the tier badge and the CONFIDENCE/VARIANCE values shown in the filter panel.
+  const tier = verdictTier;
 
   const ipStr = (p) => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";
   const hp = mlb?.homePitcher;
