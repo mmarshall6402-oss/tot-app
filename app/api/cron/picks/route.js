@@ -93,7 +93,7 @@ Return ONLY a JSON array, no markdown. Each element:
   "what_to_sweat": "1 sentence — biggest risk to this pick losing, including MLB variance",
   "honest_lean": "1-2 sentences blunt take. Say if edge is thin noise or real signal. Remind that all MLB picks carry variance.",
   "score_range": "e.g. 5-3",
-  "tier": { "level": "High" }
+  "tier": { "level": "High or Medium or Low — use High for CLEAN verdict or very strong aligned signal, Medium for BET verdict or solid edge with 1-2 risk flags, Low for PASS/TRAP or thin/noisy edge" }
 }`;
 
   let res, data;
@@ -126,7 +126,12 @@ Return ONLY a JSON array, no markdown. Each element:
   const text = data.content?.[0]?.text || "[]";
   const clean = text.replace(/```json|```/g, "").trim();
   try {
-    return JSON.parse(clean);
+    const parsed = JSON.parse(clean);
+    if (!Array.isArray(parsed)) {
+      console.warn("[claude] response is not an array, using stub breakdowns");
+      return gameContexts.map(() => null);
+    }
+    return parsed;
   } catch {
     // Partial truncation: extract as many complete objects as possible from the array
     const partial = [];
