@@ -85,11 +85,12 @@ export default function AdminDash() {
   const [testEmail, setTE]      = useState("");
 
   // action state
-  const [regenS, setRegenS]     = useState(null);
-  const [resolveS, setResolveS] = useState(null);
-  const [createS, setCreateS]   = useState(null);
-  const [testS, setTestS]       = useState(null);
-  const [copied, setCopied]     = useState({});
+  const [regenS, setRegenS]       = useState(null);
+  const [resolveS, setResolveS]   = useState(null);
+  const [snapshotS, setSnapshotS] = useState(null);
+  const [createS, setCreateS]     = useState(null);
+  const [testS, setTestS]         = useState(null);
+  const [copied, setCopied]       = useState({});
 
   useEffect(() => {
     getSB().auth.getSession().then(async ({ data: { session } }) => {
@@ -208,6 +209,20 @@ export default function AdminDash() {
       load(token);
     } catch { setResolveS("err"); }
     setTimeout(() => setResolveS(null), 5000);
+  }
+
+  async function runSnapshot() {
+    setSnapshotS("loading");
+    try {
+      const r = await fetch("/api/admin/tracker", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: "runSnapshot" }),
+      });
+      const d = await r.json();
+      setSnapshotS(d.snapshotted != null ? `ok:Snapshotted ${d.snapshotted}/${d.total}` : "err");
+    } catch { setSnapshotS("err"); }
+    setTimeout(() => setSnapshotS(null), 8000);
   }
 
   async function createCode() {
@@ -754,8 +769,13 @@ export default function AdminDash() {
           <span style={S.lbl}>MANUAL ACTIONS</span>
           <div style={{ ...S.card, display: "flex", flexDirection: "column", gap: 8 }}>
             <div style={{ ...S.row }}>
-              <span style={{ fontSize: 12, color: "#777" }}>Resolve yesterday's picks vs MLB final scores</span>
+              <span style={{ fontSize: 12, color: "#777" }}>Resolve all pending picks (last 14 days) vs MLB scores</span>
               <button onClick={resolveYesterday} style={{ ...S.btn, flexShrink: 0, color: "#00FF87", border: "1px solid rgba(0,255,135,0.2)", background: "rgba(0,255,135,0.06)" }}>{resolveLabel}</button>
+            </div>
+            <div style={{ ...S.row }}>
+              <span style={{ fontSize: 12, color: "#777" }}>Capture closing odds for today's pending picks (CLV)</span>
+              <Btn onClick={runSnapshot} state={snapshotS} style={{ flexShrink: 0 }}
+                labels={{ loading: "⏳ Running…", ok: snapshotS?.startsWith("ok:") ? snapshotS.slice(3) : "✓ Done", err: "✗ Failed", default: "📸 Run Snapshot" }} />
             </div>
           </div>
 
@@ -763,10 +783,11 @@ export default function AdminDash() {
           <div style={S.card}>
             {[
               ["⚾ Picks + Breakdowns", "0 15 * * *",  "10:00 AM CT"],
-              ["🔍 Resolve Results",    "0 8 * * *",   "3:00 AM CT"],
+              ["🔍 Resolve Results",    "0 8 * * *",   "3:00 AM CT (sweeps last 14 days)"],
               ["✉️ Email Digest",       "30 15 * * *", "10:30 AM CT"],
               ["𝕏 Tweet Bot",          "15 15 * * *", "10:15 AM CT (disabled — X requires paid plan)"],
-              ["📸 CLV Snapshot",       "0 23 * * *",  "6:00 PM CT — captures closing odds"],
+              ["📸 CLV Snapshot (day)", "0 17 * * *",  "12:00 PM CT — day game closing odds"],
+              ["📸 CLV Snapshot (eve)", "0 23 * * *",  "6:00 PM CT — evening game closing odds"],
             ].map(([name, sched, ct]) => (
               <div key={name} style={{ ...S.row, padding: "9px 0", borderBottom: "1px solid #0d0d0d" }}>
                 <div>

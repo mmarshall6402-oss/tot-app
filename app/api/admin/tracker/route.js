@@ -217,5 +217,16 @@ export async function POST(request) {
     return Response.json({ resolved, total: pending.length, date: targetDate });
   }
 
+  // ── RUN SNAPSHOT: trigger the CLV snapshot cron manually ──
+  if (action === "runSnapshot") {
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ||
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+    const res = await fetch(`${baseUrl}/api/cron/snapshot`, {
+      headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+    });
+    const d = await res.json();
+    return Response.json(d, { status: res.ok ? 200 : 500 });
+  }
+
   return Response.json({ error: "Unknown action" }, { status: 400 });
 }

@@ -51,16 +51,20 @@ export async function GET(request) {
       return Response.json({ snapshotted: 0, message: "No pending picks for today", date: today });
     }
 
-    // Fetch current live odds — these are the pre-game closing line approximation
+    // Fetch current live odds — these are the pre-game closing line approximation.
+    // Retry up to 3 times with exponential backoff to handle transient API failures.
     let liveOdds = [];
-    try {
-      liveOdds = await fetchMLBOdds();
-    } catch (e) {
-      console.warn("[snapshot] odds fetch failed:", e.message);
+    for (let attempt = 0; attempt < 3 && !liveOdds.length; attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, 2000 * attempt));
+      try {
+        liveOdds = await fetchMLBOdds();
+      } catch (e) {
+        console.warn(`[snapshot] odds fetch attempt ${attempt + 1} failed:`, e.message);
+      }
     }
 
     if (!liveOdds.length) {
-      return Response.json({ snapshotted: 0, message: "No live odds available", date: today });
+      return Response.json({ snapshotted: 0, message: "No live odds available after 3 attempts", date: today });
     }
 
     let snapshotted = 0;
