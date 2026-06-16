@@ -871,7 +871,7 @@ export default function ToT() {
                   T<span style={{ color: "#00FF87" }}>|</span>T
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 17, color: "#fff", letterSpacing: -0.3 }}>ToT Picks</div>
+                  <div style={{ fontWeight: 700, fontSize: 17, color: "#fff", letterSpacing: -0.3 }}>T|T Picks</div>
                   <div style={{ fontSize: 12, color: "#777", marginTop: 2, fontFamily: "'JetBrains Mono',monospace" }}>thisthatpicks.com</div>
                 </div>
                 <button onClick={() => setShowInstallPrompt(false)} style={{ background: "#1a1a1a", border: "none", borderRadius: "50%", width: 28, height: 28, color: "#999", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>✕</button>
