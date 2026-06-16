@@ -1,6 +1,6 @@
 {
-  "name": "ToT Picks",
-  "short_name": "ToT",
+  "name": "T|T Picks",
+  "short_name": "T|T",
   "description": "MLB picks powered by edge analytics",
   "start_url": "/",
   "display": "standalone",
