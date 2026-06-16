@@ -851,7 +851,7 @@ export default function ToT() {
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: 17, color: "#fff", letterSpacing: -0.3 }}>ToT Picks</div>
-                  <div style={{ fontSize: 12, color: "#777", marginTop: 2, fontFamily: "'JetBrains Mono',monospace" }}>tot-app.vercel.app</div>
+                  <div style={{ fontSize: 12, color: "#777", marginTop: 2, fontFamily: "'JetBrains Mono',monospace" }}>thisthatpicks.com</div>
                 </div>
                 <button onClick={() => setShowInstallPrompt(false)} style={{ background: "#1a1a1a", border: "none", borderRadius: "50%", width: 28, height: 28, color: "#999", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>✕</button>
               </div>
@@ -1458,9 +1458,9 @@ export default function ToT() {
                       onClick={() => {
                         const odds = pick.pick === pick.homeTeam ? pick.homeOdds : pick.awayOdds;
                         const fmtO = o => o == null ? "" : o > 0 ? ` (+${o})` : ` (${o})`;
-                        const text = `${pick.awayTeam} @ ${pick.homeTeam}\nTake ${pick.pick}${fmtO(odds)} — ${pick.edge?.toFixed(1)}% edge\n\ntot-app.vercel.app | @ThisorThatPicks`;
+                        const text = `${pick.awayTeam} @ ${pick.homeTeam}\nTake ${pick.pick}${fmtO(odds)} — ${pick.edge?.toFixed(1)}% edge\n\nthisthatpicks.com | @ThisorThatPicks`;
                         if (navigator.share) {
-                          navigator.share({ text, url: "https://tot-app.vercel.app" }).catch(() => {});
+                          navigator.share({ text, url: "https://thisthatpicks.com" }).catch(() => {});
                         } else {
                           navigator.clipboard.writeText(text).then(() => alert("Copied to clipboard!")).catch(() => {});
                         }

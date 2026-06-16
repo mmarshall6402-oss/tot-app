@@ -1,19 +1,19 @@
 export default function sitemap() {
   return [
     {
-      url: "https://tot-app.vercel.app",
+      url: "https://thisthatpicks.com",
       lastModified: new Date(),
       changeFrequency: "daily",
       priority: 1,
     },
     {
-      url: "https://tot-app.vercel.app/privacy",
+      url: "https://thisthatpicks.com/privacy",
       lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.3,
     },
     {
-      url: "https://tot-app.vercel.app/terms",
+      url: "https://thisthatpicks.com/terms",
       lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.3,

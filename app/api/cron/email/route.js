@@ -9,7 +9,7 @@ const getSupabase = () => createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://tot-app.vercel.app";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://thisthatpicks.com";
 
 function shortName(team) {
   const map = {
@@ -117,7 +117,7 @@ function buildEmailHtml(pick, topPicks, yWins, yLosses, yesterday) {
     ${topPicks?.length ? buildTweetBlock(topPicks, yWins, yLosses, yesterday) : ""}
 
     <div style="text-align:center;font-size:11px;color:#222;line-height:1.8;">
-      <a href="${APP_URL}/landing" style="color:#222;text-decoration:none;">tot-app.vercel.app</a>
+      <a href="${APP_URL}/landing" style="color:#222;text-decoration:none;">thisthatpicks.com</a>
       &nbsp;·&nbsp;
       <a href="${APP_URL}/api/unsubscribe?email={{email}}&token={{token}}" style="color:#222;text-decoration:none;">Unsubscribe</a>
     </div>
