@@ -394,7 +394,7 @@ export default function ToT() {
         resolved.map(async p => {
           try {
             const date = p.commence_time?.split("T")[0] || "";
-            const params = new URLSearchParams({ gamePk: p.game_id, homeTeam: p.home_team, awayTeam: p.away_team, date });
+            const params = new URLSearchParams({ gamePk: p.game_id, homeTeam: p.home_team, awayTeam: p.away_team, date, pick: p.pick || "", result: p.result || "", edge: p.edge != null ? String(p.edge) : "", tier: p.tier || "" });
             const res = await fetch(`/api/tracker/game-recap?${params}`, { headers });
             const data = await res.json();
             return [p.game_id, data.error ? "error" : data];
@@ -1972,7 +1972,7 @@ export default function ToT() {
                                     {(!recap || recap === "loading") && <div style={{ fontSize: 12, color: "#444" }}>Loading game details...</div>}
                                     {recap === "error" && <div style={{ fontSize: 12, color: "#555" }}>Game details unavailable.</div>}
                                     {recap && recap !== "loading" && recap !== "error" && (
-                                      <div style={{ fontSize: 12, color: "#888", lineHeight: 1.7 }}>{buildParagraph(recap)}</div>
+                                      <div style={{ fontSize: 12, color: "#888", lineHeight: 1.7 }}>{recap.paragraph || "No recap available."}</div>
                                     )}
                                   </div>
                                 );

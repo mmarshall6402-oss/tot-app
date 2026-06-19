@@ -1,6 +1,8 @@
 import { requireAuth } from "../../../../lib/auth.js";
+import Anthropic from "@anthropic-ai/sdk";
 
 const MLB_API = "https://statsapi.mlb.com/api/v1";
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 async function getBoxscore(gamePk) {
   const [boxRes, lineRes] = await Promise.all([
@@ -49,7 +51,7 @@ function parseBoxscore(box, line) {
         rbi: p.stats?.batting?.rbi ?? 0,
         hr: p.stats?.batting?.homeRuns ?? 0,
       }))
-      .slice(0, 2);
+      .slice(0, 3);
   }
 
   return {
@@ -61,7 +63,6 @@ function parseBoxscore(box, line) {
   };
 }
 
-// Find MLB gamePk from schedule by matching team names + date
 async function findGamePk(homeTeam, awayTeam, date) {
   const res = await fetch(`${MLB_API}/schedule?sportId=1&hydrate=linescore&date=${date}`);
   const data = await res.json();
@@ -76,6 +77,47 @@ async function findGamePk(homeTeam, awayTeam, date) {
   return game?.gamePk ?? null;
 }
 
+async function generateParagraph(boxscore, pick, result, edge, tier) {
+  const { homeName, awayName, homeRuns, awayRuns, homeHits, awayHits, homeStarter, awayStarter, homeNotables, awayNotables } = boxscore;
+  const winner = homeRuns > awayRuns ? homeName : awayName;
+  const loser = winner === homeName ? awayName : homeName;
+  const wRuns = winner === homeName ? homeRuns : awayRuns;
+  const lRuns = winner === homeName ? awayRuns : homeRuns;
+  const wHits = winner === homeName ? homeHits : awayHits;
+  const wStarter = winner === homeName ? homeStarter : awayStarter;
+  const lStarter = winner === homeName ? awayStarter : homeStarter;
+  const wNotables = (winner === homeName ? homeNotables : awayNotables) || [];
+  const lNotables = (winner === homeName ? awayNotables : homeNotables) || [];
+  const edgeStr = edge ? `+${Number(edge).toFixed(1)}%` : null;
+
+  const context = [
+    `Game: ${awayName} @ ${homeName}`,
+    `Final score: ${winner} ${wRuns}, ${loser} ${lRuns}${wHits != null ? ` (${wHits} hits for the winners)` : ""}`,
+    wStarter ? `Winning starter: ${wStarter.name} — ${wStarter.ip} IP, ${wStarter.k} K, ${wStarter.er} ER` : null,
+    lStarter ? `Losing starter: ${lStarter.name} — ${lStarter.ip} IP, ${lStarter.k} K, ${lStarter.er} ER` : null,
+    wNotables.length ? `Notable winners: ${wNotables.map(n => `${n.name} (${n.h}H, ${n.rbi}RBI${n.hr ? `, ${n.hr}HR` : ""})`).join("; ")}` : null,
+    lNotables.length ? `Notable losers: ${lNotables.map(n => `${n.name} (${n.h}H, ${n.rbi}RBI${n.hr ? `, ${n.hr}HR` : ""})`).join("; ")}` : null,
+    `Model pick: ${pick}`,
+    edgeStr ? `Model edge: ${edgeStr}` : null,
+    tier ? `Tier: ${tier}` : null,
+    `Bet result: ${result}`,
+  ].filter(Boolean).join("\n");
+
+  const prompt = `You are a sharp sports betting analyst writing a post-game recap paragraph for a bettor. Given the game data and bet details below, write a single concise paragraph (3-4 sentences) explaining what happened and why the bet ${result === "win" ? "won" : "lost"}. Be direct, specific, and use the actual player/team names and stats. Don't start with "I" or use filler phrases like "In summary."
+
+${context}
+
+Write the paragraph now:`;
+
+  const msg = await anthropic.messages.create({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 256,
+    messages: [{ role: "user", content: prompt }],
+  });
+
+  return msg.content?.[0]?.text?.trim() || null;
+}
+
 export async function GET(request) {
   const { error: authError } = await requireAuth(request);
   if (authError) return authError;
@@ -85,21 +127,18 @@ export async function GET(request) {
   const homeTeam = searchParams.get("homeTeam");
   const awayTeam = searchParams.get("awayTeam");
   const date = searchParams.get("date");
+  const pick = searchParams.get("pick") || "";
+  const result = searchParams.get("result") || "";
+  const edge = searchParams.get("edge") || null;
+  const tier = searchParams.get("tier") || "";
 
   try {
     let pk = null;
 
-    // If gamePk looks like a real MLB integer ID, try it directly first
     if (gamePk && /^\d+$/.test(gamePk)) {
       pk = gamePk;
     }
 
-    // Fall back to schedule lookup by team names + date
-    if (!pk && homeTeam && awayTeam && date) {
-      pk = await findGamePk(homeTeam, awayTeam, date);
-    }
-
-    // If we still have a string gamePk (odds API ID), try schedule lookup
     if (!pk && homeTeam && awayTeam && date) {
       pk = await findGamePk(homeTeam, awayTeam, date);
     }
@@ -109,7 +148,10 @@ export async function GET(request) {
     const { box, line } = await getBoxscore(pk);
     if (!box?.teams) return Response.json({ error: "No boxscore data" }, { status: 404 });
 
-    return Response.json(parseBoxscore(box, line));
+    const boxscore = parseBoxscore(box, line);
+    const paragraph = await generateParagraph(boxscore, pick, result, edge, tier);
+
+    return Response.json({ ...boxscore, paragraph });
   } catch (e) {
     return Response.json({ error: "Failed to fetch game data" }, { status: 500 });
   }
