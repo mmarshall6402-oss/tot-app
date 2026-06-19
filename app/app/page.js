@@ -375,7 +375,15 @@ export default function ToT() {
       body: JSON.stringify({ userId: user.id }),
     }).catch(() => {});
     const { data } = await getSupabase().from("saved_picks").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
-    setSavedPicks(data || []);
+    const picks = data || [];
+    const gameIds = picks.map(p => p.game_id).filter(Boolean);
+    let modelData = {};
+    if (gameIds.length) {
+      const { data: mp } = await getSupabase().from("model_picks").select("game_id,home_score,away_score,edge").in("game_id", gameIds);
+      if (mp) mp.forEach(r => { modelData[r.game_id] = r; });
+    }
+    const merged = picks.map(p => ({ ...p, ...(modelData[p.game_id] || {}) }));
+    setSavedPicks(merged);
     setLoading(false);
   };
 
@@ -1892,13 +1900,27 @@ export default function ToT() {
                                   <button style={{ ...S.resultBtn, background: "rgba(255,77,77,0.1)", color: "#FF4D4D", borderColor: "#FF4D4D" }} onClick={() => markResult(p.id, "loss")}>✗ Loss</button>
                                 </div>
                               )}
-                              {p.result !== "pending" && (
-                                <div style={{ marginTop: 10, fontSize: 12, color: "#888", lineHeight: 1.6, borderTop: "1px solid #1a1a1a", paddingTop: 10 }}>
-                                  {p.result === "win" && `Your pick on the ${p.pick} came through — they won the game, exactly what the model called. ${p.tier === "CLEAN" ? "CLEAN-tier plays like this are the model's highest-conviction reads, where every condition in the AND-gate aligned." : p.tier === "BET" ? "BET-tier plays carry slightly more variance, but the edge was real and it showed up here." : "The edge held up and translated into a result."} This is what a positive expected-value bet looks like when it lands.`}
-                                  {p.result === "loss" && `Your pick on the ${p.pick} didn't land — they lost this one. The model identified a genuine edge going in, but edges aren't guarantees; even a 60% play loses 40% of the time. ${p.tier === "CLEAN" ? "CLEAN picks have the strongest historical hit rate, but variance exists in every sample." : p.tier === "BET" ? "BET-tier plays carry more variance than CLEAN, so losses like this are part of the expected distribution." : "One result doesn't change the model's long-run edge."} Track enough picks and the math works itself out.`}
-                                  {p.result === "push" && `This game was postponed, cancelled, or ended in a tie, so the pick didn't settle as a win or loss. Your stake is effectively returned — no damage done. The model had a read on this matchup but the game didn't give it a fair chance to play out.`}
-                                </div>
-                              )}
+                              {p.result !== "pending" && (() => {
+                                const hasScore = p.home_score != null && p.away_score != null;
+                                const scoreStr = hasScore ? `${p.away_team} ${p.away_score}, ${p.home_team} ${p.home_score}` : null;
+                                const actualWinner = hasScore ? (p.home_score > p.away_score ? p.home_team : p.away_team) : null;
+                                const edgeStr = p.edge != null ? `+${Number(p.edge).toFixed(1)}%` : null;
+                                let text = "";
+                                if (p.result === "push") {
+                                  text = `This game was postponed, cancelled, or ended in a tie, so the pick didn't settle. Your stake is effectively returned — no damage done.`;
+                                } else if (p.result === "win") {
+                                  text = `The model predicted the ${p.pick} to win${edgeStr ? ` with a ${edgeStr} edge` : ""}`;
+                                  if (scoreStr && actualWinner) text += `, and they did. Final score: ${scoreStr}. The prediction was correct — ${p.pick} came out on top exactly as called.`;
+                                  else text += `, and they delivered. The prediction was correct.`;
+                                  text += ` ${p.tier === "CLEAN" ? "CLEAN-tier plays have every condition in the AND-gate aligned, which is why they have the highest hit rate." : "BET-tier plays carry more variance, but the edge held up here."}`;
+                                } else {
+                                  text = `The model predicted the ${p.pick} to win${edgeStr ? ` with a ${edgeStr} edge` : ""}`;
+                                  if (scoreStr && actualWinner) text += `, but the ${actualWinner} won instead. Final score: ${scoreStr}. The prediction didn't hold up this time.`;
+                                  else text += `, but they lost this one. The prediction didn't hold up.`;
+                                  text += ` Edges aren't guarantees — even a strong read loses sometimes. One result doesn't change the model's long-run expectancy.`;
+                                }
+                                return <div style={{ marginTop: 10, fontSize: 12, color: "#888", lineHeight: 1.6, borderTop: "1px solid #1a1a1a", paddingTop: 10 }}>{text}</div>;
+                              })()}
                             </div>
                           )}
                         </Draggable>
