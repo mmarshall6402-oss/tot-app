@@ -125,6 +125,10 @@ export default function ToT() {
   const [picks, setPicks] = useState(null);
   const [savedPicks, setSavedPicks] = useState([]);
   const [gameRecaps, setGameRecaps] = useState({});
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatEndRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("picks");
   const [sortBy, setSortBy] = useState("edge");
@@ -969,6 +973,7 @@ export default function ToT() {
               { id: "parlay", icon: "🎲", label: "Parlay" },
               { id: "tracker", icon: "📊", label: "Tracker" },
               { id: "record", icon: "📅", label: "Record" },
+              { id: "chat", icon: "💬", label: "Assistant" },
             ].map(({ id, icon, label }) => (
               <div key={id} style={{ ...S.drawerItem, color: activeTab === id ? "#00FF87" : "#fff" }} onClick={() => { setActiveTab(id); setDrawerOpen(false); }}>
                 {icon} {label}
@@ -1085,6 +1090,7 @@ export default function ToT() {
             { id: "parlay", label: "🎲 Parlay" },
             { id: "tracker", label: "Tracker" },
             { id: "record", label: "📅 Record" },
+            { id: "chat", label: "💬 Ask AI" },
           ].map(({ id, label }) => (
             <button
               key={id}
@@ -2095,6 +2101,89 @@ export default function ToT() {
                     {label}
                   </div>
                 ))}
+              </div>
+            </div>
+          );
+        })()}
+
+        {activeTab === "chat" && (() => {
+          const sendChat = async (text) => {
+            if (!text?.trim() || chatLoading) return;
+            const userMsg = { role: "user", content: text.trim() };
+            const newMessages = [...chatMessages, userMsg];
+            setChatMessages(newMessages);
+            setChatInput("");
+            setChatLoading(true);
+            try {
+              const headers = await getAuthHeaders();
+              const picksContext = picks?.filter(p => p.isBet) || [];
+              const apiMessages = newMessages.map(m => ({ role: m.role, content: m.content }));
+              const res = await fetch("/api/chat", {
+                method: "POST",
+                headers: { ...headers, "Content-Type": "application/json" },
+                body: JSON.stringify({ messages: apiMessages, picksContext }),
+              });
+              const data = await res.json();
+              setChatMessages(prev => [...prev, { role: "assistant", content: data.reply || "Sorry, something went wrong." }]);
+            } catch {
+              setChatMessages(prev => [...prev, { role: "assistant", content: "Failed to connect. Try again." }]);
+            } finally {
+              setChatLoading(false);
+              setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+            }
+          };
+
+          const suggestions = ["What are today's best bets?", "Any value underdogs?", "Biggest pitcher mismatches?", "Build me a 3-leg parlay"];
+
+          return (
+            <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 220px)", minHeight: 400 }}>
+              {/* Messages */}
+              <div style={{ flex: 1, overflowY: "auto", padding: "8px 0" }}>
+                {chatMessages.length === 0 && (
+                  <div style={{ padding: "24px 0 16px" }}>
+                    <div style={{ fontSize: 13, color: "#555", marginBottom: 14, textAlign: "center" }}>Ask me about today's games</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      {suggestions.map(s => (
+                        <button key={s} onClick={() => sendChat(s)}
+                          style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 20, padding: "7px 13px", color: "#888", fontSize: 12, cursor: "pointer" }}>
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {chatMessages.map((m, i) => (
+                  <div key={i} style={{ marginBottom: 12, display: "flex", flexDirection: "column", alignItems: m.role === "user" ? "flex-end" : "flex-start" }}>
+                    <div style={{
+                      maxWidth: "85%", padding: "10px 14px", borderRadius: m.role === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+                      background: m.role === "user" ? "rgba(0,255,135,0.12)" : "#0d0d0d",
+                      border: `1px solid ${m.role === "user" ? "rgba(0,255,135,0.2)" : "#1a1a1a"}`,
+                      fontSize: 13, color: m.role === "user" ? "#e0e0e0" : "#ccc", lineHeight: 1.6, whiteSpace: "pre-wrap",
+                    }}>
+                      {m.content}
+                    </div>
+                  </div>
+                ))}
+                {chatLoading && (
+                  <div style={{ display: "flex", gap: 4, padding: "8px 4px" }}>
+                    {[0,1,2].map(i => <div key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: "#333", animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite` }} />)}
+                  </div>
+                )}
+                <div ref={chatEndRef} />
+              </div>
+              {/* Input */}
+              <div style={{ display: "flex", gap: 8, paddingTop: 10, borderTop: "1px solid #111" }}>
+                <input
+                  value={chatInput}
+                  onChange={e => setChatInput(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), sendChat(chatInput))}
+                  placeholder="Ask about today's games..."
+                  style={{ flex: 1, background: "#0a0a0a", border: "1px solid #1a1a1a", borderRadius: 20, padding: "10px 16px", color: "#fff", fontSize: 13, outline: "none" }}
+                />
+                <button onClick={() => sendChat(chatInput)} disabled={chatLoading || !chatInput.trim()}
+                  style={{ background: chatInput.trim() ? "#00FF87" : "#1a1a1a", border: "none", borderRadius: 20, padding: "10px 18px", color: chatInput.trim() ? "#000" : "#444", fontSize: 13, fontWeight: 700, cursor: chatInput.trim() ? "pointer" : "default", transition: "all 0.15s" }}>
+                  Send
+                </button>
               </div>
             </div>
           );
