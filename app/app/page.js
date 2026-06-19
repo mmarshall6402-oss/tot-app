@@ -124,6 +124,7 @@ export default function ToT() {
   const [authError, setAuthError] = useState("");
   const [picks, setPicks] = useState(null);
   const [savedPicks, setSavedPicks] = useState([]);
+  const [gameRecaps, setGameRecaps] = useState({});
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("picks");
   const [sortBy, setSortBy] = useState("edge");
@@ -1901,25 +1902,80 @@ export default function ToT() {
                                 </div>
                               )}
                               {p.result !== "pending" && (() => {
-                                const hasScore = p.home_score != null && p.away_score != null;
-                                const scoreStr = hasScore ? `${p.away_team} ${p.away_score}, ${p.home_team} ${p.home_score}` : null;
-                                const actualWinner = hasScore ? (p.home_score > p.away_score ? p.home_team : p.away_team) : null;
+                                const recap = gameRecaps[p.game_id];
                                 const edgeStr = p.edge != null ? `+${Number(p.edge).toFixed(1)}%` : null;
-                                let text = "";
+
+                                const fetchRecap = async () => {
+                                  if (recap) return;
+                                  setGameRecaps(r => ({ ...r, [p.game_id]: "loading" }));
+                                  try {
+                                    const headers = await getAuthHeaders();
+                                    const res = await fetch(`/api/tracker/game-recap?gamePk=${p.game_id}`, { headers });
+                                    const data = await res.json();
+                                    setGameRecaps(r => ({ ...r, [p.game_id]: data.error ? "error" : data }));
+                                  } catch {
+                                    setGameRecaps(r => ({ ...r, [p.game_id]: "error" }));
+                                  }
+                                };
+
+                                const buildParagraph = (d) => {
+                                  const winner = d.homeRuns > d.awayRuns ? d.homeName : d.awayName;
+                                  const loser  = winner === d.homeName ? d.awayName : d.homeName;
+                                  const wRuns  = winner === d.homeName ? d.homeRuns : d.awayRuns;
+                                  const lRuns  = winner === d.homeName ? d.awayRuns : d.homeRuns;
+                                  const wHits  = winner === d.homeName ? d.homeHits : d.awayHits;
+                                  const wStarter = winner === d.homeName ? d.homeStarter : d.awayStarter;
+                                  const lStarter = winner === d.homeName ? d.awayStarter : d.homeStarter;
+                                  const wNotables = (winner === d.homeName ? d.homeNotables : d.awayNotables) || [];
+                                  const correct = p.result === "win";
+
+                                  let s = `The model had the ${p.pick}${edgeStr ? ` at ${edgeStr} edge` : ""} — `;
+                                  s += correct
+                                    ? `and they delivered. `
+                                    : `but it didn't pan out. `;
+                                  s += `${winner} beat ${loser} ${wRuns}–${lRuns}`;
+                                  if (wHits != null) s += ` on ${wHits} hits`;
+                                  s += `. `;
+
+                                  if (wStarter) {
+                                    s += `${wStarter.name} started for the winners, going ${wStarter.ip} innings with ${wStarter.k} strikeouts and ${wStarter.er} earned run${wStarter.er !== 1 ? "s" : ""}. `;
+                                  }
+                                  if (lStarter) {
+                                    s += `${lStarter.name} started for ${loser}, allowing ${lStarter.er} run${lStarter.er !== 1 ? "s" : ""} in ${lStarter.ip} innings. `;
+                                  }
+                                  if (wNotables.length) {
+                                    const notes = wNotables.map(n => {
+                                      let parts = [`${n.h} hit${n.h !== 1 ? "s" : ""}`];
+                                      if (n.rbi) parts.push(`${n.rbi} RBI`);
+                                      if (n.hr) parts.push(`${n.hr} HR`);
+                                      return `${n.name.split(" ").pop()} (${parts.join(", ")})`;
+                                    });
+                                    s += `Offensively, ${notes.join(" and ")} led the way for ${winner}.`;
+                                  }
+                                  return s;
+                                };
+
                                 if (p.result === "push") {
-                                  text = `This game was postponed, cancelled, or ended in a tie, so the pick didn't settle. Your stake is effectively returned — no damage done.`;
-                                } else if (p.result === "win") {
-                                  text = `The model predicted the ${p.pick} to win${edgeStr ? ` with a ${edgeStr} edge` : ""}`;
-                                  if (scoreStr && actualWinner) text += `, and they did. Final score: ${scoreStr}. The prediction was correct — ${p.pick} came out on top exactly as called.`;
-                                  else text += `, and they delivered. The prediction was correct.`;
-                                  text += ` ${p.tier === "CLEAN" ? "CLEAN-tier plays have every condition in the AND-gate aligned, which is why they have the highest hit rate." : "BET-tier plays carry more variance, but the edge held up here."}`;
-                                } else {
-                                  text = `The model predicted the ${p.pick} to win${edgeStr ? ` with a ${edgeStr} edge` : ""}`;
-                                  if (scoreStr && actualWinner) text += `, but the ${actualWinner} won instead. Final score: ${scoreStr}. The prediction didn't hold up this time.`;
-                                  else text += `, but they lost this one. The prediction didn't hold up.`;
-                                  text += ` Edges aren't guarantees — even a strong read loses sometimes. One result doesn't change the model's long-run expectancy.`;
+                                  return <div style={{ marginTop: 10, fontSize: 12, color: "#888", lineHeight: 1.6, borderTop: "1px solid #1a1a1a", paddingTop: 10 }}>This game was postponed, cancelled, or ended in a tie — the pick didn't settle and your stake is returned.</div>;
                                 }
-                                return <div style={{ marginTop: 10, fontSize: 12, color: "#888", lineHeight: 1.6, borderTop: "1px solid #1a1a1a", paddingTop: 10 }}>{text}</div>;
+
+                                return (
+                                  <div style={{ marginTop: 10, borderTop: "1px solid #1a1a1a", paddingTop: 10 }}>
+                                    {!recap && (
+                                      <button
+                                        onClick={fetchRecap}
+                                        style={{ fontSize: 11, color: "#555", background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}
+                                      >
+                                        See what happened
+                                      </button>
+                                    )}
+                                    {recap === "loading" && <div style={{ fontSize: 12, color: "#555" }}>Loading game details...</div>}
+                                    {recap === "error" && <div style={{ fontSize: 12, color: "#555" }}>Game details unavailable.</div>}
+                                    {recap && recap !== "loading" && recap !== "error" && (
+                                      <div style={{ fontSize: 12, color: "#888", lineHeight: 1.7 }}>{buildParagraph(recap)}</div>
+                                    )}
+                                  </div>
+                                );
                               })()}
                             </div>
                           )}
