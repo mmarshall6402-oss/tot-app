@@ -385,6 +385,25 @@ export default function ToT() {
     }
     const merged = picks.map(p => ({ ...p, ...(modelData[p.game_id] || {}) }));
     setSavedPicks(merged);
+
+    // Auto-fetch recaps for all resolved picks
+    const resolved = merged.filter(p => p.result !== "pending" && p.result !== "push" && p.game_id);
+    if (resolved.length) {
+      const headers = await getAuthHeaders();
+      const recapEntries = await Promise.all(
+        resolved.map(async p => {
+          try {
+            const res = await fetch(`/api/tracker/game-recap?gamePk=${p.game_id}`, { headers });
+            const data = await res.json();
+            return [p.game_id, data.error ? "error" : data];
+          } catch {
+            return [p.game_id, "error"];
+          }
+        })
+      );
+      setGameRecaps(Object.fromEntries(recapEntries));
+    }
+
     setLoading(false);
   };
 
@@ -1905,19 +1924,6 @@ export default function ToT() {
                                 const recap = gameRecaps[p.game_id];
                                 const edgeStr = p.edge != null ? `+${Number(p.edge).toFixed(1)}%` : null;
 
-                                const fetchRecap = async () => {
-                                  if (recap) return;
-                                  setGameRecaps(r => ({ ...r, [p.game_id]: "loading" }));
-                                  try {
-                                    const headers = await getAuthHeaders();
-                                    const res = await fetch(`/api/tracker/game-recap?gamePk=${p.game_id}`, { headers });
-                                    const data = await res.json();
-                                    setGameRecaps(r => ({ ...r, [p.game_id]: data.error ? "error" : data }));
-                                  } catch {
-                                    setGameRecaps(r => ({ ...r, [p.game_id]: "error" }));
-                                  }
-                                };
-
                                 const buildParagraph = (d) => {
                                   const winner = d.homeRuns > d.awayRuns ? d.homeName : d.awayName;
                                   const loser  = winner === d.homeName ? d.awayName : d.homeName;
@@ -1961,15 +1967,7 @@ export default function ToT() {
 
                                 return (
                                   <div style={{ marginTop: 10, borderTop: "1px solid #1a1a1a", paddingTop: 10 }}>
-                                    {!recap && (
-                                      <button
-                                        onClick={fetchRecap}
-                                        style={{ fontSize: 11, color: "#555", background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}
-                                      >
-                                        See what happened
-                                      </button>
-                                    )}
-                                    {recap === "loading" && <div style={{ fontSize: 12, color: "#555" }}>Loading game details...</div>}
+                                    {(!recap || recap === "loading") && <div style={{ fontSize: 12, color: "#444" }}>Loading game details...</div>}
                                     {recap === "error" && <div style={{ fontSize: 12, color: "#555" }}>Game details unavailable.</div>}
                                     {recap && recap !== "loading" && recap !== "error" && (
                                       <div style={{ fontSize: 12, color: "#888", lineHeight: 1.7 }}>{buildParagraph(recap)}</div>
