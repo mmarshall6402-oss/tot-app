@@ -393,7 +393,9 @@ export default function ToT() {
       const recapEntries = await Promise.all(
         resolved.map(async p => {
           try {
-            const res = await fetch(`/api/tracker/game-recap?gamePk=${p.game_id}`, { headers });
+            const date = p.commence_time?.split("T")[0] || "";
+            const params = new URLSearchParams({ gamePk: p.game_id, homeTeam: p.home_team, awayTeam: p.away_team, date });
+            const res = await fetch(`/api/tracker/game-recap?${params}`, { headers });
             const data = await res.json();
             return [p.game_id, data.error ? "error" : data];
           } catch {
