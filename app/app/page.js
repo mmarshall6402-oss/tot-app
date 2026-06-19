@@ -1892,6 +1892,13 @@ export default function ToT() {
                                   <button style={{ ...S.resultBtn, background: "rgba(255,77,77,0.1)", color: "#FF4D4D", borderColor: "#FF4D4D" }} onClick={() => markResult(p.id, "loss")}>✗ Loss</button>
                                 </div>
                               )}
+                              {p.result !== "pending" && (
+                                <div style={{ marginTop: 10, fontSize: 12, color: "#888", lineHeight: 1.6, borderTop: "1px solid #1a1a1a", paddingTop: 10 }}>
+                                  {p.result === "win" && `Your pick on the ${p.pick} came through — they won the game, exactly what the model called. ${p.tier === "CLEAN" ? "CLEAN-tier plays like this are the model's highest-conviction reads, where every condition in the AND-gate aligned." : p.tier === "BET" ? "BET-tier plays carry slightly more variance, but the edge was real and it showed up here." : "The edge held up and translated into a result."} This is what a positive expected-value bet looks like when it lands.`}
+                                  {p.result === "loss" && `Your pick on the ${p.pick} didn't land — they lost this one. The model identified a genuine edge going in, but edges aren't guarantees; even a 60% play loses 40% of the time. ${p.tier === "CLEAN" ? "CLEAN picks have the strongest historical hit rate, but variance exists in every sample." : p.tier === "BET" ? "BET-tier plays carry more variance than CLEAN, so losses like this are part of the expected distribution." : "One result doesn't change the model's long-run edge."} Track enough picks and the math works itself out.`}
+                                  {p.result === "push" && `This game was postponed, cancelled, or ended in a tie, so the pick didn't settle as a win or loss. Your stake is effectively returned — no damage done. The model had a read on this matchup but the game didn't give it a fair chance to play out.`}
+                                </div>
+                              )}
                             </div>
                           )}
                         </Draggable>
