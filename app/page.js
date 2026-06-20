@@ -166,6 +166,7 @@ export default function ToT() {
   const [upgradeModal, setUpgradeModal] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [activatingPro, setActivatingPro] = useState(false);
+  const [nflSubTab, setNflSubTab] = useState("picks");
 
   // Auth state — use the shared singleton so getAuthHeaders() shares the same session.
   useEffect(() => {
@@ -982,11 +983,10 @@ export default function ToT() {
               { id: "record", icon: "📅", label: "Record" },
               { id: "chat", icon: "💬", label: "Assistant" },
               ...(isBeta ? [
-                { id: "nfl", icon: "🏈", label: "NFL" },
-                { id: "props", icon: "🎯", label: "Props" },
+                { id: "nfl", icon: "🏈", label: "NFL", beta: true },
               ] : []),
-            ].map(({ id, icon, label }) => (
-              <div key={id} style={{ ...S.drawerItem, color: activeTab === id ? "#00FF87" : "#fff" }} onClick={() => { setActiveTab(id); setDrawerOpen(false); }}>
+            ].map(({ id, icon, label, beta }) => (
+              <div key={id} style={{ ...S.drawerItem, color: activeTab === id ? (beta ? "#FF6B35" : "#00FF87") : "#fff" }} onClick={() => { setActiveTab(id); setDrawerOpen(false); }}>
                 {icon} {label}
               </div>
             ))}
@@ -1015,16 +1015,23 @@ export default function ToT() {
         </button>
         <div style={S.navLogo}>T<span style={{ color: "#00FF87" }}>|</span>T</div>
         {isBeta ? (
-          <div style={{ display: "flex", gap: 5 }}>
+          <div style={{ display: "flex", gap: 4, background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 14, padding: 3 }}>
             {[
-              { sport: "mlb", label: "MLB", tab: "picks" },
-              { sport: "nfl", label: "NFL", tab: "nfl" },
-              { sport: "props", label: "Props", tab: "props" },
-            ].map(({ sport, label, tab }) => {
+              { sport: "mlb", icon: "⚾", label: "MLB", tab: "picks", color: "#00FF87" },
+              { sport: "nfl", icon: "🏈", label: "NFL", tab: "nfl",   color: "#FF6B35" },
+            ].map(({ sport, icon, label, tab, color }) => {
               const active = activeTab === tab || (sport === "mlb" && ["picks","steals","parlay","tracker","record","chat"].includes(activeTab));
               return (
                 <button key={sport} onClick={() => setActiveTab(tab)}
-                  style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, letterSpacing: 0.5, border: "none", cursor: "pointer", background: active ? "#00FF87" : "#1a1a1a", color: active ? "#000" : "#555", transition: "background 0.15s,color 0.15s" }}>
+                  style={{
+                    display: "flex", alignItems: "center", gap: 5,
+                    fontSize: 11, fontWeight: 700, padding: "5px 12px", borderRadius: 10,
+                    border: "none", cursor: "pointer", letterSpacing: 0.3,
+                    background: active ? (sport === "mlb" ? "rgba(0,255,135,0.12)" : "rgba(255,107,53,0.12)") : "transparent",
+                    color: active ? color : "#444",
+                    transition: "all 0.15s",
+                  }}>
+                  <span style={{ fontSize: 14 }}>{icon}</span>
                   {label}
                 </button>
               );
@@ -1120,10 +1127,6 @@ export default function ToT() {
             { id: "tracker", label: "Tracker" },
             { id: "record", label: "📅 Record" },
             { id: "chat", label: "💬 Ask AI" },
-            ...(isBeta ? [
-              { id: "nfl", label: "🏈 NFL" },
-              { id: "props", label: "🎯 Props" },
-            ] : []),
           ].map(({ id, label }) => (
             <button
               key={id}
@@ -2301,18 +2304,186 @@ export default function ToT() {
       )}
 
       {activeTab === "nfl" && isBeta && (
-        <div style={{ padding: "32px 20px", textAlign: "center", color: "#555" }}>
-          <div style={{ fontSize: 28, marginBottom: 12 }}>🏈</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#fff", marginBottom: 6 }}>NFL — Coming Soon</div>
-          <div style={{ fontSize: 13, lineHeight: 1.6 }}>NFL picks are under development. Check back here during beta testing.</div>
-        </div>
-      )}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
 
-      {activeTab === "props" && isBeta && (
-        <div style={{ padding: "32px 20px", textAlign: "center", color: "#555" }}>
-          <div style={{ fontSize: 28, marginBottom: 12 }}>🎯</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#fff", marginBottom: 6 }}>Player Props — Coming Soon</div>
-          <div style={{ fontSize: 13, lineHeight: 1.6 }}>Player prop picks are under development. Check back here during beta testing.</div>
+          {/* NFL sub-nav */}
+          <div style={{ display: "flex", gap: 6, padding: "10px 20px", borderBottom: "1px solid #1a1a1a", overflowX: "auto" }}>
+            {[
+              { id: "picks",   label: "🏈 Picks" },
+              { id: "props",   label: "🎯 Props" },
+              { id: "fantasy", label: "⚡ Fantasy" },
+              { id: "record",  label: "📅 Record" },
+            ].map(({ id, label }) => (
+              <button key={id}
+                style={{
+                  flexShrink: 0, padding: "6px 16px", borderRadius: 20, fontSize: 12, fontWeight: 600,
+                  background: nflSubTab === id ? "rgba(255,107,53,0.1)" : "#111",
+                  border: `1px solid ${nflSubTab === id ? "#FF6B35" : "#333"}`,
+                  color: nflSubTab === id ? "#FF6B35" : "#999",
+                  letterSpacing: 0.3,
+                }}
+                onClick={() => setNflSubTab(id)}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ flex: 1, padding: "20px 20px 40px", display: "flex", flexDirection: "column", gap: 12 }}>
+
+            {/* Header badge */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.2)", borderRadius: 30, padding: "4px 12px" }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#FF6B35", display: "inline-block", animation: "pulse 1.5s ease-in-out infinite" }} />
+                <span style={{ fontSize: 10, color: "#FF6B35", fontWeight: 700, letterSpacing: 1.5 }}>BETA · 2026 NFL SEASON</span>
+              </div>
+            </div>
+
+            {nflSubTab === "picks" && (
+              <>
+                <div style={{ background: "#080808", border: "1px solid rgba(255,107,53,0.2)", borderRadius: 16, padding: "20px 18px" }}>
+                  <div style={{ fontSize: 10, color: "#FF6B35", fontWeight: 700, letterSpacing: 2, marginBottom: 10 }}>WHAT'S COMING</div>
+                  <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 18, fontWeight: 700, marginBottom: 8, lineHeight: 1.2 }}>
+                    Sharp NFL game picks.<br/>
+                    <span style={{ color: "#FF6B35" }}>Every week.</span>
+                  </div>
+                  <div style={{ fontSize: 13, color: "#666", lineHeight: 1.65, marginBottom: 16 }}>
+                    The same 7-factor weighted model powering MLB picks — rebuilt for football with DVOA, EPA, injury grades, weather, O-line ratings, and closing line movement.
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {[
+                      { label: "Spread picks",    icon: "📐", body: "ATS model edge vs vig-removed market probability" },
+                      { label: "Moneyline",        icon: "💰", body: "Straight-up winner with Kelly sizing" },
+                      { label: "Totals (O/U)",     icon: "📊", body: "Weather-adjusted over/under with pace context" },
+                      { label: "Confidence tiers", icon: "⚡", body: "CLEAN / BET / PASS — same verdict system as MLB" },
+                    ].map(({ label, icon, body }) => (
+                      <div key={label} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "10px 12px", background: "#0d0d0d", borderRadius: 10, border: "1px solid #1a1a1a" }}>
+                        <span style={{ fontSize: 18, flexShrink: 0 }}>{icon}</span>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "#ddd", marginBottom: 2 }}>{label}</div>
+                          <div style={{ fontSize: 12, color: "#555", lineHeight: 1.5 }}>{body}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Mock pick card preview */}
+                <div style={{ fontSize: 10, color: "#333", fontWeight: 700, letterSpacing: 1.5, marginTop: 4 }}>PREVIEW — MOCK DATA</div>
+                {[
+                  { away: "Chiefs", home: "Ravens", verdict: "CLEAN", pick: "Chiefs", spread: "-3.5", edge: "+4.1%" },
+                  { away: "49ers",  home: "Eagles", verdict: "BET",   pick: "Eagles", spread: "+2",   edge: "+2.8%" },
+                ].map((p, i) => (
+                  <div key={i} style={{ background: "#0d0d0d", border: `1px solid ${p.verdict === "CLEAN" ? "rgba(255,107,53,0.35)" : "rgba(255,107,53,0.15)"}`, borderRadius: 14, padding: 16, opacity: 0.7, position: "relative", overflow: "hidden" }}>
+                    <div style={{ position: "absolute", top: 8, right: 10, fontSize: 9, color: "#333", fontWeight: 700, letterSpacing: 1 }}>MOCK</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, background: "rgba(255,107,53,0.12)", color: "#FF6B35", border: "1px solid rgba(255,107,53,0.3)" }}>
+                        {p.verdict === "CLEAN" ? "⚡ CLEAN" : "BET"}
+                      </span>
+                      <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: "#555" }}>{p.edge} edge</span>
+                    </div>
+                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 14, fontWeight: 700 }}>{p.away} @ {p.home}</div>
+                    <div style={{ fontSize: 12, color: "#777", marginTop: 4 }}>
+                      Take <span style={{ color: "#FF6B35", fontWeight: 700 }}>{p.pick}</span>
+                      <span style={{ fontFamily: "'JetBrains Mono',monospace" }}> {p.spread}</span>
+                    </div>
+                    <div style={{ marginTop: 8, height: 3, background: "#111", borderRadius: 2 }}>
+                      <div style={{ height: "100%", width: p.verdict === "CLEAN" ? "72%" : "48%", background: "#FF6B35", borderRadius: 2, opacity: 0.6 }} />
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+
+            {nflSubTab === "props" && (
+              <div style={{ background: "#080808", border: "1px solid rgba(255,107,53,0.2)", borderRadius: 16, padding: "20px 18px" }}>
+                <div style={{ fontSize: 10, color: "#FF6B35", fontWeight: 700, letterSpacing: 2, marginBottom: 10 }}>PLAYER PROPS</div>
+                <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 18, fontWeight: 700, marginBottom: 8, lineHeight: 1.2 }}>
+                  Every prop.<br/><span style={{ color: "#FF6B35" }}>Every position.</span>
+                </div>
+                <div style={{ fontSize: 13, color: "#666", lineHeight: 1.65, marginBottom: 16 }}>
+                  Model-driven prop picks across all skill positions — target share, snap count trends, matchup grades, and weather-adjusted passing volume.
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  {[
+                    { icon: "🏈", label: "Passing", subs: "Yards · TDs · INTs · Completions" },
+                    { icon: "🏃", label: "Rushing",  subs: "Yards · Attempts · TDs" },
+                    { icon: "🙌", label: "Receiving", subs: "Yards · Receptions · TDs" },
+                    { icon: "🎯", label: "Anytime TD", subs: "Yes/No by position" },
+                  ].map(({ icon, label, subs }) => (
+                    <div key={label} style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 12, padding: "14px 12px" }}>
+                      <div style={{ fontSize: 20, marginBottom: 6 }}>{icon}</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#ddd", marginBottom: 3 }}>{label}</div>
+                      <div style={{ fontSize: 11, color: "#555", lineHeight: 1.5 }}>{subs}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {nflSubTab === "fantasy" && (
+              <>
+                <div style={{ background: "#080808", border: "1px solid rgba(255,107,53,0.2)", borderRadius: 16, padding: "20px 18px" }}>
+                  <div style={{ fontSize: 10, color: "#FF6B35", fontWeight: 700, letterSpacing: 2, marginBottom: 10 }}>FANTASY SUITE</div>
+                  <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 18, fontWeight: 700, marginBottom: 8, lineHeight: 1.2 }}>
+                    Win your league<br/><span style={{ color: "#FF6B35" }}>every week.</span>
+                  </div>
+                  <div style={{ fontSize: 13, color: "#666", lineHeight: 1.65, marginBottom: 16 }}>
+                    FantasyPros consensus rankings + matchup data + Claude analysis. PPR, half-PPR, and standard — you pick your format.
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {[
+                      { label: "Starts / Sits",      icon: "✅", body: "Curated weekly list + compare any two players head-to-head" },
+                      { label: "Waiver wire",          icon: "📋", body: "Best free agent adds ranked by projected points and opportunity" },
+                      { label: "Streaming picks",      icon: "🌊", body: "Best DST, QB, and K to stream based on matchup grade" },
+                      { label: "Trade analyzer",       icon: "🔄", body: "I give X, I get Y — who wins? Plus full roster grade" },
+                    ].map(({ label, icon, body }) => (
+                      <div key={label} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "10px 12px", background: "#0d0d0d", borderRadius: 10, border: "1px solid #1a1a1a" }}>
+                        <span style={{ fontSize: 18, flexShrink: 0 }}>{icon}</span>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "#ddd", marginBottom: 2 }}>{label}</div>
+                          <div style={{ fontSize: 12, color: "#555", lineHeight: 1.5 }}>{body}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Scoring format selector preview */}
+                <div style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 14, padding: "16px 16px" }}>
+                  <div style={{ fontSize: 11, color: "#999", marginBottom: 10, letterSpacing: 0.5 }}>SCORING FORMAT · will adjust all recommendations</div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {["PPR", "Half-PPR", "Standard"].map((fmt, i) => (
+                      <div key={fmt} style={{ flex: 1, padding: "10px 8px", borderRadius: 10, border: `1px solid ${i === 0 ? "#FF6B35" : "#1a1a1a"}`, background: i === 0 ? "rgba(255,107,53,0.08)" : "#111", textAlign: "center" }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: i === 0 ? "#FF6B35" : "#444" }}>{fmt}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: 11, color: "#333", marginTop: 10, textAlign: "center" }}>Format selector will be interactive at launch</div>
+                </div>
+              </>
+            )}
+
+            {nflSubTab === "record" && (
+              <div style={{ background: "#080808", border: "1px solid rgba(255,107,53,0.2)", borderRadius: 16, padding: "20px 18px" }}>
+                <div style={{ fontSize: 10, color: "#FF6B35", fontWeight: 700, letterSpacing: 2, marginBottom: 10 }}>NFL RECORD</div>
+                <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 18, fontWeight: 700, marginBottom: 8, lineHeight: 1.2 }}>
+                  ATS record tracked<br/><span style={{ color: "#FF6B35" }}>week by week.</span>
+                </div>
+                <div style={{ fontSize: 13, color: "#555", lineHeight: 1.65 }}>
+                  Same W-L calendar as MLB — ATS record, month-by-month breakdown, and unit P&L will populate once the 2026 season kicks off.
+                </div>
+                <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                  {["W-L Record", "ATS %", "Units"].map(label => (
+                    <div key={label} style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 10, padding: "14px 10px", textAlign: "center" }}>
+                      <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 18, fontWeight: 700, color: "#222" }}>—</div>
+                      <div style={{ fontSize: 10, color: "#333", marginTop: 4, letterSpacing: 1 }}>{label.toUpperCase()}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+          </div>
         </div>
       )}
 
