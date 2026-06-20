@@ -1,27 +1,42 @@
-# tot-app
+<div align="center">
 
-A production MLB betting picks platform featuring a statistical prediction model, AI-generated analysis, Stripe subscriptions, and fully automated daily operations.
+# T|T
 
-**Live:** [tot-app.vercel.app](https://tot-app.vercel.app)
+**MLB betting picks powered by a statistical model + AI analysis**
+
+[![Live](https://img.shields.io/badge/live-tot--app.vercel.app-00FF87?style=flat-square&logo=vercel&logoColor=black)](https://tot-app.vercel.app)
+[![Next.js](https://img.shields.io/badge/Next.js-App_Router-black?style=flat-square&logo=next.js)](https://nextjs.org)
+[![Supabase](https://img.shields.io/badge/Supabase-Database_%26_Auth-3ECF8E?style=flat-square&logo=supabase&logoColor=white)](https://supabase.com)
+[![Stripe](https://img.shields.io/badge/Stripe-Payments-635BFF?style=flat-square&logo=stripe&logoColor=white)](https://stripe.com)
+
+</div>
+
+---
+
+## What it does
+
+Every morning the model wakes up, pulls live MLB odds and pitcher data, finds the sharpest edges, and publishes a daily card — complete with AI-written breakdowns, confidence scores, and a public W-L record. Paid subscribers get full access; friends and family get in with an invite code.
 
 ---
 
 ## Features
 
-- **Daily picks** — statistical model generates MLB picks each morning with confidence scores and edge ratings
-- **AI breakdowns** — Claude writes a narrative analysis for each pick covering matchup context, pitching, and bullpen
-- **Stripe paywall** — full subscription flow with checkout, webhooks, and account management
-- **Access codes** — invite friends and family with code-based free access
-- **Twitter/X bot** — top 3 picks posted automatically at 10:15 AM CT daily
-- **Email delivery** — daily pick digest sent to free subscribers via Resend
-- **Record tracking** — W-L record with monthly calendar view and model performance analytics
-- **Admin panel** — manage picks, post tweets manually, view analytics, and monitor model accuracy
+| | |
+|---|---|
+| **Daily picks** | Statistical model runs each morning, scores every game, flags edges |
+| **AI breakdowns** | Claude writes a narrative for each pick — matchup context, pitching, bullpen |
+| **Record tracking** | Running W-L with monthly calendar and model accuracy analytics |
+| **Stripe paywall** | Full subscription flow — checkout, webhooks, account management |
+| **Access codes** | Invite-only free access validated server-side |
+| **X / Twitter bot** | Top 3 picks auto-posted at 10:15 AM CT |
+| **Email digest** | Daily pick card sent to free subscribers via Resend |
+| **Admin panel** | Manage picks, post manually, view analytics, monitor model |
 
 ---
 
-## Tech Stack
+## Tech stack
 
-| Layer | Technology |
+| Layer | Tech |
 |---|---|
 | Framework | Next.js (App Router) |
 | Database & Auth | Supabase |
@@ -37,112 +52,107 @@ A production MLB betting picks platform featuring a statistical prediction model
 
 ### Pick pipeline
 
-Picks are generated once daily by a Vercel cron job at 3 PM UTC (10 AM CT):
+A Vercel cron fires daily at 3 PM UTC (10 AM CT):
 
-1. Fetches live MLB odds and starting pitcher data
-2. Runs the statistical model to score each game
-3. Calls Claude to generate a breakdown for qualifying picks
-4. Writes results to the `picks_cache` table in Supabase
-5. Sends the daily email digest and posts to Twitter
+1. Fetch live MLB odds + starting pitcher data
+2. Run the statistical model — score every game
+3. Call Claude to generate breakdowns for qualifying picks
+4. Write to `picks_cache` in Supabase
+5. Send email digest + post to X
 
-The `/api/picks` route serves from cache on every request and overlays live scores in real time.
+`/api/picks` serves from cache and overlays live scores on every request.
 
 ### Subscription flow
 
-Stripe handles all billing. On `checkout.session.completed`, the webhook writes to the `subscriptions` table in Supabase keyed by `user_id`. Access codes bypass the paywall entirely and are validated server-side at redemption.
+Stripe handles all billing. On `checkout.session.completed` the webhook writes to the `subscriptions` table keyed by `user_id`. Access codes skip the paywall entirely and are redeemed server-side.
 
 ---
 
-## Prediction Model
+## Prediction model
 
-The model produces a win probability for each team and compares it against the vig-removed market implied probability to find an edge.
+The model estimates a win probability for each team and measures it against the vig-removed market implied probability to surface an edge.
 
-### Probability factors
+### Factors
 
-Seven independent signals are combined into a single home-win probability. No single factor dominates — the largest weight is 22%.
+Seven independent signals combine into a single home-win probability. No single signal dominates — the largest weight is 22%.
 
-| Factor | Weight | Source |
+| Factor | Weight | Notes |
 |---|---|---|
-| Lineup quality vs pitcher handedness | 22% | Team OPS splits + Baseball Savant wOBA |
-| Starting pitcher quality | 20% | xFIP > K-BB% > ERA; hard-hit% when available |
-| Bullpen quality | 20% | 14-day rolling ERA/WHIP/K9; fatigue penalty applied |
-| Season standings | 15% | Win percentage |
-| Recent form | 13% | 10-game OPS (70%) blended with 7-day OPS (30%) |
-| Park factor | 10% | Per-ballpark run environment and HR skew |
-| Elo rating | 5% | Updated from historical game logs; capped to prevent overriding live data |
+| Lineup quality vs pitcher handedness | **22%** | Team OPS splits + Baseball Savant wOBA |
+| Starting pitcher quality | **20%** | xFIP › K-BB% › ERA; hard-hit% when available |
+| Bullpen quality | **20%** | 14-day rolling ERA/WHIP/K9; fatigue penalty |
+| Season standings | **15%** | Win percentage |
+| Recent form | **13%** | 10-game OPS (70%) blended with 7-day OPS (30%) |
+| Park factor | **10%** | Per-ballpark run environment and HR skew |
+| Elo rating | **5%** | Historical logs; capped to avoid overriding live data |
 
-**Pitcher scoring** uses xFIP over ERA where available (xFIP strips out park effects and BABIP luck). All stats are stabilized by sample size — a starter with 10 IP gets regressed heavily toward the league average. Recent starts (last 5) are blended in at 60% weight when a meaningful sample exists.
+**Pitcher scoring** prefers xFIP (strips park effects and BABIP luck) over ERA. Low-sample starters are regressed toward league average. Recent starts (last 5) blend in at 60% weight.
 
-**Bullpen scoring** weights rolling 14-day ERA most heavily. A fatigue flag triggers when a bullpen's 3-day ERA exceeds its 14-day baseline by 1.5+ points, indicating key relievers are overworked.
+**Bullpen scoring** weights rolling 14-day ERA most heavily. A fatigue flag fires when a bullpen's 3-day ERA exceeds its 14-day baseline by 1.5+ runs.
 
-### Edge calculation
+### Edge formula
 
 ```
-Market edge = model win probability − vig-removed implied probability
-True edge   = raw edge − variance penalty − sample penalty − lineup penalty
+market edge = model probability − vig-removed implied probability
+true edge   = raw edge − variance penalty − sample penalty − lineup penalty
 ```
 
-Edge is then shrunk by a factor based on variance (`LOW` → 78%, `MED` → 62%, `HIGH` → 45%) to reflect that liquid MLB markets price in most public information.
+Edge is then shrunk based on variance confidence: `LOW → 78%`, `MED → 62%`, `HIGH → 45%`.
 
-### Verdict system
-
-Every pick earns one of four verdicts:
+### Verdicts
 
 | Verdict | Meaning |
 |---|---|
-| **CLEAN** | Passes every AND-gate condition — full confidence |
-| **BET** | Minor failures only (e.g. lineup not yet posted) — still actionable |
-| **PASS** | Insufficient edge or confidence — no bet |
-| **TRAP** | Negative edge — model favors the other side |
+| `CLEAN` | Passes every AND-gate condition — full confidence |
+| `BET` | Minor failures only (e.g. lineup not yet posted) — still actionable |
+| `PASS` | Insufficient edge or confidence |
+| `TRAP` | Negative edge — model favors the other side |
 
-The AND-gate is strict. Automatic exclusions include: Coors Field (park model cannot compensate), pick-side SP with fewer than 12 IP (ERA is noise at that sample), juice above −300, and closing line movement that contradicts the model.
+**Auto-exclusions:** Coors Field, pick-side SP under 12 IP, juice above −300, closing line movement against the model.
 
-A **HALF SIZE** flag is applied to CLEAN picks where the pick-side bullpen ERA exceeds 5.00 or recent bullpen fatigue is detected — the pick is still valid but late-game reliability is reduced.
+**HALF SIZE** flag applies to CLEAN picks where the pick-side bullpen ERA exceeds 5.00 or fatigue is detected.
 
-### Confidence score
-
-Each pick receives a confidence score from 0–10 built from additive bonuses and deductions (low variance, meaningful SP sample, bullpen strength, lineup advantage, closing line confirmation, etc.). A minimum of 6.5/10 is required for any actionable verdict.
+**Minimum confidence:** 6.5 / 10 required for any actionable verdict.
 
 ---
 
-## Project Structure
+## Project structure
 
 ```
 app/
-├── page.js              # Homepage (merged landing for logged-out users)
-├── app/page.js          # Main picks view
-├── admin/page.js        # Admin dashboard
+├── page.js           # Main picks view (landing for logged-out users)
+├── admin/page.js     # Admin dashboard
 ├── api/
-│   ├── picks/           # Picks serving route
-│   ├── cron/picks/      # Daily cron job
-│   ├── stripe/webhook/  # Stripe event handler
-│   └── redeem-code/     # Access code redemption
-lib/                     # Shared utilities and Supabase client
-data/                    # Static data files (team mappings, historical logs)
+│   ├── picks/        # Picks serving route
+│   ├── cron/picks/   # Daily cron job
+│   ├── stripe/       # Stripe webhook handler
+│   └── redeem-code/  # Access code redemption
+lib/                  # Shared utilities and Supabase client
+data/                 # Team mappings, historical logs
 ```
 
 ---
 
-## Local Development
+## Local development
 
 ```bash
 npm install
 npm run dev
 ```
 
-Pull environment variables from Vercel:
+Pull env vars from Vercel:
 
 ```bash
 vercel env pull
 ```
 
-### Required environment variables
+### Environment variables
 
 | Variable | Description |
 |---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-side only) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service role key (server-side only) |
 | `STRIPE_SECRET_KEY` | Stripe secret key |
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Stripe publishable key |
@@ -155,4 +165,4 @@ vercel env pull
 
 ## Deployment
 
-Deployed on Vercel. The cron job is configured in `vercel.json` and runs daily at 3 PM UTC. All environment variables are managed through the Vercel dashboard.
+Deployed on Vercel. Cron is configured in `vercel.json` and runs daily at 3 PM UTC. All env vars live in the Vercel dashboard.
