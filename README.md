@@ -166,3 +166,21 @@ vercel env pull
 ## Deployment
 
 Deployed on Vercel. Cron is configured in `vercel.json` and runs daily at 3 PM UTC. All env vars live in the Vercel dashboard.
+
+---
+
+## Design decisions
+
+**Publish-once, serve-many.** Running the model and calling Claude on every page load would be slow, expensive, and hit rate limits. The cron job runs once at 10 AM CT, does all the heavy lifting (odds fetch → model → Claude), writes the result to Supabase `picks_cache`, and every user request just reads from cache.
+
+**Supabase for auth + database in one.** One SDK handles user accounts, picks storage, subscriptions, and access codes. JWT verification in `lib/auth.js` is done locally without calling `supabase.auth.getUser()` on each request — deliberate choice to avoid a network roundtrip per API call.
+
+**In-memory subscription cache.** `lib/auth.js` keeps a 60-second in-process map of `userId → isPro`. On Vercel's Fluid Compute, warm instances get reused so this actually cuts real DB hits. The 60-second TTL means a cancellation takes effect within a minute.
+
+**Hand-weighted model, not ML.** Seven factors, explicit percentage weights, no training data. Built this way for explainability — you can read the weights, change them, and understand exactly why a pick scored the way it did. A black-box model would require labeled historical data and produce verdicts that can't be audited.
+
+**Claude as post-processing, not the decision maker.** The model produces the verdict first. Claude only runs on picks that already passed the AND-gate, and it writes the breakdown — it doesn't pick the winner. The cron prompt explicitly instructs it not to lead with pitcher ERA and to flag small samples, because unconstrained it would produce confident-sounding analysis on thin data.
+
+**Stripe webhook writes directly to Supabase.** More upfront work than a third-party subscription layer, but the data and schema stay owned. No platform lock-in, no extra monthly cost.
+
+**Merged landing + app in one route.** Logged-out users see a teaser, logged-in users see picks — same file, same route, no redirect bounce. Keeps the entry point simple and reduces friction for cold traffic.
