@@ -1,6 +1,7 @@
 "use client";
 export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef } from "react";
+import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { createClient } from "@supabase/supabase-js";
 
 // Single shared instance — sign-out and auth listeners must share the same client
@@ -123,6 +124,11 @@ export default function ToT() {
   const [authError, setAuthError] = useState("");
   const [picks, setPicks] = useState(null);
   const [savedPicks, setSavedPicks] = useState([]);
+  const [gameRecaps, setGameRecaps] = useState({});
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatEndRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("picks");
   const [sortBy, setSortBy] = useState("edge");
@@ -132,7 +138,7 @@ export default function ToT() {
   const [freePick, setFreePick] = useState(null);
   const [carouselIdx, setCarouselIdx] = useState(0);
   const weekDates = getWeekDates();
-  const todayStr = weekDates[7]; // index 7 = today (7 days back + 0 offset)
+  const todayStr = weekDates[7];
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const dateScrollRef = useRef(null);
   const todayBtnRef = useRef(null);
@@ -158,6 +164,7 @@ export default function ToT() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [upgradeModal, setUpgradeModal] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [activatingPro, setActivatingPro] = useState(false);
 
   // Auth state — use the shared singleton so getAuthHeaders() shares the same session.
   useEffect(() => {
@@ -167,8 +174,11 @@ export default function ToT() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // After 6 PM local time today's games are done — default to tomorrow's picks.
+  // Must be useEffect (not useState initializer) to avoid SSR/client hydration mismatch.
   useEffect(() => {
     if (new Date().getHours() >= 18) setSelectedDate(d => d === weekDates[7] ? weekDates[8] : d);
+    // Restore cached pro status client-side only (localStorage not available during SSR)
     try {
       const c = localStorage.getItem("tot-pro");
       if (c) { const { v, e } = JSON.parse(c); if (Date.now() < e) setIsPro(v); }
@@ -199,30 +209,35 @@ export default function ToT() {
     if (!user) return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("checkout") !== "success") return;
-    window.history.replaceState({}, "", "/");
+    window.history.replaceState({}, "", "/app");
+    setActivatingPro(true);
     let attempts = 0;
     const poll = setInterval(async () => {
       attempts++;
       const { data } = await getSupabase().from("subscriptions").select("status").eq("user_id", user.id).single();
       if (["active", "trialing"].includes(data?.status)) {
         setIsPro(true);
+        setActivatingPro(false);
         try { localStorage.setItem("tot-pro", JSON.stringify({ v: true, e: Date.now() + 5 * 60 * 1000 })); } catch {}
         clearInterval(poll);
       }
-      if (attempts >= 6) clearInterval(poll);
+      if (attempts >= 6) { setActivatingPro(false); clearInterval(poll); }
     }, 2000);
     return () => clearInterval(poll);
   }, [user?.id]);
 
   // Load free pick, global model record, start carousel
   useEffect(() => {
-    fetch("/api/free-pick").then(r => r.json()).then(d => setFreePick(d.pick || null)).catch(() => {});
+    fetch("/api/free-pick").then(r => r.json()).then(d => {
+      setFreePick(d.pick || null);
+      if (d.quietDay) setFreePick({ _quietDay: true });
+    }).catch(() => {});
     fetch("/api/model-record").then(r => r.json()).then(d => setModelRecord(d)).catch(() => {});
     const t = setInterval(() => setCarouselIdx(i => i + 1), 3000);
     return () => clearInterval(t);
   }, []);
 
-  // Scroll date strip to show Today button on load
+  // Scroll date strip to Today on load
   useEffect(() => {
     if (todayBtnRef.current && dateScrollRef.current) {
       const strip = dateScrollRef.current;
@@ -365,14 +380,44 @@ export default function ToT() {
       body: JSON.stringify({ userId: user.id }),
     }).catch(() => {});
     const { data } = await getSupabase().from("saved_picks").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
-    setSavedPicks(data || []);
+    const picks = data || [];
+    const gameIds = picks.map(p => p.game_id).filter(Boolean);
+    let modelData = {};
+    if (gameIds.length) {
+      const { data: mp } = await getSupabase().from("model_picks").select("game_id,home_score,away_score,edge").in("game_id", gameIds);
+      if (mp) mp.forEach(r => { modelData[r.game_id] = r; });
+    }
+    const merged = picks.map(p => ({ ...p, ...(modelData[p.game_id] || {}) }));
+    setSavedPicks(merged);
+
+    // Auto-fetch recaps for all resolved picks
+    const resolved = merged.filter(p => p.result !== "pending" && p.result !== "push" && p.game_id);
+    if (resolved.length) {
+      const headers = await getAuthHeaders();
+      const recapEntries = await Promise.all(
+        resolved.map(async p => {
+          try {
+            const date = p.commence_time?.split("T")[0] || "";
+            const params = new URLSearchParams({ gamePk: p.game_id, homeTeam: p.home_team, awayTeam: p.away_team, date, pick: p.pick || "", result: p.result || "", edge: p.edge != null ? String(p.edge) : "", tier: p.tier || "" });
+            const res = await fetch(`/api/tracker/game-recap?${params}`, { headers });
+            const data = await res.json();
+            return [p.game_id, data.error ? "error" : data];
+          } catch {
+            return [p.game_id, "error"];
+          }
+        })
+      );
+      setGameRecaps(Object.fromEntries(recapEntries));
+    }
+
     setLoading(false);
   };
 
   const savePick = async (pick) => {
     if (saving[pick.id] === "saved") return;
+    if (savedPicks.some(p => p.game_id === pick.id)) return;
     setSaving(s => ({ ...s, [pick.id]: "saving" }));
-    await getSupabase().from("saved_picks").insert({
+    await getSupabase().from("saved_picks").upsert({
       user_id: user.id,
       game_id: pick.id,
       home_team: pick.homeTeam,
@@ -382,7 +427,7 @@ export default function ToT() {
       tier: pick.tier?.level,
       commence_time: pick.commenceTime,
       result: "pending",
-    });
+    }, { onConflict: "user_id,game_id" });
     setSaving(s => ({ ...s, [pick.id]: "saved" }));
   };
 
@@ -394,6 +439,15 @@ export default function ToT() {
   const markResult = async (id, result) => {
     await getSupabase().from("saved_picks").update({ result }).eq("id", id);
     setSavedPicks(p => p.map(x => x.id === id ? { ...x, result } : x));
+  };
+
+  const handleDragEnd = (result) => {
+    const { source, destination } = result;
+    if (!destination) return;
+    const newPicks = Array.from(savedPicks);
+    const [moved] = newPicks.splice(source.index, 1);
+    newPicks.splice(destination.index, 0, moved);
+    setSavedPicks(newPicks);
   };
 
   const signIn = async () => {
@@ -823,9 +877,10 @@ export default function ToT() {
   );
 
   if (isPro === null) return (
-    <div style={{ minHeight: "100vh", background: "#000", display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <div style={{ minHeight: "100vh", background: "#000", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12 }}>
       <style>{css}</style>
       <div style={S.spinner} />
+      {activatingPro && <div style={{ color: "#00FF87", fontSize: 13, fontWeight: 600 }}>Activating your account…</div>}
     </div>
   );
 
@@ -918,6 +973,7 @@ export default function ToT() {
               { id: "parlay", icon: "🎲", label: "Parlay" },
               { id: "tracker", icon: "📊", label: "Tracker" },
               { id: "record", icon: "📅", label: "Record" },
+              { id: "chat", icon: "💬", label: "Assistant" },
             ].map(({ id, icon, label }) => (
               <div key={id} style={{ ...S.drawerItem, color: activeTab === id ? "#00FF87" : "#fff" }} onClick={() => { setActiveTab(id); setDrawerOpen(false); }}>
                 {icon} {label}
@@ -947,7 +1003,7 @@ export default function ToT() {
           {[0, 1, 2].map(i => <div key={i} style={S.menuLine} />)}
         </button>
         <div style={S.navLogo}>T<span style={{ color: "#00FF87" }}>|</span>T</div>
-        <div style={S.navBadge}>MLB</div>
+        <div style={S.navBadge}>MLB ✓</div>
       </div>
 
       {/* Carousel — cycles between free pick, model record, and promo */}
@@ -1034,6 +1090,7 @@ export default function ToT() {
             { id: "parlay", label: "🎲 Parlay" },
             { id: "tracker", label: "Tracker" },
             { id: "record", label: "📅 Record" },
+            { id: "chat", label: "💬 Ask AI" },
           ].map(({ id, label }) => (
             <button
               key={id}
@@ -1087,43 +1144,81 @@ export default function ToT() {
           </div>
         )}
 
-        {activeTab === "picks" && picks?.length > 0 && (
-          <div style={{ display: "flex", gap: 12, padding: "6px 0", borderBottom: "1px solid #0d0d0d", marginBottom: 4 }}>
-            <span style={{ fontSize: 11, color: "#777" }}>{picks.length} games</span>
-            <span style={{ fontSize: 11, color: "#00FF87" }}>{picks.filter(p => p.isBet).length} BET</span>
-            <span style={{ fontSize: 11, color: "#888" }}>{picks.filter(p => !p.isBet).length} PASS</span>
-            {picks.filter(p => p.filter?.verdict === "CLEAN").length > 0 && (
-              <span style={{ fontSize: 11, color: "#00FF87", fontWeight: 700 }}>⚡ {picks.filter(p => p.filter?.verdict === "CLEAN").length} CLEAN</span>
-            )}
-          </div>
-        )}
+        {activeTab === "picks" && picks?.length > 0 && (() => {
+          const nBet   = picks.filter(p => p.isBet).length;
+          const nClean = picks.filter(p => p.filter?.verdict === "CLEAN").length;
+          const nPass  = picks.filter(p => !p.isBet).length;
+          const quietDay = isPro && nBet === 0 && picks.filter(p => p.filter != null).length > 0;
+          return (
+            <>
+              <div style={{ display: "flex", gap: 12, padding: "6px 0", borderBottom: "1px solid #0d0d0d", marginBottom: 4 }}>
+                <span style={{ fontSize: 11, color: "#777" }}>{picks.filter(p => p.filter != null).length} games</span>
+                {nBet > 0 && <span style={{ fontSize: 11, color: "#00FF87" }}>{nBet} BET</span>}
+                {nClean > 0 && <span style={{ fontSize: 11, color: "#00FF87", fontWeight: 700 }}>⚡ {nClean} CLEAN</span>}
+                <span style={{ fontSize: 11, color: "#555" }}>{nPass} PASS</span>
+              </div>
+              {quietDay && (
+                <div style={{ background: "rgba(255,214,0,0.04)", border: "1px solid rgba(255,214,0,0.12)", borderRadius: 10, padding: "10px 14px", marginBottom: 10, display: "flex", gap: 10, alignItems: "flex-start" }}>
+                  <span style={{ fontSize: 16 }}>😴</span>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "#FFD600" }}>Quiet day — no bets pass the filter</div>
+                    <div style={{ fontSize: 11, color: "#555", marginTop: 3 }}>All games are PASS or TRAP. Best picks shown below as leans only. Skipping is the correct play.</div>
+                  </div>
+                </div>
+              )}
+            </>
+          );
+        })()}
 
         {activeTab === "picks" && !isPro && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {freePick ? (
-              <div style={{ ...S.card, borderColor: "rgba(0,255,135,0.25)" }}>
-                <div style={{ fontSize: 10, color: "#00FF87", fontWeight: 700, letterSpacing: 1.5, marginBottom: 8 }}>TODAY'S FREE PICK</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                  {freePick.filter?.verdict === "CLEAN" ? (
-                    <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, background: "rgba(0,255,135,0.15)", color: "#00FF87", border: "1px solid rgba(0,255,135,0.3)" }}>⚡ CLEAN</span>
-                  ) : freePick.isBet ? (
-                    <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, background: "rgba(0,255,135,0.08)", color: "#00FF87", border: "1px solid rgba(0,255,135,0.2)" }}>BET</span>
-                  ) : null}
-                  {freePick.edge != null && <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: "#555" }}>+{freePick.edge.toFixed(1)}% edge</span>}
+            {freePick && !freePick._quietDay ? (() => {
+              const isEdge = freePick.filter?.verdict === "CLEAN" || freePick.isBet;
+              const isLean = !isEdge;
+              const pickOdds = freePick.pick === freePick.homeTeam ? freePick.homeOdds : freePick.awayOdds;
+              const accentColor = isEdge ? "#00FF87" : "#FFD600";
+              const borderColor = isEdge ? "rgba(0,255,135,0.25)" : "rgba(255,214,0,0.18)";
+              return (
+                <div style={{ ...S.card, borderColor }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                    <div style={{ fontSize: 10, color: accentColor, fontWeight: 700, letterSpacing: 1.5 }}>
+                      {isEdge ? "TODAY'S FREE PICK" : "TODAY'S LEAN"}
+                    </div>
+                    {isEdge ? (
+                      freePick.filter?.verdict === "CLEAN"
+                        ? <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 9px", borderRadius: 5, letterSpacing: 1.5, background: "rgba(0,255,135,0.15)", color: "#00FF87", border: "1px solid rgba(0,255,135,0.3)" }}>⚡ CLEAN</span>
+                        : <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 9px", borderRadius: 5, letterSpacing: 1.5, background: "rgba(0,255,135,0.08)", color: "#00FF87", border: "1px solid rgba(0,255,135,0.2)" }}>BET</span>
+                    ) : (
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 9px", borderRadius: 5, background: "rgba(255,214,0,0.08)", color: "#FFD600", border: "1px solid rgba(255,214,0,0.2)" }}>👀 LEAN</span>
+                    )}
+                  </div>
+                  <div style={S.cardMatchup}>{freePick.awayTeam} @ {freePick.homeTeam}</div>
+                  <div style={S.cardMeta}>
+                    {fmtGameTime(freePick.commenceTime)} · Take{" "}
+                    <span style={{ color: accentColor, fontWeight: 700 }}>{freePick.pick}</span>
+                    {pickOdds != null && <span style={{ fontFamily: "'JetBrains Mono',monospace" }}>{" "}{fmtOdds(pickOdds)}</span>}
+                    {isEdge && freePick.edge > 0 && <span style={{ color: "#555", fontFamily: "'JetBrains Mono',monospace" }}>{" "}+{freePick.edge?.toFixed(1)}% edge</span>}
+                  </div>
+                  {isLean && (
+                    <div style={{ fontSize: 10, color: "#555", marginTop: 6, lineHeight: 1.5 }}>
+                      No sharp edge today — model's highest-conviction lean. Not a bet, just a direction.
+                    </div>
+                  )}
+                  {freePick.breakdown?.preview && <div style={{ ...S.preview, marginTop: 6 }}>{freePick.breakdown.preview.slice(0, 100)}…</div>}
                 </div>
-                <div style={S.cardMatchup}>{freePick.awayTeam} @ {freePick.homeTeam}</div>
-                <div style={S.cardMeta}>
-                  {fmtGameTime(freePick.commenceTime)} · Take{" "}
-                  <span style={{ color: "#00FF87", fontWeight: 700 }}>{freePick.pick}</span>
-                  {freePick.homeOdds != null && <span style={{ fontFamily: "'JetBrains Mono',monospace" }}>{" "}{fmtOdds(freePick.pick === freePick.homeTeam ? freePick.homeOdds : freePick.awayOdds)}</span>}
+              );
+            })() : freePick?._quietDay ? (
+              <div style={{ ...S.card, textAlign: "center", padding: "28px 16px", borderColor: "#1a1a1a" }}>
+                <div style={{ fontSize: 24, marginBottom: 8 }}>😴</div>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>Quiet day</div>
+                <div style={{ fontSize: 13, color: "#555", marginTop: 5, lineHeight: 1.5 }}>
+                  No games worth highlighting today.<br/>The model doesn't force picks — zero bets is correct.
                 </div>
-                {freePick.breakdown?.preview && <div style={S.preview}>{freePick.breakdown.preview}</div>}
               </div>
             ) : (
-              <div style={{ ...S.card, textAlign: "center", padding: "32px 16px" }}>
+              <div style={{ ...S.card, textAlign: "center", padding: "28px 16px" }}>
                 <div style={{ fontSize: 22, marginBottom: 8 }}>⚾</div>
-                <div style={{ fontWeight: 700 }}>No free pick today</div>
-                <div style={{ fontSize: 13, color: "#777", marginTop: 4 }}>Check back tomorrow morning</div>
+                <div style={{ fontWeight: 700 }}>Loading today's pick…</div>
               </div>
             )}
             {[
@@ -1787,35 +1882,117 @@ export default function ToT() {
                 <div style={{ color: "#fff", fontWeight: 700, marginTop: 8 }}>No saved picks yet</div>
                 <div style={{ color: "#777", fontSize: 13, marginTop: 4 }}>Tap + Save on any pick to track it</div>
               </div>
-            ) : savedPicks.map(p => (
-              <div key={p.id} style={{ ...S.card, borderColor: p.result === "win" ? "rgba(0,255,135,0.2)" : p.result === "loss" ? "rgba(255,77,77,0.2)" : "#1a1a1a" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={S.cardMatchup}>{p.away_team} @ {p.home_team}</div>
-                    <div style={S.cardMeta}>Pick: <span style={{ color: "#00FF87" }}>{p.pick}</span> · {fmtOdds(p.odds)}</div>
-                    <div style={{ fontSize: 11, color: "#777", marginTop: 3 }}>
-                      {new Date(p.commence_time).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+            ) : (
+              <DragDropContext onDragEnd={handleDragEnd}>
+                <Droppable droppableId="tracker">
+                  {(provided) => (
+                    <div {...provided.droppableProps} ref={provided.innerRef}>
+                      {savedPicks.map((p, idx) => (
+                        <Draggable key={p.id} draggableId={String(p.id)} index={idx}>
+                          {(provided, snapshot) => (
+                            <div
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              style={{
+                                ...S.card,
+                                borderColor: snapshot.isDragging ? "#00FF87" : p.result === "win" ? "rgba(0,255,135,0.2)" : p.result === "loss" ? "rgba(255,77,77,0.2)" : "#1a1a1a",
+                                marginBottom: 8,
+                                ...provided.draggableProps.style,
+                              }}
+                            >
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                                <div style={{ display: "flex", alignItems: "flex-start", gap: 8, flex: 1 }}>
+                                  <div {...provided.dragHandleProps} style={{ color: "#444", fontSize: 16, paddingTop: 2, cursor: "grab", userSelect: "none" }}>⠿</div>
+                                  <div style={{ flex: 1 }}>
+                                    <div style={S.cardMatchup}>{p.away_team} @ {p.home_team}</div>
+                                    <div style={S.cardMeta}>Pick: <span style={{ color: "#00FF87" }}>{p.pick}</span> · {fmtOdds(p.odds)}</div>
+                                    <div style={{ fontSize: 11, color: "#777", marginTop: 3 }}>
+                                      {new Date(p.commence_time).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                  <span style={{
+                                    ...S.badge,
+                                    background: p.result === "win" ? "rgba(0,255,135,0.1)" : p.result === "loss" ? "rgba(255,77,77,0.1)" : p.result === "push" ? "rgba(255,214,0,0.1)" : "rgba(136,136,136,0.1)",
+                                    color: p.result === "win" ? "#00FF87" : p.result === "loss" ? "#FF4D4D" : p.result === "push" ? "#FFD600" : "#888",
+                                  }}>
+                                    {p.result === "push" ? "TIE" : p.result.toUpperCase()}
+                                  </span>
+                                  <button style={S.trashBtn} onClick={() => deleteSaved(p.id)}>🗑</button>
+                                </div>
+                              </div>
+                              {p.result === "pending" && (
+                                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                                  <button style={{ ...S.resultBtn, background: "rgba(0,255,135,0.1)", color: "#00FF87", borderColor: "#00FF87" }} onClick={() => markResult(p.id, "win")}>✓ Win</button>
+                                  <button style={{ ...S.resultBtn, background: "rgba(255,77,77,0.1)", color: "#FF4D4D", borderColor: "#FF4D4D" }} onClick={() => markResult(p.id, "loss")}>✗ Loss</button>
+                                </div>
+                              )}
+                              {p.result !== "pending" && (() => {
+                                const recap = gameRecaps[p.game_id];
+                                const edgeStr = p.edge != null ? `+${Number(p.edge).toFixed(1)}%` : null;
+
+                                const buildParagraph = (d) => {
+                                  const winner = d.homeRuns > d.awayRuns ? d.homeName : d.awayName;
+                                  const loser  = winner === d.homeName ? d.awayName : d.homeName;
+                                  const wRuns  = winner === d.homeName ? d.homeRuns : d.awayRuns;
+                                  const lRuns  = winner === d.homeName ? d.awayRuns : d.homeRuns;
+                                  const wHits  = winner === d.homeName ? d.homeHits : d.awayHits;
+                                  const wStarter = winner === d.homeName ? d.homeStarter : d.awayStarter;
+                                  const lStarter = winner === d.homeName ? d.awayStarter : d.homeStarter;
+                                  const wNotables = (winner === d.homeName ? d.homeNotables : d.awayNotables) || [];
+                                  const correct = p.result === "win";
+
+                                  let s = `The model had the ${p.pick}${edgeStr ? ` at ${edgeStr} edge` : ""} — `;
+                                  s += correct
+                                    ? `and they delivered. `
+                                    : `but it didn't pan out. `;
+                                  s += `${winner} beat ${loser} ${wRuns}–${lRuns}`;
+                                  if (wHits != null) s += ` on ${wHits} hits`;
+                                  s += `. `;
+
+                                  if (wStarter) {
+                                    s += `${wStarter.name} started for the winners, going ${wStarter.ip} innings with ${wStarter.k} strikeouts and ${wStarter.er} earned run${wStarter.er !== 1 ? "s" : ""}. `;
+                                  }
+                                  if (lStarter) {
+                                    s += `${lStarter.name} started for ${loser}, allowing ${lStarter.er} run${lStarter.er !== 1 ? "s" : ""} in ${lStarter.ip} innings. `;
+                                  }
+                                  if (wNotables.length) {
+                                    const notes = wNotables.map(n => {
+                                      let parts = [`${n.h} hit${n.h !== 1 ? "s" : ""}`];
+                                      if (n.rbi) parts.push(`${n.rbi} RBI`);
+                                      if (n.hr) parts.push(`${n.hr} HR`);
+                                      return `${n.name.split(" ").pop()} (${parts.join(", ")})`;
+                                    });
+                                    s += `Offensively, ${notes.join(" and ")} led the way for ${winner}.`;
+                                  }
+                                  return s;
+                                };
+
+                                if (p.result === "push") {
+                                  return <div style={{ marginTop: 10, fontSize: 12, color: "#888", lineHeight: 1.6, borderTop: "1px solid #1a1a1a", paddingTop: 10 }}>This game was postponed, cancelled, or ended in a tie — the pick didn't settle and your stake is returned.</div>;
+                                }
+
+                                return (
+                                  <div style={{ marginTop: 10, borderTop: "1px solid #1a1a1a", paddingTop: 10 }}>
+                                    {(!recap || recap === "loading") && <div style={{ fontSize: 12, color: "#444" }}>Loading game details...</div>}
+                                    {recap === "error" && <div style={{ fontSize: 12, color: "#555" }}>Game details unavailable.</div>}
+                                    {recap && recap !== "loading" && recap !== "error" && (
+                                      <div style={{ fontSize: 12, color: "#888", lineHeight: 1.7 }}>{recap.paragraph || "No recap available."}</div>
+                                    )}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          )}
+                        </Draggable>
+                      ))}
+                      {provided.placeholder}
                     </div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{
-                      ...S.badge,
-                      background: p.result === "win" ? "rgba(0,255,135,0.1)" : p.result === "loss" ? "rgba(255,77,77,0.1)" : p.result === "push" ? "rgba(255,214,0,0.1)" : "rgba(136,136,136,0.1)",
-                      color: p.result === "win" ? "#00FF87" : p.result === "loss" ? "#FF4D4D" : p.result === "push" ? "#FFD600" : "#888",
-                    }}>
-                      {p.result === "push" ? "TIE" : p.result.toUpperCase()}
-                    </span>
-                    <button style={S.trashBtn} onClick={() => deleteSaved(p.id)}>🗑</button>
-                  </div>
-                </div>
-                {p.result === "pending" && (
-                  <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                    <button style={{ ...S.resultBtn, background: "rgba(0,255,135,0.1)", color: "#00FF87", borderColor: "#00FF87" }} onClick={() => markResult(p.id, "win")}>✓ Win</button>
-                    <button style={{ ...S.resultBtn, background: "rgba(255,77,77,0.1)", color: "#FF4D4D", borderColor: "#FF4D4D" }} onClick={() => markResult(p.id, "loss")}>✗ Loss</button>
-                  </div>
-                )}
-              </div>
-            ))}
+                  )}
+                </Droppable>
+              </DragDropContext>
+            )}
           </>
         )}
 
@@ -1912,7 +2089,7 @@ export default function ToT() {
 
               {totalW + totalL === 0 && (
                 <div style={{ textAlign: "center", color: "#555", fontSize: 12, marginTop: 12, padding: "10px 0" }}>
-                  No resolved picks yet — results post once games go final.
+                  No resolved picks yet — results post the morning after each game.
                 </div>
               )}
 
@@ -1924,6 +2101,89 @@ export default function ToT() {
                     {label}
                   </div>
                 ))}
+              </div>
+            </div>
+          );
+        })()}
+
+        {activeTab === "chat" && (() => {
+          const sendChat = async (text) => {
+            if (!text?.trim() || chatLoading) return;
+            const userMsg = { role: "user", content: text.trim() };
+            const newMessages = [...chatMessages, userMsg];
+            setChatMessages(newMessages);
+            setChatInput("");
+            setChatLoading(true);
+            try {
+              const headers = await getAuthHeaders();
+              const picksContext = picks?.filter(p => p.isBet) || [];
+              const apiMessages = newMessages.map(m => ({ role: m.role, content: m.content }));
+              const res = await fetch("/api/chat", {
+                method: "POST",
+                headers: { ...headers, "Content-Type": "application/json" },
+                body: JSON.stringify({ messages: apiMessages, picksContext }),
+              });
+              const data = await res.json();
+              setChatMessages(prev => [...prev, { role: "assistant", content: data.reply || "Sorry, something went wrong." }]);
+            } catch {
+              setChatMessages(prev => [...prev, { role: "assistant", content: "Failed to connect. Try again." }]);
+            } finally {
+              setChatLoading(false);
+              setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+            }
+          };
+
+          const suggestions = ["What are today's best bets?", "Any value underdogs?", "Biggest pitcher mismatches?", "Build me a 3-leg parlay"];
+
+          return (
+            <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 220px)", minHeight: 400 }}>
+              {/* Messages */}
+              <div style={{ flex: 1, overflowY: "auto", padding: "8px 0" }}>
+                {chatMessages.length === 0 && (
+                  <div style={{ padding: "24px 0 16px" }}>
+                    <div style={{ fontSize: 13, color: "#555", marginBottom: 14, textAlign: "center" }}>Ask me about today's games</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      {suggestions.map(s => (
+                        <button key={s} onClick={() => sendChat(s)}
+                          style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 20, padding: "7px 13px", color: "#888", fontSize: 12, cursor: "pointer" }}>
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {chatMessages.map((m, i) => (
+                  <div key={i} style={{ marginBottom: 12, display: "flex", flexDirection: "column", alignItems: m.role === "user" ? "flex-end" : "flex-start" }}>
+                    <div style={{
+                      maxWidth: "85%", padding: "10px 14px", borderRadius: m.role === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+                      background: m.role === "user" ? "rgba(0,255,135,0.12)" : "#0d0d0d",
+                      border: `1px solid ${m.role === "user" ? "rgba(0,255,135,0.2)" : "#1a1a1a"}`,
+                      fontSize: 13, color: m.role === "user" ? "#e0e0e0" : "#ccc", lineHeight: 1.6, whiteSpace: "pre-wrap",
+                    }}>
+                      {m.content}
+                    </div>
+                  </div>
+                ))}
+                {chatLoading && (
+                  <div style={{ display: "flex", gap: 4, padding: "8px 4px" }}>
+                    {[0,1,2].map(i => <div key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: "#333", animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite` }} />)}
+                  </div>
+                )}
+                <div ref={chatEndRef} />
+              </div>
+              {/* Input */}
+              <div style={{ display: "flex", gap: 8, paddingTop: 10, borderTop: "1px solid #111" }}>
+                <input
+                  value={chatInput}
+                  onChange={e => setChatInput(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), sendChat(chatInput))}
+                  placeholder="Ask about today's games..."
+                  style={{ flex: 1, background: "#0a0a0a", border: "1px solid #1a1a1a", borderRadius: 20, padding: "10px 16px", color: "#fff", fontSize: 13, outline: "none" }}
+                />
+                <button onClick={() => sendChat(chatInput)} disabled={chatLoading || !chatInput.trim()}
+                  style={{ background: chatInput.trim() ? "#00FF87" : "#1a1a1a", border: "none", borderRadius: 20, padding: "10px 18px", color: chatInput.trim() ? "#000" : "#444", fontSize: 13, fontWeight: 700, cursor: chatInput.trim() ? "pointer" : "default", transition: "all 0.15s" }}>
+                  Send
+                </button>
               </div>
             </div>
           );
