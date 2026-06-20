@@ -143,6 +143,7 @@ export default function ToT() {
   const [parlayStake, setParlayStake] = useState(10);
   const [picksDate, setPicksDate] = useState(null); // tracks which date picks were loaded for
   const [isPro, setIsPro] = useState(null);
+  const [isBeta, setIsBeta] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
   const [modelRecord, setModelRecord] = useState(null);
   const [unitSize, setUnitSize] = useState(10);
@@ -472,6 +473,13 @@ export default function ToT() {
 
   const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || process.env.NEXT_PUBLIC_ADMIN_EMAIL || "").split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
   const isAdmin = !!user?.email && adminEmails.includes(user.email.toLowerCase());
+
+  // Beta access — set once when user resolves
+  useEffect(() => {
+    if (!user?.email) { setIsBeta(false); return; }
+    const betas = (process.env.NEXT_PUBLIC_BETA_EMAILS || "").split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
+    setIsBeta(betas.includes(user.email.toLowerCase()));
+  }, [user?.email]);
 
   const generatePicks = async () => {
     setGenerating(true);
@@ -967,6 +975,10 @@ export default function ToT() {
               { id: "parlay", icon: "🎲", label: "Parlay" },
               { id: "tracker", icon: "📊", label: "Tracker" },
               { id: "record", icon: "📅", label: "Record" },
+              ...(isBeta ? [
+                { id: "nfl", icon: "🏈", label: "NFL" },
+                { id: "props", icon: "🎯", label: "Props" },
+              ] : []),
             ].map(({ id, icon, label }) => (
               <div key={id} style={{ ...S.drawerItem, color: activeTab === id ? "#00FF87" : "#fff" }} onClick={() => { setActiveTab(id); setDrawerOpen(false); }}>
                 {icon} {label}
@@ -1083,6 +1095,10 @@ export default function ToT() {
             { id: "parlay", label: "🎲 Parlay" },
             { id: "tracker", label: "Tracker" },
             { id: "record", label: "📅 Record" },
+            ...(isBeta ? [
+              { id: "nfl", label: "🏈 NFL" },
+              { id: "props", label: "🎯 Props" },
+            ] : []),
           ].map(({ id, label }) => (
             <button
               key={id}
@@ -2173,6 +2189,22 @@ export default function ToT() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {activeTab === "nfl" && isBeta && (
+        <div style={{ padding: "32px 20px", textAlign: "center", color: "#555" }}>
+          <div style={{ fontSize: 28, marginBottom: 12 }}>🏈</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "#fff", marginBottom: 6 }}>NFL — Coming Soon</div>
+          <div style={{ fontSize: 13, lineHeight: 1.6 }}>NFL picks are under development. Check back here during beta testing.</div>
+        </div>
+      )}
+
+      {activeTab === "props" && isBeta && (
+        <div style={{ padding: "32px 20px", textAlign: "center", color: "#555" }}>
+          <div style={{ fontSize: 28, marginBottom: 12 }}>🎯</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "#fff", marginBottom: 6 }}>Player Props — Coming Soon</div>
+          <div style={{ fontSize: 13, lineHeight: 1.6 }}>Player prop picks are under development. Check back here during beta testing.</div>
         </div>
       )}
 
