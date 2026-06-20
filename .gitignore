@@ -24,6 +24,8 @@
 .DS_Store
 *.pem
 *~
+=
+tot-app@*
 
 # debug
 npm-debug.log*
