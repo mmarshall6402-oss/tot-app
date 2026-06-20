@@ -2,7 +2,8 @@
 
 A production MLB betting picks platform featuring a statistical prediction model, AI-generated analysis, Stripe subscriptions, and fully automated daily operations.
 
-**Live:** [tot-app.vercel.app](https://tot-app.vercel.app)
+**Live:** thisthatpicks.com
+
 
 ---
 
