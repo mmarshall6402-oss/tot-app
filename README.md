@@ -1,8 +1,8 @@
-# tot-app
+This Or That
 
 A production MLB betting picks platform featuring a statistical prediction model, AI-generated analysis, Stripe subscriptions, and fully automated daily operations.
 
-**Live:** thisthatpicks.com
+**Live:**[ https://thisthatpicks.com/]
 
 
 ---
