@@ -1008,7 +1008,25 @@ export default function ToT() {
           {[0, 1, 2].map(i => <div key={i} style={S.menuLine} />)}
         </button>
         <div style={S.navLogo}>T<span style={{ color: "#00FF87" }}>|</span>T</div>
-        <div style={S.navBadge}>MLB</div>
+        {isBeta ? (
+          <div style={{ display: "flex", gap: 5 }}>
+            {[
+              { sport: "mlb", label: "MLB", tab: "picks" },
+              { sport: "nfl", label: "NFL", tab: "nfl" },
+              { sport: "props", label: "Props", tab: "props" },
+            ].map(({ sport, label, tab }) => {
+              const active = activeTab === tab || (sport === "mlb" && ["picks","steals","parlay","tracker","record"].includes(activeTab));
+              return (
+                <button key={sport} onClick={() => setActiveTab(tab)}
+                  style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, letterSpacing: 0.5, border: "none", cursor: "pointer", background: active ? "#00FF87" : "#1a1a1a", color: active ? "#000" : "#555", transition: "background 0.15s,color 0.15s" }}>
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div style={S.navBadge}>MLB</div>
+        )}
       </div>
 
       {/* Carousel — cycles between free pick, model record, and promo */}
