@@ -259,7 +259,7 @@ export default function AdminDash() {
       <div style={{ textAlign: "center" }}>
         <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 20, fontWeight: 700, marginBottom: 12 }}>T<span style={{ color: "#00FF87" }}>|</span>T</div>
         <div style={{ color: "#FF4D4D", fontSize: 13, marginBottom: 12 }}>Not authorized</div>
-        <a href="/app" style={{ fontSize: 12, color: "#555" }}>← Sign in first</a>
+        <a href="/" style={{ fontSize: 12, color: "#555" }}>← Sign in first</a>
       </div>
     </div>
   );
@@ -280,7 +280,7 @@ export default function AdminDash() {
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {busy && <div style={{ width: 14, height: 14, border: "2px solid #222", borderTopColor: "#00FF87", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />}
-          <a href="/app" style={{ fontSize: 11, color: "#444" }}>← App</a>
+          <a href="/" style={{ fontSize: 11, color: "#444" }}>← App</a>
         </div>
       </div>
 
