@@ -1003,7 +1003,7 @@ export default function ToT() {
           {[0, 1, 2].map(i => <div key={i} style={S.menuLine} />)}
         </button>
         <div style={S.navLogo}>T<span style={{ color: "#00FF87" }}>|</span>T</div>
-        <div style={S.navBadge}>MLB</div>
+        <div style={S.navBadge}>MLB ✓</div>
       </div>
 
       {/* Carousel — cycles between free pick, model record, and promo */}
