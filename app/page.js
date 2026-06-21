@@ -1043,7 +1043,7 @@ export default function ToT() {
       </div>
 
       {/* Carousel — cycles between free pick, model record, and promo */}
-      <div style={S.carousel}>
+      {activeTab !== "nfl" && <div style={S.carousel}>
         {slide.type === "free-pick" && (
           <>
             <div style={S.carouselTag}>FREE PICK</div>
@@ -1096,7 +1096,7 @@ export default function ToT() {
               onClick={() => setCarouselIdx(i)} />
           ))}
         </div>
-      </div>
+      </div>}
 
       {(activeTab === "picks" || activeTab === "steals" || activeTab === "parlay") && (
         <div ref={dateScrollRef} style={S.dateScroll}>
@@ -1118,7 +1118,7 @@ export default function ToT() {
         </div>
       )}
 
-      <div style={S.subNav}>
+      {activeTab !== "nfl" && <div style={S.subNav}>
         <div style={{ display: "flex", gap: 6 }}>
           {[
             { id: "picks", label: "Picks" },
@@ -1166,9 +1166,9 @@ export default function ToT() {
             )}
           </div>
         )}
-      </div>
+      </div>}
 
-      <div style={S.content}>
+      {activeTab !== "nfl" && <div style={S.content}>
         {activeTab === "picks" && modelRecord?.total > 0 && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0 4px", flexWrap: "wrap" }}>
             <span style={{ fontSize: 10, color: "#777", letterSpacing: 1 }}>MODEL RECORD</span>
@@ -2225,7 +2225,7 @@ export default function ToT() {
           );
         })()}
 
-      </div>
+      </div>}
 
       {upgradeModal && (
         <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
