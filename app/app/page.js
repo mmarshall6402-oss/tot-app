@@ -154,6 +154,7 @@ export default function ToT() {
   const [copied, setCopied] = useState(false);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [calRecord, setCalRecord] = useState(null);
+  const [calStats, setCalStats] = useState(null);
   const [calMonth, setCalMonth] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
   const [showAuth, setShowAuth] = useState(false);
   const heroEmailRef = useRef(null);
@@ -333,6 +334,10 @@ export default function ToT() {
       const d = await fetch("/api/daily-record").then(r => r.json());
       setCalRecord(d && !d.error ? d : {});
     } catch { setCalRecord({}); }
+    try {
+      const s = await fetch("/api/calibration").then(r => r.json());
+      setCalStats(s);
+    } catch { setCalStats({}); }
   };
 
   const getAuthHeaders = async () => {
@@ -2136,6 +2141,154 @@ export default function ToT() {
                   </div>
                 ))}
               </div>
+
+              {/* ── Calibration analytics ── */}
+              {calStats && (calStats.probBuckets?.length > 0 || calStats.confBuckets?.length > 0) && (() => {
+                const { probBuckets = [], confBuckets = [], verdictBuckets = [], varianceBuckets = [], avgDelta, total } = calStats;
+                const biasColor = avgDelta == null ? "#888" : avgDelta < -10 ? "#FF4D4D" : avgDelta > 10 ? "#00FF87" : "#FFD600";
+                const biasLabel = avgDelta == null ? "—" : avgDelta < 0 ? "overconfident" : "underconfident";
+
+                const TH = ({ children }) => (
+                  <th style={{ fontSize: 9, color: "#555", fontWeight: 700, letterSpacing: 1, padding: "4px 6px", textAlign: "right", whiteSpace: "nowrap" }}>{children}</th>
+                );
+                const TD = ({ children, color, left }) => (
+                  <td style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: color || "#888", padding: "5px 6px", textAlign: left ? "left" : "right", borderTop: "1px solid #111" }}>{children}</td>
+                );
+
+                return (
+                  <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 16 }}>
+                    {/* Overall bias */}
+                    <div style={{ background: "#080808", border: "1px solid #1a1a1a", borderRadius: 12, padding: "12px 14px" }}>
+                      <div style={{ fontSize: 10, color: "#555", letterSpacing: 1.5, fontWeight: 700, marginBottom: 8 }}>OVERALL BIAS</div>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                        <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 22, fontWeight: 700, color: biasColor }}>
+                          {avgDelta != null ? `${avgDelta > 0 ? "+" : ""}${avgDelta}pp` : "—"}
+                        </span>
+                        <span style={{ fontSize: 12, color: "#555" }}>{biasLabel}</span>
+                      </div>
+                      <div style={{ fontSize: 11, color: "#333", marginTop: 4 }}>{total} resolved bets · delta = actual − predicted</div>
+                    </div>
+
+                    {/* Probability calibration */}
+                    <div style={{ background: "#080808", border: "1px solid #1a1a1a", borderRadius: 12, padding: "12px 14px" }}>
+                      <div style={{ fontSize: 10, color: "#555", letterSpacing: 1.5, fontWeight: 700, marginBottom: 10 }}>PROBABILITY CALIBRATION</div>
+                      <div style={{ overflowX: "auto" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                          <thead>
+                            <tr>
+                              <TH>Bucket</TH>
+                              <TH>Predicted</TH>
+                              <TH>Actual</TH>
+                              <TH>Delta</TH>
+                              <TH>CLV</TH>
+                              <TH>n</TH>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {probBuckets.map(b => {
+                              const delta = b.actual != null && b.predicted != null ? parseFloat((b.actual - b.predicted).toFixed(1)) : null;
+                              const dc = delta == null ? "#555" : delta < -15 ? "#FF4D4D" : delta < 0 ? "#FFD600" : "#00FF87";
+                              return (
+                                <tr key={b.label}>
+                                  <TD left color="#aaa">{b.label}{b.n < 20 ? " *" : ""}</TD>
+                                  <TD>{b.predicted != null ? `${b.predicted}%` : "—"}</TD>
+                                  <TD color={b.actual != null ? (b.actual >= (b.predicted || 0) ? "#00FF87" : "#FF4D4D") : "#555"}>{b.actual != null ? `${b.actual}%` : "—"}</TD>
+                                  <TD color={dc}>{delta != null ? `${delta > 0 ? "+" : ""}${delta}pp` : "—"}</TD>
+                                  <TD color={b.avgClv != null ? (b.avgClv >= 0 ? "#00FF87" : "#FF4D4D") : "#555"}>{b.avgClv != null ? `${b.avgClv > 0 ? "+" : ""}${b.avgClv}pp` : "—"}</TD>
+                                  <TD color={b.n > 0 ? "#666" : "#333"}>{b.n}</TD>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div style={{ fontSize: 10, color: "#333", marginTop: 8 }}>* n &lt; 20 — too small to interpret</div>
+                    </div>
+
+                    {/* Confidence calibration */}
+                    {confBuckets.some(b => b.n > 0) && (
+                      <div style={{ background: "#080808", border: "1px solid #1a1a1a", borderRadius: 12, padding: "12px 14px" }}>
+                        <div style={{ fontSize: 10, color: "#555", letterSpacing: 1.5, fontWeight: 700, marginBottom: 10 }}>CONFIDENCE CALIBRATION</div>
+                        <div style={{ overflowX: "auto" }}>
+                          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                            <thead>
+                              <tr>
+                                <TH>Confidence</TH>
+                                <TH>W-L</TH>
+                                <TH>Win%</TH>
+                                <TH>Avg CLV</TH>
+                                <TH>n</TH>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {confBuckets.filter(b => b.n > 0).map(b => {
+                                const losses = b.n - b.wins;
+                                return (
+                                  <tr key={b.label}>
+                                    <TD left color="#aaa">{b.label}</TD>
+                                    <TD color="#666">{b.wins}-{losses}</TD>
+                                    <TD color={b.actual != null ? (b.actual >= 55 ? "#00FF87" : b.actual >= 45 ? "#FFD600" : "#FF4D4D") : "#555"}>{b.actual != null ? `${b.actual}%` : "—"}</TD>
+                                    <TD color={b.avgClv != null ? (b.avgClv >= 0 ? "#00FF87" : "#FF4D4D") : "#555"}>{b.avgClv != null ? `${b.avgClv > 0 ? "+" : ""}${b.avgClv}pp` : "—"}</TD>
+                                    <TD color="#666">{b.n}</TD>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Verdict & Variance */}
+                    {(verdictBuckets.some(b => b.n > 0) || varianceBuckets.length > 0) && (
+                      <div style={{ display: "flex", gap: 10 }}>
+                        {verdictBuckets.some(b => b.n > 0) && (
+                          <div style={{ flex: 1, background: "#080808", border: "1px solid #1a1a1a", borderRadius: 12, padding: "12px 14px" }}>
+                            <div style={{ fontSize: 10, color: "#555", letterSpacing: 1.5, fontWeight: 700, marginBottom: 10 }}>VERDICT</div>
+                            {verdictBuckets.filter(b => b.n > 0).map(b => {
+                              const pct = b.actual;
+                              const pctColor = pct != null ? (pct >= 55 ? "#00FF87" : pct >= 45 ? "#FFD600" : "#FF4D4D") : "#555";
+                              return (
+                                <div key={b.label} style={{ marginBottom: 8 }}>
+                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
+                                    <span style={{ fontSize: 11, color: b.label === "CLEAN" ? "#00FF87" : "#FFD600", fontWeight: 700 }}>{b.label}</span>
+                                    <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: pctColor }}>{pct != null ? `${pct}%` : "—"}</span>
+                                  </div>
+                                  <div style={{ height: 3, background: "#111", borderRadius: 2 }}>
+                                    <div style={{ height: "100%", borderRadius: 2, width: `${pct || 0}%`, background: pctColor }} />
+                                  </div>
+                                  <div style={{ fontSize: 10, color: "#333", marginTop: 2 }}>{b.n} bets · {b.wins}W{b.avgClv != null ? ` · CLV ${b.avgClv > 0 ? "+" : ""}${b.avgClv}pp` : ""}</div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {varianceBuckets.length > 0 && (
+                          <div style={{ flex: 1, background: "#080808", border: "1px solid #1a1a1a", borderRadius: 12, padding: "12px 14px" }}>
+                            <div style={{ fontSize: 10, color: "#555", letterSpacing: 1.5, fontWeight: 700, marginBottom: 10 }}>VARIANCE</div>
+                            {varianceBuckets.map(b => {
+                              const pct = b.actual;
+                              const pctColor = pct != null ? (pct >= 55 ? "#00FF87" : pct >= 45 ? "#FFD600" : "#FF4D4D") : "#555";
+                              return (
+                                <div key={b.label} style={{ marginBottom: 8 }}>
+                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
+                                    <span style={{ fontSize: 11, color: "#aaa", fontWeight: 700 }}>{b.label} VAR</span>
+                                    <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: pctColor }}>{pct != null ? `${pct}%` : "—"}</span>
+                                  </div>
+                                  <div style={{ height: 3, background: "#111", borderRadius: 2 }}>
+                                    <div style={{ height: "100%", borderRadius: 2, width: `${pct || 0}%`, background: pctColor }} />
+                                  </div>
+                                  <div style={{ fontSize: 10, color: "#333", marginTop: 2 }}>{b.n} bets</div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           );
         })()}
