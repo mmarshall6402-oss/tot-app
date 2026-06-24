@@ -337,6 +337,12 @@ export async function GET(request) {
         }
       }
 
+      // Deduplicate by game id — the uncovered loop can re-add a game already in cache
+      // if the fuzzy name matcher fails to recognise it as covered.
+      const seenIds = new Set();
+      const uniquePicks = picks.filter(p => { if (seenIds.has(p.id)) return false; seenIds.add(p.id); return true; });
+      picks.length = 0; picks.push(...uniquePicks);
+
       // Sort: CLEAN first, then BET, then PASS, then TRAP — by edge within each group
       const verdictRank = v => ({ CLEAN: 0, BET: 1, PASS: 2, TRAP: 3 }[v] ?? 4);
       picks.sort((a, b) => {
@@ -450,6 +456,11 @@ export async function GET(request) {
           };
         }).filter(Boolean)
       : oddsGames.map(game => buildPick(game, null, null)).filter(Boolean);
+
+    // Deduplicate by game id before sorting
+    const seenIds2 = new Set();
+    const uniqueResults = results.filter(p => { if (seenIds2.has(p.id)) return false; seenIds2.add(p.id); return true; });
+    results.length = 0; results.push(...uniqueResults);
 
     const verdictRank2 = v => ({ CLEAN: 0, BET: 1, PASS: 2, TRAP: 3 }[v] ?? 4);
     results.sort((a, b) => {
