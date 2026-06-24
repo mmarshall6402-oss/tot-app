@@ -219,6 +219,9 @@ export async function GET(request) {
       const picks = mlbGames.length
         ? cached.picks.map(pick => {
             const mlb = matchMLBGame(pick, mlbGames);
+            // Drop ghost games: cached entry has no MLB schedule match and its
+            // start time is already in the past — stale odds API line from a prior day.
+            if (!mlb && pick.commenceTime && new Date(pick.commenceTime) < new Date()) return null;
             if (!mlb) return pick;
 
             const homePStr = mlb.homePitcher ? `${mlb.homePitcher.name} (${mlb.homePitcher.wins}-${mlb.homePitcher.losses}, ${mlb.homePitcher.era} ERA, ${mlb.homePitcher.whip} WHIP${ipStr(mlb.homePitcher)})` : null;
@@ -284,7 +287,7 @@ export async function GET(request) {
                 pitcher_away: awayPStr || pick.breakdown?.pitcher_away,
               },
             };
-          })
+          }).filter(Boolean)
         : cached.picks;
 
       // Add any MLB games that have no odds line and weren't in the cache
