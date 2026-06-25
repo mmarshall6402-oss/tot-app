@@ -1228,7 +1228,11 @@ export default function ToT() {
                       <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 9px", borderRadius: 5, background: "rgba(255,214,0,0.08)", color: "#FFD600", border: "1px solid rgba(255,214,0,0.2)" }}>👀 LEAN</span>
                     )}
                   </div>
-                  <div style={S.cardMatchup}>{freePick.awayTeam} @ {freePick.homeTeam}</div>
+                  <div style={S.cardMatchup}>
+                    {freePick.awayTeam}{freePick.awayRecord && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 4 }}>({freePick.awayRecord})</span>}
+                    {" @ "}
+                    {freePick.homeTeam}{freePick.homeRecord && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 4 }}>({freePick.homeRecord})</span>}
+                  </div>
                   <div style={S.cardMeta}>
                     {fmtGameTime(freePick.commenceTime)} · Take{" "}
                     <span style={{ color: accentColor, fontWeight: 700 }}>{freePick.pick}</span>
@@ -1371,7 +1375,11 @@ export default function ToT() {
                         </span>
                       )}
                     </div>
-                    <div style={S.cardMatchup}>{pick.awayTeam} @ {pick.homeTeam}</div>
+                    <div style={S.cardMatchup}>
+                      {pick.awayTeam}{pick.awayRecord && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 4 }}>({pick.awayRecord})</span>}
+                      {" @ "}
+                      {pick.homeTeam}{pick.homeRecord && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 4 }}>({pick.homeRecord})</span>}
+                    </div>
                     <div style={S.cardMeta}>
                       {fmtGameTime(pick.commenceTime)}
                       {pick.pick && <> · {isScheduled ? <span style={{ color: "#4FC3F7" }}>Preview</span> : pick.homeOdds == null && !pick.filter ? "Lean" : "Take"} <span style={{ color: isBet ? betColor : isScheduled ? "#4FC3F7" : "#aaa", fontWeight: 700 }}>{pick.pick}</span></>}
@@ -1666,7 +1674,11 @@ export default function ToT() {
                             {f.confidence}/10 conf
                           </span>
                         </div>
-                        <div style={S.cardMatchup}>{pick.awayTeam} @ {pick.homeTeam}</div>
+                        <div style={S.cardMatchup}>
+                          {pick.awayTeam}{pick.awayRecord && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 4 }}>({pick.awayRecord})</span>}
+                          {" @ "}
+                          {pick.homeTeam}{pick.homeRecord && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 4 }}>({pick.homeRecord})</span>}
+                        </div>
                         <div style={S.cardMeta}>
                           {fmtGameTime(pick.commenceTime)} · Take <span style={{ color: "#00FF87", fontWeight: 700 }}>{pick.pick}</span> {fmtOdds(pickOdds)}
                         </div>

@@ -51,8 +51,10 @@ function buildPick(game, mlb, breakdown) {
   const homePStr = homePitcher ? `${homePitcher.name} (${homePitcher.wins}-${homePitcher.losses}, ${homePitcher.era} ERA, ${homePitcher.whip} WHIP${ipStr(homePitcher)})` : "TBD";
   const awayPStr = awayPitcher ? `${awayPitcher.name} (${awayPitcher.wins}-${awayPitcher.losses}, ${awayPitcher.era} ERA, ${awayPitcher.whip} WHIP${ipStr(awayPitcher)})` : "N/A";
 
+  const fmtRecord = (s) => s ? `${s.wins}-${s.losses}` : null;
   return {
     id: game.id, homeTeam: game.homeTeam, awayTeam: game.awayTeam,
+    homeRecord: fmtRecord(mlb?.homeStandings), awayRecord: fmtRecord(mlb?.awayStandings),
     // Prefer MLB API commenceTime (trusted UTC from mlb.com) over odds API which
     // may return Eastern times without proper UTC conversion.
     commenceTime: mlb?.commenceTime || game.commenceTime,
@@ -244,9 +246,12 @@ export async function GET(request) {
             // Re-running the model during a game shifts verdicts as in-game data changes,
             // which is misleading: the pre-game signal is what the bet was based on.
             const gameStarted = mlb.status === "Live" || mlb.status === "Final";
+            const fmtRec = (s) => s ? `${s.wins}-${s.losses}` : null;
             if (gameStarted) {
               return {
                 ...pick,
+                homeRecord: fmtRec(mlb.homeStandings) ?? pick.homeRecord,
+                awayRecord: fmtRec(mlb.awayStandings) ?? pick.awayRecord,
                 liveScore,
                 breakdown: {
                   ...pick.breakdown,
@@ -273,6 +278,8 @@ export async function GET(request) {
               pick: freshPick,
               homeOdds: freshHomeOdds,
               awayOdds: freshAwayOdds,
+              homeRecord: fmtRec(mlb.homeStandings) ?? pick.homeRecord,
+              awayRecord: fmtRec(mlb.awayStandings) ?? pick.awayRecord,
               edge: edgePct,
               isBet: filteredIsBet,
               tier,
@@ -318,9 +325,11 @@ export async function GET(request) {
           // No odds anywhere — show as informational only
           const modelProb = getModelProbability({ homeTeam: g.homeTeam, awayTeam: g.awayTeam, homeImplied: 0.5, commenceTime: g.commenceTime }, g);
           const rawPick = modelProb >= 0.5 ? g.homeTeam : g.awayTeam;
+          const fmtR = (s) => s ? `${s.wins}-${s.losses}` : null;
           picks.push({
             id: String(g.gameId),
             homeTeam: g.homeTeam, awayTeam: g.awayTeam,
+            homeRecord: fmtR(g.homeStandings), awayRecord: fmtR(g.awayStandings),
             commenceTime: g.commenceTime,
             homeOdds: null, awayOdds: null,
             pick: rawPick, edge: 0, isBet: false,
@@ -371,9 +380,11 @@ export async function GET(request) {
         const results = mlbGames.map(g => {
           const modelProb = getModelProbability({ homeTeam: g.homeTeam, awayTeam: g.awayTeam, homeImplied: 0.5, commenceTime: g.commenceTime }, g);
           const pick = modelProb >= 0.5 ? g.homeTeam : g.awayTeam;
+          const fmtRec = (s) => s ? `${s.wins}-${s.losses}` : null;
           return {
             id: String(g.gameId),
             homeTeam: g.homeTeam, awayTeam: g.awayTeam,
+            homeRecord: fmtRec(g.homeStandings), awayRecord: fmtRec(g.awayStandings),
             commenceTime: g.commenceTime,
             homeOdds: null, awayOdds: null,
             pick, edge: Math.abs(modelProb - 0.5) * 100,
@@ -434,8 +445,10 @@ export async function GET(request) {
           const modelProb = getModelProbability({ homeTeam: mlbGame.homeTeam, awayTeam: mlbGame.awayTeam, homeImplied: 0.5, commenceTime: mlbGame.commenceTime }, mlbGame);
           const pick = modelProb >= 0.5 ? mlbGame.homeTeam : mlbGame.awayTeam;
           const isStarted = mlbGame.status === "Live" || mlbGame.status === "Final" || mlbGame.status === "Completed";
+          const fmtRec2 = (s) => s ? `${s.wins}-${s.losses}` : null;
           return {
             id: String(mlbGame.gameId), homeTeam: mlbGame.homeTeam, awayTeam: mlbGame.awayTeam,
+            homeRecord: fmtRec2(mlbGame.homeStandings), awayRecord: fmtRec2(mlbGame.awayStandings),
             commenceTime: mlbGame.commenceTime, homeOdds: null, awayOdds: null,
             pick, edge: 0, isBet: false,
             tier: isStarted
