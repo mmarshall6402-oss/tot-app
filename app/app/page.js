@@ -392,7 +392,7 @@ export default function ToT() {
     setSavedPicks(merged);
 
     // Auto-fetch recaps for all resolved picks
-    const resolved = merged.filter(p => p.result !== "pending" && p.result !== "push" && p.game_id);
+    const resolved = merged.filter(p => p.result !== "pending" && p.game_id);
     if (resolved.length) {
       const headers = await getAuthHeaders();
       const recapEntries = await Promise.all(

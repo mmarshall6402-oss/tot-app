@@ -33,6 +33,11 @@ export async function GET(request) {
       return Response.json({ games: [], message: `Odds API error: ${h2hRes.status}` });
     }
 
+    if (!spreadRes.ok || !totalsRes.ok) {
+      const failed = !spreadRes.ok ? `spreads (${spreadRes.status})` : `totals (${totalsRes.status})`;
+      console.error("NFL odds partial failure:", failed);
+    }
+
     const [h2hData, spreadData, totalsData] = await Promise.all([
       h2hRes.json(),
       spreadRes.ok ? spreadRes.json() : [],
