@@ -197,8 +197,16 @@ function buildPick(game, mlb, breakdown, precomputedFilter) {
 }
 
 async function generateForDate(date, oddsGames, supabase, force = false, isToday = true) {
-  const { data: existing } = await supabase
-    .from("picks_cache").select("picks, generated_at").eq("date", date).single();
+  const [{ data: existing }, { data: openSnapshot }] = await Promise.all([
+    supabase.from("picks_cache").select("picks, generated_at").eq("date", date).single(),
+    supabase.from("odds_open_snapshot").select("games").eq("date", date).single(),
+  ]);
+  // Index snapshot games by last-word team key for O(1) lookup
+  const normLast = s => (s || "").toLowerCase().split(" ").pop();
+  const openOddsMap = new Map();
+  for (const g of (openSnapshot?.games || [])) {
+    openOddsMap.set(`${normLast(g.homeTeam)}|${normLast(g.awayTeam)}`, g);
+  }
 
   // Only skip if the cache was generated TODAY (same CT date) and already has breakdowns.
   // Don't skip for yesterday's pre-generated "tomorrow" cache — re-run with fresh odds/pitchers.
@@ -337,9 +345,16 @@ async function generateForDate(date, oddsGames, supabase, force = false, isToday
         pick_form_ops:      pickForm?.ops != null ? parseFloat(pickForm.ops) : null,
         lineup_ops_vs_pitcher: pickLineup != null ? parseFloat(pickLineup) : null,
         half_size:          f.halfSize ?? false,
-        // CLV tracking — opening odds captured at cron generation time
-        open_home_odds:    result.homeOdds ?? null,
-        open_away_odds:    result.awayOdds ?? null,
+        // CLV tracking — prefer midnight snapshot odds (true open) over 10 AM live odds
+        ...((() => {
+          const key = `${normLast(result.homeTeam)}|${normLast(result.awayTeam)}`;
+          const snap = openOddsMap.get(key);
+          return {
+            open_home_odds: snap?.homeOdds ?? result.homeOdds ?? null,
+            open_away_odds: snap?.awayOdds ?? result.awayOdds ?? null,
+            open_odds_source: snap ? "midnight_snapshot" : "live_fallback",
+          };
+        })()),
       };
 
       return {
