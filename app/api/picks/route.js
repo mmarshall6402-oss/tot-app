@@ -218,10 +218,27 @@ export async function GET(request) {
         matchTeamsM(g.homeTeam, pick.homeTeam) && matchTeamsM(g.awayTeam, pick.awayTeam)
       ) || null;
       const ipStr = (p) => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";
+      const fmtRec = (s) => s ? `${s.wins}-${s.losses}` : null;
+      // Build team-name → record map so we can overlay records even when matchMLBGame fails
+      const teamRecordMap = new Map();
+      for (const g of mlbGames) {
+        if (g.homeStandings) teamRecordMap.set(normM(g.homeTeam), fmtRec(g.homeStandings));
+        if (g.awayStandings) teamRecordMap.set(normM(g.awayTeam), fmtRec(g.awayStandings));
+      }
+      const lookupRecord = (name) => {
+        const n = normM(name);
+        if (teamRecordMap.has(n)) return teamRecordMap.get(n);
+        for (const [k, v] of teamRecordMap) { if (k.includes(lwM(n)) || n.includes(lwM(k))) return v; }
+        return null;
+      };
       const picks = mlbGames.length
         ? cached.picks.map(pick => {
             const mlb = matchMLBGame(pick, mlbGames);
-            if (!mlb) return pick;
+            if (!mlb) return {
+              ...pick,
+              homeRecord: pick.homeRecord ?? lookupRecord(pick.homeTeam),
+              awayRecord: pick.awayRecord ?? lookupRecord(pick.awayTeam),
+            };
 
             const homePStr = mlb.homePitcher ? `${mlb.homePitcher.name} (${mlb.homePitcher.wins}-${mlb.homePitcher.losses}, ${mlb.homePitcher.era} ERA, ${mlb.homePitcher.whip} WHIP${ipStr(mlb.homePitcher)})` : null;
             const awayPStr = mlb.awayPitcher ? `${mlb.awayPitcher.name} (${mlb.awayPitcher.wins}-${mlb.awayPitcher.losses}, ${mlb.awayPitcher.era} ERA, ${mlb.awayPitcher.whip} WHIP${ipStr(mlb.awayPitcher)})` : null;
@@ -246,7 +263,6 @@ export async function GET(request) {
             // Re-running the model during a game shifts verdicts as in-game data changes,
             // which is misleading: the pre-game signal is what the bet was based on.
             const gameStarted = mlb.status === "Live" || mlb.status === "Final";
-            const fmtRec = (s) => s ? `${s.wins}-${s.losses}` : null;
             if (gameStarted) {
               return {
                 ...pick,
