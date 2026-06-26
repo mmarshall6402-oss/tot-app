@@ -368,6 +368,15 @@ export async function GET(request) {
         if (lockPick && lockScore(lockPick) > 0) lockPick.isLock = true;
       }
 
+      // If any pick is missing a Claude breakdown, fire a background regen so
+      // breakdowns self-heal after credits are restored (without waiting for the cron).
+      const missingBds = picks.some(p => !p.breakdown?.preview);
+      if (missingBds && process.env.CRON_SECRET) {
+        fetch(`${BASE_URL}/api/cron/picks`, {
+          headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+        }).catch(() => {});
+      }
+
       return Response.json({ picks, cached: true, generated_at: cached.generated_at });
     }
 

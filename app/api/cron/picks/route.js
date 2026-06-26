@@ -208,7 +208,7 @@ async function generateForDate(date, oddsGames, supabase, force = false, isToday
   const cacheCtDate = existing?.generated_at
     ? (() => { const p = ctFormatter.formatToParts(new Date(existing.generated_at)); return `${p.find(x=>x.type==="year").value}-${p.find(x=>x.type==="month").value}-${p.find(x=>x.type==="day").value}`; })()
     : null;
-  if (!force && cacheCtDate === date && existing?.picks?.some(p => p.breakdown?.preview)) {
+  if (!force && cacheCtDate === date && existing?.picks?.every(p => p.breakdown?.preview)) {
     return { skipped: true, date };
   }
 
