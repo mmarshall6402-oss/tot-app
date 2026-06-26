@@ -372,6 +372,28 @@ export default function ToT() {
     setLoading(false);
   };
 
+  // Fetch recaps for final games on the picks page
+  useEffect(() => {
+    if (!picks?.length) return;
+    const finals = picks.filter(p => p.liveScore?.status === "Final" && p.id && !gameRecaps[p.id]);
+    if (!finals.length) return;
+    (async () => {
+      const headers = await getAuthHeaders();
+      const entries = await Promise.all(finals.map(async p => {
+        try {
+          const hs = p.liveScore.homeScore, as2 = p.liveScore.awayScore;
+          const result = hs === as2 ? "push" : (hs > as2) === (p.pick === p.homeTeam) ? "win" : "loss";
+          const date = p.commenceTime?.split("T")[0] || "";
+          const params = new URLSearchParams({ gamePk: p.id, homeTeam: p.homeTeam, awayTeam: p.awayTeam, date, pick: p.pick || "", result, edge: p.edge != null ? String(p.edge) : "", tier: p.tier?.level || "" });
+          const res = await fetch(`/api/tracker/game-recap?${params}`, { headers });
+          const data = await res.json();
+          return [p.id, data.error ? "error" : data];
+        } catch { return [p.id, "error"]; }
+      }));
+      setGameRecaps(prev => ({ ...prev, ...Object.fromEntries(entries) }));
+    })();
+  }, [picks]);
+
   const fetchSaved = async () => {
     setLoading(activeTab === "tracker");
     // Auto-resolve any pending picks whose games are finished
@@ -1401,20 +1423,28 @@ export default function ToT() {
                       </div>
                     )}
                     {ls?.status === "Final" && (
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
-                        {pickResult && (
-                          <span style={{
-                            fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5,
-                            background: pickResult === "win" ? "rgba(0,255,135,0.12)" : pickResult === "loss" ? "rgba(255,77,77,0.12)" : "rgba(255,214,0,0.08)",
-                            color: pickResult === "win" ? "#00FF87" : pickResult === "loss" ? "#FF4D4D" : "#FFD600",
-                            border: `1px solid ${pickResult === "win" ? "rgba(0,255,135,0.3)" : pickResult === "loss" ? "rgba(255,77,77,0.3)" : "rgba(255,214,0,0.3)"}`,
-                          }}>
-                            {pickResult === "win" ? "WIN" : pickResult === "loss" ? "LOSS" : "TIE"}
+                      <div style={{ marginTop: 8 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          {pickResult && (
+                            <span style={{
+                              fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5,
+                              background: pickResult === "win" ? "rgba(0,255,135,0.12)" : pickResult === "loss" ? "rgba(255,77,77,0.12)" : "rgba(255,214,0,0.08)",
+                              color: pickResult === "win" ? "#00FF87" : pickResult === "loss" ? "#FF4D4D" : "#FFD600",
+                              border: `1px solid ${pickResult === "win" ? "rgba(0,255,135,0.3)" : pickResult === "loss" ? "rgba(255,77,77,0.3)" : "rgba(255,214,0,0.3)"}`,
+                            }}>
+                              {pickResult === "win" ? "WIN" : pickResult === "loss" ? "LOSS" : "TIE"}
+                            </span>
+                          )}
+                          <span style={{ fontSize: 12, color: "#888" }}>
+                            Final · {pick.awayTeam} {ls.awayScore} – {pick.homeTeam} {ls.homeScore}
                           </span>
-                        )}
-                        <span style={{ fontSize: 12, color: "#888" }}>
-                          Final · {pick.awayTeam} {ls.awayScore} – {pick.homeTeam} {ls.homeScore}
-                        </span>
+                        </div>
+                        {(() => {
+                          const recap = gameRecaps[pick.id];
+                          if (!recap || recap === "loading") return <div style={{ fontSize: 11, color: "#333", marginTop: 6 }}>Generating recap...</div>;
+                          if (recap === "error") return null;
+                          return <div style={{ fontSize: 12, color: "#777", lineHeight: 1.65, marginTop: 8, paddingTop: 8, borderTop: "1px solid #111" }}>{recap.paragraph}</div>;
+                        })()}
                       </div>
                     )}
                   </div>
