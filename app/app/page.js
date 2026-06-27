@@ -168,6 +168,10 @@ export default function ToT() {
   const [activatingPro, setActivatingPro] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [modelStreak, setModelStreak] = useState(null);
+  const [teamSearchOpen, setTeamSearchOpen] = useState(false);
+  const [teamQuery, setTeamQuery] = useState("");
+  const [teamView, setTeamView] = useState(null); // { team, games }
+  const [teamViewLoading, setTeamViewLoading] = useState(false);
 
   // Auth state — use the shared singleton so getAuthHeaders() shares the same session.
   useEffect(() => {
@@ -346,6 +350,40 @@ export default function ToT() {
   const getAuthHeaders = async () => {
     const { data: { session } } = await getSupabase().auth.getSession();
     return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
+  };
+
+  const ALL_MLB_TEAMS = [
+    "Arizona Diamondbacks","Atlanta Braves","Baltimore Orioles","Boston Red Sox",
+    "Chicago Cubs","Chicago White Sox","Cincinnati Reds","Cleveland Guardians",
+    "Colorado Rockies","Detroit Tigers","Houston Astros","Kansas City Royals",
+    "Los Angeles Angels","Los Angeles Dodgers","Miami Marlins","Milwaukee Brewers",
+    "Minnesota Twins","New York Mets","New York Yankees","Oakland Athletics",
+    "Philadelphia Phillies","Pittsburgh Pirates","San Diego Padres","San Francisco Giants",
+    "Seattle Mariners","St. Louis Cardinals","Tampa Bay Rays","Texas Rangers",
+    "Toronto Blue Jays","Washington Nationals",
+  ];
+
+  const teamSuggestions = teamQuery.length >= 2
+    ? ALL_MLB_TEAMS.filter(t => t.toLowerCase().includes(teamQuery.toLowerCase())).slice(0, 5)
+    : [];
+
+  const fetchTeamSchedule = async (team) => {
+    setTeamQuery(team);
+    setTeamViewLoading(true);
+    setTeamView(null);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/team-schedule?team=${encodeURIComponent(team)}`, { headers });
+      const data = await res.json();
+      setTeamView(data);
+    } catch {}
+    setTeamViewLoading(false);
+  };
+
+  const clearTeamSearch = () => {
+    setTeamSearchOpen(false);
+    setTeamQuery("");
+    setTeamView(null);
   };
 
   const fetchSteals = async (date) => {
@@ -1170,9 +1208,51 @@ export default function ToT() {
                 title="Force-generate picks for today + tomorrow"
               >{generating ? "…" : "⚡ Gen"}</button>
             )}
+            <button
+              style={{ ...S.sortBtn, fontSize: 14, background: teamSearchOpen ? "rgba(0,255,135,0.1)" : "#111", borderColor: teamSearchOpen ? "#00FF87" : "#2a2a2a", color: teamSearchOpen ? "#00FF87" : "#999" }}
+              onClick={() => { if (teamSearchOpen) { clearTeamSearch(); } else setTeamSearchOpen(true); }}
+              title="Search by team"
+            >🔍</button>
           </div>
         )}
       </div>
+
+      {activeTab === "picks" && teamSearchOpen && (
+        <div style={{ padding: "10px 20px", borderBottom: "1px solid #1a1a1a", position: "relative" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#0d0d0d", border: "1px solid #2a2a2a", borderRadius: 10, padding: "8px 12px" }}>
+            <span style={{ fontSize: 14, flexShrink: 0 }}>🔍</span>
+            <input
+              autoFocus
+              type="text"
+              placeholder="Search team — e.g. Yankees, Dodgers, Red Sox…"
+              value={teamQuery}
+              onChange={e => setTeamQuery(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && teamSuggestions.length === 1) fetchTeamSchedule(teamSuggestions[0]); if (e.key === "Escape") clearTeamSearch(); }}
+              style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: "#fff", fontSize: 14, minWidth: 0 }}
+            />
+            {teamQuery.length > 0 && (
+              <button onClick={() => { setTeamQuery(""); setTeamView(null); }} style={{ background: "none", border: "none", color: "#555", fontSize: 16, cursor: "pointer", flexShrink: 0, padding: 0 }}>✕</button>
+            )}
+          </div>
+          {teamSuggestions.length > 0 && !teamViewLoading && !teamView && (
+            <div style={{ position: "absolute", left: 20, right: 20, top: "calc(100% - 10px)", background: "#111", border: "1px solid #2a2a2a", borderRadius: 10, zIndex: 50, overflow: "hidden", boxShadow: "0 8px 24px rgba(0,0,0,0.6)" }}>
+              {teamSuggestions.map(t => (
+                <button
+                  key={t}
+                  onClick={() => fetchTeamSchedule(t)}
+                  style={{ width: "100%", padding: "11px 14px", background: "none", border: "none", color: "#ccc", fontSize: 14, textAlign: "left", cursor: "pointer", borderBottom: "1px solid #1a1a1a", display: "flex", alignItems: "center", gap: 10 }}
+                >
+                  <span style={{ fontSize: 12 }}>⚾</span>
+                  {t}
+                </button>
+              ))}
+            </div>
+          )}
+          {teamViewLoading && (
+            <div style={{ fontSize: 12, color: "#555", marginTop: 8, textAlign: "center" }}>Loading schedule…</div>
+          )}
+        </div>
+      )}
 
       <div style={S.content}>
         {activeTab === "picks" && modelRecord?.total > 0 && (
@@ -1185,6 +1265,87 @@ export default function ToT() {
             <span style={{ fontSize: 10, color: "#222" }}>all-time</span>
           </div>
         )}
+
+        {activeTab === "picks" && teamView && (() => {
+          const { team, games = [] } = teamView;
+          const todayStr2 = new Date().toISOString().slice(0, 10);
+          // Get the team's record from the most recent game that has standings
+          const recordGame = [...games].reverse().find(g => {
+            const norm = s => (s || "").toLowerCase();
+            return norm(g.homeTeam).includes(norm(team).split(" ").pop()) ? g.homeRecord
+              : norm(g.awayTeam).includes(norm(team).split(" ").pop()) ? g.awayRecord : null;
+          });
+          const teamRecord = recordGame
+            ? (recordGame.homeTeam.toLowerCase().includes(team.toLowerCase().split(" ").pop())
+                ? recordGame.homeRecord : recordGame.awayRecord)
+            : null;
+
+          const verdictColor = v => ({ CLEAN: "#00FF87", BET: "#FFD600", PASS: "#555", TRAP: "#FF4D4D" })[v] || "#555";
+          const verdictLabel = v => ({ CLEAN: "🔥 CLEAN", BET: "✅ BET", PASS: "👀 PASS", TRAP: "⚠️ TRAP" })[v] || v || "—";
+
+          return (
+            <div style={{ background: "#0a0a0a", border: "1px solid #1a1a1a", borderRadius: 14, overflow: "hidden", marginBottom: 4 }}>
+              <div style={{ padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: games.length > 0 ? "1px solid #1a1a1a" : "none" }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>{team}</div>
+                  {teamRecord && <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>{teamRecord} · {games.length} game{games.length !== 1 ? "s" : ""} this week</div>}
+                  {!teamRecord && <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>{games.length} game{games.length !== 1 ? "s" : ""} this week</div>}
+                </div>
+                <button onClick={() => { setTeamView(null); setTeamQuery(""); }} style={{ background: "none", border: "none", color: "#555", fontSize: 18, cursor: "pointer", padding: "0 4px" }}>✕</button>
+              </div>
+              {games.length === 0 && (
+                <div style={{ padding: "16px 14px", fontSize: 13, color: "#555" }}>No games found for {team} this week.</div>
+              )}
+              {games.map((g, i) => {
+                const isHome = g.homeTeam.toLowerCase().includes(team.toLowerCase().split(" ").pop());
+                const opponent = isHome ? g.awayTeam : g.homeTeam;
+                const opponentRecord = isHome ? g.awayRecord : g.homeRecord;
+                const teamOdds = isHome ? g.homeOdds : g.awayOdds;
+                const fmtOdds = o => o == null ? "—" : o > 0 ? `+${o}` : `${o}`;
+                const verdict = g.filter?.verdict;
+                const dateObj = new Date(g.date + "T12:00:00");
+                const isToday = g.date === todayStr2;
+                const isFuture = g.date > todayStr2;
+                const dateLabel = isToday ? "Today" : dateObj.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+                const liveStatus = g.liveScore?.status;
+                const scoreStr = liveStatus === "Live" || liveStatus === "Final"
+                  ? (isHome ? `${g.liveScore.homeScore ?? ""}–${g.liveScore.awayScore ?? ""}` : `${g.liveScore.awayScore ?? ""}–${g.liveScore.homeScore ?? ""}`)
+                  : null;
+                const gameTime = g.commenceTime
+                  ? new Date(g.commenceTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "America/New_York" })
+                  : null;
+
+                return (
+                  <button
+                    key={g.date + g.homeTeam}
+                    onClick={() => { setSelectedDate(g.date); setTeamView(null); setTeamQuery(""); setTeamSearchOpen(false); }}
+                    style={{ width: "100%", background: "none", border: "none", borderBottom: i < games.length - 1 ? "1px solid #111" : "none", padding: "10px 14px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, textAlign: "left" }}
+                  >
+                    <div style={{ width: 48, flexShrink: 0 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: isToday ? "#00FF87" : isFuture ? "#777" : "#444", letterSpacing: 0.5 }}>{dateLabel}</div>
+                      {gameTime && !scoreStr && <div style={{ fontSize: 10, color: "#333", marginTop: 1 }}>{gameTime}</div>}
+                      {scoreStr && <div style={{ fontSize: 10, color: liveStatus === "Final" ? "#555" : "#FFD600", marginTop: 1 }}>{liveStatus === "Final" ? "Final" : "LIVE"}</div>}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#ccc", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {isHome ? "vs " : "@ "}{opponent.split(" ").pop()}
+                        {opponentRecord && <span style={{ fontSize: 10, color: "#444", fontWeight: 400, marginLeft: 5 }}>{opponentRecord}</span>}
+                      </div>
+                      {scoreStr && <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: "#888", marginTop: 1 }}>{scoreStr}</div>}
+                    </div>
+                    {verdict && (
+                      <div style={{ fontSize: 10, fontWeight: 800, color: verdictColor(verdict), flexShrink: 0, letterSpacing: 0.5 }}>{verdictLabel(verdict)}</div>
+                    )}
+                    {teamOdds != null && (
+                      <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: "#666", flexShrink: 0, minWidth: 36, textAlign: "right" }}>{fmtOdds(teamOdds)}</div>
+                    )}
+                    <span style={{ color: "#333", fontSize: 12, flexShrink: 0 }}>›</span>
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })()}
 
         {activeTab === "picks" && modelStreak?.streak >= 3 && (
           <div style={{ background: modelStreak.streakType === "win" ? "rgba(0,255,135,0.06)" : "rgba(255,77,77,0.06)", border: `1px solid ${modelStreak.streakType === "win" ? "rgba(0,255,135,0.2)" : "rgba(255,77,77,0.2)"}`, borderRadius: 10, padding: "9px 13px", marginBottom: 6, display: "flex", alignItems: "center", gap: 10 }}>
