@@ -172,6 +172,10 @@ export default function ToT() {
   const [teamQuery, setTeamQuery] = useState("");
   const [teamView, setTeamView] = useState(null); // { team, games }
   const [teamViewLoading, setTeamViewLoading] = useState(false);
+  const [livePicks, setLivePicks] = useState(null);
+  const [liveLoading, setLiveLoading] = useState(false);
+  const [toastQueue, setToastQueue] = useState([]);
+  const prevLiveRef = useRef([]);
 
   // Auth state — use the shared singleton so getAuthHeaders() shares the same session.
   useEffect(() => {
@@ -294,6 +298,22 @@ export default function ToT() {
     if (user && isPro && activeTab !== "tracker") fetchSaved();
   }, [user, isPro]);
 
+  // Live tab polling — fetch today's picks every 60s, detect settlements
+  useEffect(() => {
+    if (!user || !isPro || activeTab !== "live") return;
+    setLiveLoading(!livePicks);
+    fetchLive();
+    const interval = setInterval(fetchLive, 60_000);
+    return () => clearInterval(interval);
+  }, [user, isPro, activeTab]);
+
+  // Dismiss toasts one at a time after 5s
+  useEffect(() => {
+    if (!toastQueue.length) return;
+    const t = setTimeout(() => setToastQueue(q => q.slice(1)), 5000);
+    return () => clearTimeout(t);
+  }, [toastQueue]);
+
   const startCheckout = async (plan) => {
     setCheckingOut(plan);
     try {
@@ -384,6 +404,40 @@ export default function ToT() {
     setTeamSearchOpen(false);
     setTeamQuery("");
     setTeamView(null);
+  };
+
+  const showToast = (t) => setToastQueue(q => [...q, { ...t, id: Date.now() }]);
+
+  const fetchLive = async () => {
+    if (!user || !isPro) return;
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/picks?date=${todayStr}`, { headers });
+      const data = await res.json();
+      const next = data.picks || [];
+
+      // Detect any game that just went Final since last poll
+      const prev = prevLiveRef.current;
+      for (const pick of next) {
+        const was = prev.find(p => p.id === pick.id);
+        const justFinished = was && was.liveScore?.status !== "Final" && pick.liveScore?.status === "Final";
+        if (justFinished) {
+          const hs = pick.liveScore.homeScore ?? 0;
+          const as = pick.liveScore.awayScore ?? 0;
+          const modelWon = pick.pick === pick.homeTeam ? hs > as : as > hs;
+          const modelPush = hs === as;
+          showToast({
+            icon: modelPush ? "➖" : modelWon ? "✅" : "❌",
+            message: `${pick.awayTeam.split(" ").pop()} ${as} · ${pick.homeTeam.split(" ").pop()} ${hs} — Final`,
+            sub: modelPush ? "Push" : modelWon ? `${pick.pick.split(" ").pop()} won — model HIT` : `${pick.pick.split(" ").pop()} lost — model MISS`,
+            color: modelPush ? "#888" : modelWon ? "#00FF87" : "#FF4D4D",
+          });
+        }
+      }
+      prevLiveRef.current = next;
+      setLivePicks(next);
+    } catch {}
+    setLiveLoading(false);
   };
 
   const fetchSteals = async (date) => {
@@ -1162,6 +1216,7 @@ export default function ToT() {
         <div style={{ display: "flex", gap: 6 }}>
           {[
             { id: "picks", label: "Picks" },
+            { id: "live", label: "🔴 Live" },
             { id: "steals", label: "Steals" },
             { id: "parlay", label: "🎲 Parlay" },
             { id: "tracker", label: "Tracker" },
@@ -1176,7 +1231,7 @@ export default function ToT() {
               key={id}
               style={{ ...S.tabBtn, borderColor: activeTab === id ? "#00FF87" : "#333", color: activeTab === id ? "#00FF87" : "#999", background: activeTab === id ? "rgba(0,255,135,0.08)" : "#111" }}
               onClick={() => {
-                if (!isPro && ["steals", "parlay", "tracker"].includes(id)) { setUpgradeModal(true); return; }
+                if (!isPro && ["steals", "parlay", "tracker", "live"].includes(id)) { setUpgradeModal(true); return; }
                 setActiveTab(id);
               }}
             >
@@ -1343,6 +1398,44 @@ export default function ToT() {
                   </button>
                 );
               })}
+            </div>
+          );
+        })()}
+
+        {activeTab === "picks" && selectedDate === todayStr && modelStreak?.last7 && (modelStreak.last7.wins + modelStreak.last7.losses) > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#080808", border: "1px solid #1a1a1a", borderRadius: 10, padding: "9px 13px" }}>
+            <span style={{ fontSize: 11, color: "#555", letterSpacing: 1 }}>LAST 7 DAYS</span>
+            <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13, fontWeight: 700, color: modelStreak.last7.wins > modelStreak.last7.losses ? "#00FF87" : modelStreak.last7.wins < modelStreak.last7.losses ? "#FF4D4D" : "#888" }}>
+              {modelStreak.last7.wins}–{modelStreak.last7.losses}
+            </span>
+            <span style={{ fontSize: 11, color: "#444" }}>
+              {(() => { const t = modelStreak.last7.wins + modelStreak.last7.losses; const pct = Math.round(modelStreak.last7.wins / t * 100); return `${pct}% this week`; })()}
+            </span>
+          </div>
+        )}
+
+        {activeTab === "picks" && selectedDate === todayStr && picks?.some(p => p.isLock) && (() => {
+          const lock = picks.find(p => p.isLock);
+          const lockOdds = lock.pick === lock.homeTeam ? lock.homeOdds : lock.awayOdds;
+          const fmtO = o => o == null ? "" : o > 0 ? `+${o}` : `${o}`;
+          return (
+            <div style={{ background: "linear-gradient(135deg, rgba(0,255,135,0.08) 0%, rgba(0,255,135,0.03) 100%)", border: "1px solid rgba(0,255,135,0.3)", borderRadius: 14, padding: "14px 16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <span style={{ fontSize: 10, fontWeight: 800, color: "#00FF87", letterSpacing: 2 }}>🔒 LOCK OF THE DAY</span>
+                {lock.filter?.verdict && (
+                  <span style={{ fontSize: 10, fontWeight: 800, color: "#000", background: "#00FF87", padding: "2px 8px", borderRadius: 20, letterSpacing: 1 }}>{lock.filter.verdict}</span>
+                )}
+              </div>
+              <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 15, fontWeight: 700, marginBottom: 4 }}>
+                {lock.awayTeam} @ {lock.homeTeam}
+              </div>
+              <div style={{ fontSize: 13, color: "#00FF87", fontWeight: 700, marginBottom: 4 }}>
+                Take {lock.pick} {fmtO(lockOdds)}
+                {lock.edge != null && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 8 }}>+{lock.edge.toFixed(1)}% edge</span>}
+              </div>
+              {lock.breakdown?.preview && (
+                <div style={{ fontSize: 12, color: "#555", lineHeight: 1.6, marginTop: 6 }}>{lock.breakdown.preview.slice(0, 140)}</div>
+              )}
             </div>
           );
         })()}
@@ -2325,6 +2418,136 @@ export default function ToT() {
           );
         })()}
 
+        {activeTab === "live" && (() => {
+          const games = livePicks || [];
+          const fmtO = o => o == null ? "—" : o > 0 ? `+${o}` : `${o}`;
+          const fmtTime = iso => iso ? new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "America/New_York" }) : "";
+          const vcol = v => ({ CLEAN: "#00FF87", BET: "#FFD600", PASS: "#555", TRAP: "#FF4D4D" })[v] || "#555";
+
+          const inProgress = games.filter(g => g.liveScore?.status === "Live");
+          const upcoming   = games.filter(g => !g.liveScore?.status || g.liveScore.status === "Preview" || g.liveScore.status === "Scheduled");
+          const finished   = games.filter(g => g.liveScore?.status === "Final");
+
+          const LiveCard = ({ g }) => {
+            const live   = g.liveScore || {};
+            const isLive = live.status === "Live";
+            const isFin  = live.status === "Final";
+            const hs     = live.homeScore ?? "–";
+            const as     = live.awayScore ?? "–";
+            const modelPick = g.pick;
+            const modelWon  = isFin && g.homeOdds != null
+              ? (modelPick === g.homeTeam ? (live.homeScore ?? 0) > (live.awayScore ?? 0) : (live.awayScore ?? 0) > (live.homeScore ?? 0))
+              : null;
+            const verdict = g.filter?.verdict;
+            const odds    = modelPick === g.homeTeam ? g.homeOdds : g.awayOdds;
+            const isSaved = savedPicks.some(p => p.game_id === g.id);
+            const inningLabel = live.inning ? `${live.inningHalf === "top" ? "▲" : "▼"}${live.inning}` : "";
+
+            return (
+              <div style={{ background: "#0d0d0d", border: `1px solid ${isLive ? "rgba(255,214,0,0.25)" : isFin ? "#1a1a1a" : "#1a1a1a"}`, borderRadius: 14, padding: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    {isLive && <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#FFD600", display: "inline-block", animation: "pulse 1.5s ease-in-out infinite" }} />}
+                    <span style={{ fontSize: 10, fontWeight: 700, color: isLive ? "#FFD600" : isFin ? "#555" : "#888", letterSpacing: 1.5 }}>
+                      {isLive ? `LIVE ${inningLabel}` : isFin ? "FINAL" : fmtTime(g.commenceTime)}
+                    </span>
+                  </div>
+                  {verdict && (
+                    <span style={{ fontSize: 10, fontWeight: 800, color: vcol(verdict), letterSpacing: 1 }}>{verdict}</span>
+                  )}
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: modelPick === g.awayTeam ? 700 : 400, color: modelPick === g.awayTeam ? "#fff" : "#888" }}>{g.awayTeam.split(" ").pop()}</div>
+                    <div style={{ fontSize: 10, color: "#444", marginTop: 1 }}>{g.awayRecord || "away"}</div>
+                  </div>
+                  {(isLive || isFin) ? (
+                    <div style={{ textAlign: "center", minWidth: 64 }}>
+                      <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 22, fontWeight: 700, letterSpacing: 2 }}>
+                        <span style={{ color: (live.awayScore ?? 0) > (live.homeScore ?? 0) ? "#fff" : "#555" }}>{as}</span>
+                        <span style={{ color: "#333", margin: "0 4px" }}>·</span>
+                        <span style={{ color: (live.homeScore ?? 0) > (live.awayScore ?? 0) ? "#fff" : "#555" }}>{hs}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: "center", minWidth: 48, fontSize: 10, color: "#333" }}>@</div>
+                  )}
+                  <div style={{ flex: 1, textAlign: "right" }}>
+                    <div style={{ fontSize: 13, fontWeight: modelPick === g.homeTeam ? 700 : 400, color: modelPick === g.homeTeam ? "#fff" : "#888" }}>{g.homeTeam.split(" ").pop()}</div>
+                    <div style={{ fontSize: 10, color: "#444", marginTop: 1 }}>{g.homeRecord || "home"}</div>
+                  </div>
+                </div>
+
+                <div style={{ borderTop: "1px solid #1a1a1a", marginTop: 10, paddingTop: 10, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ fontSize: 12 }}>
+                    <span style={{ color: "#555" }}>Model: </span>
+                    <span style={{ color: "#00FF87", fontWeight: 700 }}>{modelPick.split(" ").pop()}</span>
+                    <span style={{ color: "#444", marginLeft: 6, fontSize: 11 }}>{fmtO(odds)}</span>
+                  </div>
+                  {isFin && modelWon !== null && (
+                    <span style={{ fontSize: 12, fontWeight: 700, color: modelWon ? "#00FF87" : "#FF4D4D" }}>
+                      {modelWon ? "✅ HIT" : "❌ MISS"}
+                    </span>
+                  )}
+                  {isLive && modelPick && (
+                    <span style={{ fontSize: 11, color: "#555" }}>
+                      {modelPick === g.homeTeam
+                        ? ((live.homeScore ?? 0) > (live.awayScore ?? 0) ? "⬆️ Winning" : (live.homeScore ?? 0) < (live.awayScore ?? 0) ? "⬇️ Losing" : "Even")
+                        : ((live.awayScore ?? 0) > (live.homeScore ?? 0) ? "⬆️ Winning" : (live.awayScore ?? 0) < (live.homeScore ?? 0) ? "⬇️ Losing" : "Even")}
+                    </span>
+                  )}
+                  {!isLive && !isFin && isSaved && <span style={{ fontSize: 10, color: "#00FF87" }}>✓ Tracked</span>}
+                </div>
+              </div>
+            );
+          };
+
+          return (
+            <div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <div style={{ fontSize: 10, color: "#555", letterSpacing: 1 }}>AUTO-REFRESHES EVERY 60s</div>
+                {liveLoading && <div style={{ width: 14, height: 14, border: "2px solid #222", borderTopColor: "#FFD600", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />}
+                <button onClick={fetchLive} style={{ background: "none", border: "none", color: "#555", fontSize: 12, cursor: "pointer", padding: 0 }}>↺ Refresh</button>
+              </div>
+
+              {!liveLoading && games.length === 0 && (
+                <div style={{ ...S.center, padding: 40 }}>
+                  <div style={{ fontSize: 32, marginBottom: 12 }}>⚾</div>
+                  <div style={{ fontSize: 14, color: "#555" }}>No games loaded yet. Check back after 10 AM CT when picks drop.</div>
+                </div>
+              )}
+
+              {inProgress.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#FFD600", letterSpacing: 2, marginBottom: 8 }}>IN PROGRESS</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {inProgress.map(g => <LiveCard key={g.id} g={g} />)}
+                  </div>
+                </div>
+              )}
+
+              {upcoming.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 2, marginBottom: 8 }}>UP NEXT</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {upcoming.map(g => <LiveCard key={g.id} g={g} />)}
+                  </div>
+                </div>
+              )}
+
+              {finished.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#444", letterSpacing: 2, marginBottom: 8 }}>FINISHED</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {finished.map(g => <LiveCard key={g.id} g={g} />)}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         {activeTab === "chat" && (() => {
           const sendChat = async (text) => {
             if (!text?.trim() || chatLoading) return;
@@ -2485,6 +2708,20 @@ export default function ToT() {
           </div>
         </div>
       )}
+
+      {toastQueue.length > 0 && (() => {
+        const t = toastQueue[0];
+        return (
+          <div style={{ position: "fixed", bottom: 90, left: "50%", transform: "translateX(-50%)", zIndex: 9998, width: "calc(100% - 40px)", maxWidth: 420, background: "#111", border: `1px solid ${t.color}44`, borderRadius: 14, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.7)", animation: "fadeUp 0.3s ease" }}>
+            <span style={{ fontSize: 22, flexShrink: 0 }}>{t.icon}</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 2 }}>{t.message}</div>
+              <div style={{ fontSize: 11, color: t.color }}>{t.sub}</div>
+            </div>
+            <button onClick={() => setToastQueue(q => q.slice(1))} style={{ background: "none", border: "none", color: "#555", fontSize: 16, cursor: "pointer", flexShrink: 0 }}>✕</button>
+          </div>
+        );
+      })()}
 
       {showCancelModal && (
         <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.82)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
