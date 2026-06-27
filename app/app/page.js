@@ -176,6 +176,9 @@ export default function ToT() {
   const [liveLoading, setLiveLoading] = useState(false);
   const [toastQueue, setToastQueue] = useState([]);
   const prevLiveRef = useRef([]);
+  const [feedEvents, setFeedEvents] = useState(null);
+  const [feedTopPicks, setFeedTopPicks] = useState([]);
+  const [feedLoading, setFeedLoading] = useState(false);
 
   // Auth state — use the shared singleton so getAuthHeaders() shares the same session.
   useEffect(() => {
@@ -313,6 +316,26 @@ export default function ToT() {
     const t = setTimeout(() => setToastQueue(q => q.slice(1)), 5000);
     return () => clearTimeout(t);
   }, [toastQueue]);
+
+  const fetchFeed = async () => {
+    if (!user || !isPro) return;
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch("/api/activity", { headers });
+      const data = await res.json();
+      setFeedEvents(data.events || []);
+      setFeedTopPicks(data.topPicks || []);
+    } catch {}
+    setFeedLoading(false);
+  };
+
+  useEffect(() => {
+    if (!user || !isPro || activeTab !== "feed") return;
+    setFeedLoading(!feedEvents);
+    fetchFeed();
+    const interval = setInterval(fetchFeed, 30_000);
+    return () => clearInterval(interval);
+  }, [user, isPro, activeTab]);
 
   const startCheckout = async (plan) => {
     setCheckingOut(plan);
@@ -1217,6 +1240,7 @@ export default function ToT() {
           {[
             { id: "picks", label: "Picks" },
             { id: "live", label: "🔴 Live" },
+            { id: "feed", label: "⚡ Feed" },
             { id: "steals", label: "Steals" },
             { id: "parlay", label: "🎲 Parlay" },
             { id: "tracker", label: "Tracker" },
@@ -1231,7 +1255,7 @@ export default function ToT() {
               key={id}
               style={{ ...S.tabBtn, borderColor: activeTab === id ? "#00FF87" : "#333", color: activeTab === id ? "#00FF87" : "#999", background: activeTab === id ? "rgba(0,255,135,0.08)" : "#111" }}
               onClick={() => {
-                if (!isPro && ["steals", "parlay", "tracker", "live"].includes(id)) { setUpgradeModal(true); return; }
+                if (!isPro && ["steals", "parlay", "tracker", "live", "feed"].includes(id)) { setUpgradeModal(true); return; }
                 setActiveTab(id);
               }}
             >
@@ -2413,6 +2437,92 @@ export default function ToT() {
                     {label}
                   </div>
                 ))}
+              </div>
+            </div>
+          );
+        })()}
+
+        {activeTab === "feed" && (() => {
+          const events = feedEvents || [];
+
+          const fmtAgo = (secs) => {
+            if (secs < 60) return "just now";
+            if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
+            return `${Math.floor(secs / 3600)}h ago`;
+          };
+
+          const tierColor = t => ({ High: "#00FF87", Medium: "#FFD600", Low: "#888" })[t] || "#555";
+          const tierLabel = t => ({ High: "🔥 CLEAN", Medium: "✅ BET", Low: "👀 LEAN" })[t] || t || "";
+
+          return (
+            <div>
+              {/* Top picks today */}
+              {feedTopPicks.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 2, marginBottom: 8 }}>MOST TRACKED TODAY</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {feedTopPicks.map((g, i) => (
+                      <div key={i} style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+                        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 16, fontWeight: 700, color: "#555", minWidth: 20 }}>{i + 1}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: "#ccc" }}>{g.away} @ {g.home}</div>
+                          {g.tier && <div style={{ fontSize: 10, color: tierColor(g.tier), marginTop: 2 }}>{tierLabel(g.tier)}</div>}
+                        </div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "#00FF87", flexShrink: 0 }}>{g.count} tracking</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Activity feed */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 2 }}>LIVE ACTIVITY</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {feedLoading && <div style={{ width: 12, height: 12, border: "2px solid #222", borderTopColor: "#00FF87", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />}
+                  <button onClick={fetchFeed} style={{ background: "none", border: "none", color: "#555", fontSize: 12, cursor: "pointer", padding: 0 }}>↺</button>
+                </div>
+              </div>
+
+              {!feedLoading && events.length === 0 && (
+                <div style={{ ...S.center, padding: 40 }}>
+                  <div style={{ fontSize: 28, marginBottom: 10 }}>👀</div>
+                  <div style={{ fontSize: 13, color: "#555" }}>No recent activity yet. Be the first to track a pick today.</div>
+                </div>
+              )}
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                {events.map((e, i) => {
+                  const isHit  = e.type === "hit";
+                  const isMiss = e.type === "miss";
+                  const isTrack = e.type === "tracked";
+                  const color = isHit ? "#00FF87" : isMiss ? "#FF4D4D" : "#555";
+                  const icon  = isHit ? "✅" : isMiss ? "❌" : "⚾";
+
+                  return (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "1px solid #0d0d0d" }}>
+                      <span style={{ fontSize: 16, flexShrink: 0 }}>{icon}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, color: "#ccc", lineHeight: 1.4 }}>
+                          <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: "#444" }}>{e.handle} </span>
+                          {isTrack && <>tracked <span style={{ color: "#fff", fontWeight: 700 }}>{e.pick}</span>{e.tier && <span style={{ color: tierColor(e.tier), fontSize: 10, marginLeft: 6 }}>{tierLabel(e.tier)}</span>}</>}
+                          {isHit && <>hit <span style={{ color: "#00FF87", fontWeight: 700 }}>{e.pick}</span>{e.pnl != null && <span style={{ color: "#00FF87", fontWeight: 700, marginLeft: 4 }}>+${e.pnl.toFixed(2)}</span>}</>}
+                          {isMiss && <>missed on <span style={{ color: "#FF4D4D", fontWeight: 700 }}>{e.pick}</span></>}
+                        </div>
+                        {(e.awayTeam || e.homeTeam) && (
+                          <div style={{ fontSize: 10, color: "#333", marginTop: 2 }}>
+                            {e.awayTeam?.split(" ").pop()} @ {e.homeTeam?.split(" ").pop()}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 10, color: "#333", flexShrink: 0 }}>{fmtAgo(e.ago)}</div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{ fontSize: 10, color: "#222", textAlign: "center", marginTop: 16 }}>
+                All activity is anonymized. Updates every 30s.
               </div>
             </div>
           );
