@@ -166,6 +166,8 @@ export default function ToT() {
   const [upgradeModal, setUpgradeModal] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [activatingPro, setActivatingPro] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [modelStreak, setModelStreak] = useState(null);
 
   // Auth state — use the shared singleton so getAuthHeaders() shares the same session.
   useEffect(() => {
@@ -234,6 +236,7 @@ export default function ToT() {
       if (d.quietDay) setFreePick({ _quietDay: true });
     }).catch(() => {});
     fetch("/api/model-record").then(r => r.json()).then(d => setModelRecord(d)).catch(() => {});
+    fetch("/api/streak").then(r => r.json()).then(d => setModelStreak(d)).catch(() => {});
     const t = setInterval(() => setCarouselIdx(i => i + 1), 3000);
     return () => clearInterval(t);
   }, []);
@@ -302,7 +305,12 @@ export default function ToT() {
     setCheckingOut(false);
   };
 
-  const manageBilling = async () => {
+  const manageBilling = () => {
+    setDrawerOpen(false);
+    setShowCancelModal(true);
+  };
+
+  const goToBillingPortal = async () => {
     try {
       const authHeaders = await getAuthHeaders();
       const res = await fetch("/api/stripe/portal", {
@@ -1175,6 +1183,22 @@ export default function ToT() {
             </span>
             <span style={{ fontSize: 11, color: "#888" }}>({modelRecord.pct}%)</span>
             <span style={{ fontSize: 10, color: "#222" }}>all-time</span>
+          </div>
+        )}
+
+        {activeTab === "picks" && modelStreak?.streak >= 3 && (
+          <div style={{ background: modelStreak.streakType === "win" ? "rgba(0,255,135,0.06)" : "rgba(255,77,77,0.06)", border: `1px solid ${modelStreak.streakType === "win" ? "rgba(0,255,135,0.2)" : "rgba(255,77,77,0.2)"}`, borderRadius: 10, padding: "9px 13px", marginBottom: 6, display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 16 }}>{modelStreak.streakType === "win" ? "🔥" : "📉"}</span>
+            <div>
+              <span style={{ fontSize: 12, fontWeight: 700, color: modelStreak.streakType === "win" ? "#00FF87" : "#FF4D4D" }}>
+                {modelStreak.streak}-day {modelStreak.streakType === "win" ? "win" : "loss"} streak
+              </span>
+              {modelStreak.last7 && (
+                <span style={{ fontSize: 11, color: "#555", marginLeft: 8 }}>
+                  ({modelStreak.last7.wins}–{modelStreak.last7.losses} last 7 days)
+                </span>
+              )}
+            </div>
           </div>
         )}
 
@@ -2295,6 +2319,73 @@ export default function ToT() {
               <button style={{ width: "100%", background: "transparent", border: "none", color: "#444", fontSize: 13, padding: "8px 0", marginBottom: 4, cursor: "pointer" }}
                 onClick={() => setUpgradeModal(false)}>
                 Maybe later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCancelModal && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.82)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+          onClick={() => setShowCancelModal(false)}>
+          <div style={{ width: "100%", maxWidth: 500, background: "#0a0a0a", borderRadius: "24px 24px 0 0", border: "1px solid #1a1a1a", borderBottom: "none", padding: "0 0 max(28px, env(safe-area-inset-bottom)) 0", animation: "slideUp 0.3s cubic-bezier(0.32,0.72,0,1)" }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "center", padding: "12px 0 4px" }}>
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: "#222" }} />
+            </div>
+            <div style={{ padding: "16px 24px 8px" }}>
+              <div style={{ textAlign: "center", marginBottom: 20 }}>
+                <div style={{ fontSize: 24, marginBottom: 8 }}>⚡</div>
+                <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Before you go…</div>
+                <div style={{ fontSize: 13, color: "#555", lineHeight: 1.6 }}>Here's what your Pro membership is doing for you:</div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+                {decisioned > 0 && (
+                  <div style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 12, padding: "14px 12px", textAlign: "center" }}>
+                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 22, fontWeight: 700, color: winPct >= 55 ? "#00FF87" : winPct >= 50 ? "#FFD600" : "#FF4D4D" }}>{winPct}%</div>
+                    <div style={{ fontSize: 10, color: "#444", marginTop: 3, letterSpacing: 1 }}>YOUR WIN RATE</div>
+                    <div style={{ fontSize: 11, color: "#333", marginTop: 2 }}>{decisioned} settled picks</div>
+                  </div>
+                )}
+                {pnl !== 0 && (
+                  <div style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 12, padding: "14px 12px", textAlign: "center" }}>
+                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 22, fontWeight: 700, color: pnl >= 0 ? "#00FF87" : "#FF4D4D" }}>{pnl >= 0 ? "+" : ""}${Math.abs(pnl).toFixed(0)}</div>
+                    <div style={{ fontSize: 10, color: "#444", marginTop: 3, letterSpacing: 1 }}>YOUR P&L</div>
+                    <div style={{ fontSize: 11, color: "#333", marginTop: 2 }}>at ${unitSize}/unit</div>
+                  </div>
+                )}
+                {modelRecord?.pct != null && (
+                  <div style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 12, padding: "14px 12px", textAlign: "center" }}>
+                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 22, fontWeight: 700, color: modelRecord.pct >= 55 ? "#00FF87" : "#FFD600" }}>{modelRecord.pct}%</div>
+                    <div style={{ fontSize: 10, color: "#444", marginTop: 3, letterSpacing: 1 }}>MODEL WIN RATE</div>
+                    <div style={{ fontSize: 11, color: "#333", marginTop: 2 }}>{modelRecord.wins}–{modelRecord.losses} all-time</div>
+                  </div>
+                )}
+                {modelStreak?.streak >= 2 && (
+                  <div style={{ background: modelStreak.streakType === "win" ? "rgba(0,255,135,0.05)" : "rgba(255,77,77,0.05)", border: `1px solid ${modelStreak.streakType === "win" ? "rgba(0,255,135,0.2)" : "rgba(255,77,77,0.15)"}`, borderRadius: 12, padding: "14px 12px", textAlign: "center" }}>
+                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 22, fontWeight: 700, color: modelStreak.streakType === "win" ? "#00FF87" : "#FF4D4D" }}>{modelStreak.streak}</div>
+                    <div style={{ fontSize: 10, color: "#444", marginTop: 3, letterSpacing: 1 }}>DAY {modelStreak.streakType === "win" ? "WIN" : "LOSS"} STREAK</div>
+                    <div style={{ fontSize: 11, color: "#333", marginTop: 2 }}>{modelStreak.streakType === "win" ? "Model is hot 🔥" : "Bounce-back due"}</div>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ background: "rgba(0,255,135,0.04)", border: "1px solid rgba(0,255,135,0.12)", borderRadius: 12, padding: "12px 16px", marginBottom: 16, textAlign: "center" }}>
+                <div style={{ fontSize: 12, color: "#555", marginBottom: 4 }}>You're paying less than a coffee a month.</div>
+                <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 18, fontWeight: 700, color: "#00FF87" }}>$2/month</div>
+                <div style={{ fontSize: 11, color: "#444", marginTop: 2 }}>for 30 days of sharp picks, AI breakdowns, and edge scores</div>
+              </div>
+
+              <button
+                style={{ width: "100%", background: "#00FF87", color: "#000", border: "none", borderRadius: 12, padding: "14px", fontSize: 15, fontWeight: 800, cursor: "pointer", marginBottom: 10 }}
+                onClick={() => setShowCancelModal(false)}>
+                Keep Pro — stay sharp
+              </button>
+              <button
+                style={{ width: "100%", background: "transparent", border: "1px solid #1a1a1a", borderRadius: 12, padding: "12px", fontSize: 13, color: "#444", cursor: "pointer", marginBottom: 4 }}
+                onClick={() => { setShowCancelModal(false); goToBillingPortal(); }}>
+                Manage / cancel subscription →
               </button>
             </div>
           </div>
