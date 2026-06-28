@@ -681,6 +681,9 @@ export default function AdminDash() {
             {calData?.probBuckets?.some(b => b.n < 20 && b.n > 0) && (
               <div style={{ fontSize: 10, color: "#333", marginTop: 8 }}>* n &lt; 20 — too small to interpret</div>
             )}
+          <div style={{ marginTop: 10 }}>
+            <a href="/admin/calibration" style={{ fontSize: 11, color: "#00FF87" }}>📈 Full history + Brier/LogLoss trend →</a>
+          </div>
           </div>
 
           <span style={{ ...S.lbl, marginTop: 18, display: "block" }}>CONFIDENCE CALIBRATION</span>
@@ -797,6 +800,7 @@ export default function AdminDash() {
           {[
             { title: "ML features column", sql: "alter table model_picks add column if not exists features jsonb;" },
             { title: "Access codes table", sql: `create table if not exists access_codes (\n  id uuid primary key default gen_random_uuid(),\n  code text unique not null,\n  label text,\n  uses_max int default null,\n  uses_count int default 0,\n  expires_at timestamptz default null,\n  created_at timestamptz default now()\n);\nalter table access_codes enable row level security;\ncreate policy "public read access_codes"\n  on access_codes for select using (true);` },
+          { title: "Calibration snapshots table", sql: `create table if not exists calibration_snapshots (\n  id uuid primary key default gen_random_uuid(),\n  run_at timestamptz not null default now(),\n  total_picks integer not null default 0,\n  brier_score double precision,\n  log_loss double precision,\n  avg_delta double precision,\n  prob_buckets jsonb,\n  conf_buckets jsonb,\n  verdict_buckets jsonb,\n  variance_buckets jsonb\n);\ncreate index if not exists calibration_snapshots_run_at_idx\n  on calibration_snapshots (run_at desc);\nalter table calibration_snapshots enable row level security;\ncreate policy "no public access"\n  on calibration_snapshots for all using (false);` },
           ].map(({ title, sql }) => (
             <div key={title} style={{ ...S.card, marginBottom: 8 }}>
               <div style={{ ...S.row, marginBottom: 8 }}>
