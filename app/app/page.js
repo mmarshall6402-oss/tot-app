@@ -123,6 +123,9 @@ export default function ToT() {
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState("");
   const [picks, setPicks] = useState(null);
+  const [nflPicks, setNflPicks] = useState(null);
+  const [nflExpanded, setNflExpanded] = useState(null);
+  const [nflGenerating, setNflGenerating] = useState(false);
   const [savedPicks, setSavedPicks] = useState([]);
   const [gameRecaps, setGameRecaps] = useState({});
   const [chatMessages, setChatMessages] = useState([]);
@@ -281,6 +284,7 @@ export default function ToT() {
     if (activeTab === "parlay" && picksDate !== selectedDate) fetchPicks(selectedDate);
     if (activeTab === "steals") fetchSteals(selectedDate);
     if (activeTab === "tracker") fetchSaved();
+    if (activeTab === "nfl") fetchNflPicks(selectedDate);
   }, [user, isPro, activeTab, selectedDate]);
 
   useEffect(() => {
@@ -368,6 +372,17 @@ export default function ToT() {
         return date;
       });
     } catch (e) { console.error("picks error", e); setPicks(prev => prev ?? []); }
+    setLoading(false);
+  };
+
+  const fetchNflPicks = async (date, bust = false) => {
+    setLoading(true);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/nfl/picks?date=${date}${bust ? "&bust=1" : ""}`, { headers });
+      const data = await res.json();
+      setNflPicks(data.picks || []);
+    } catch (e) { console.error("nfl picks error", e); setNflPicks(prev => prev ?? []); }
     setLoading(false);
   };
 
@@ -495,6 +510,16 @@ export default function ToT() {
       await fetchPicks(selectedDate, true);
     } catch (e) { console.error("regen error", e); }
     setGenerating(false);
+  };
+
+  const generateNflPicks = async () => {
+    setNflGenerating(true);
+    try {
+      const headers = await getAuthHeaders();
+      await fetch("/api/admin/regen", { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify({ sport: "nfl", date: selectedDate }) });
+      await fetchNflPicks(selectedDate, true);
+    } catch (e) { console.error("nfl regen error", e); }
+    setNflGenerating(false);
   };
 
   const sorted = [...(picks || [])].sort((a, b) => {
@@ -982,8 +1007,8 @@ export default function ToT() {
               { id: "tracker", icon: "📊", label: "Tracker" },
               { id: "record", icon: "📅", label: "Record" },
               { id: "chat", icon: "💬", label: "Assistant" },
+              { id: "nfl", icon: "🏈", label: "NFL" },
               ...(isBeta ? [
-                { id: "nfl", icon: "🏈", label: "NFL" },
                 { id: "props", icon: "🎯", label: "Props" },
               ] : []),
             ].map(({ id, icon, label }) => (
@@ -1015,25 +1040,21 @@ export default function ToT() {
           {[0, 1, 2].map(i => <div key={i} style={S.menuLine} />)}
         </button>
         <div style={S.navLogo}>T<span style={{ color: "#00FF87" }}>|</span>T</div>
-        {isBeta ? (
-          <div style={{ display: "flex", gap: 5 }}>
-            {[
-              { sport: "mlb", label: "MLB", tab: "picks" },
-              { sport: "nfl", label: "NFL", tab: "nfl" },
-              { sport: "props", label: "Props", tab: "props" },
-            ].map(({ sport, label, tab }) => {
-              const active = activeTab === tab || (sport === "mlb" && ["picks","steals","parlay","tracker","record","chat"].includes(activeTab));
-              return (
-                <button key={sport} onClick={() => setActiveTab(tab)}
-                  style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, letterSpacing: 0.5, border: "none", cursor: "pointer", background: active ? "#00FF87" : "#1a1a1a", color: active ? "#000" : "#555", transition: "background 0.15s,color 0.15s" }}>
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-        ) : (
-          <div style={S.navBadge}>MLB ✓</div>
-        )}
+        <div style={{ display: "flex", gap: 5 }}>
+          {[
+            { sport: "mlb", label: "MLB", tab: "picks" },
+            { sport: "nfl", label: "NFL", tab: "nfl" },
+            ...(isBeta ? [{ sport: "props", label: "Props", tab: "props" }] : []),
+          ].map(({ sport, label, tab }) => {
+            const active = activeTab === tab || (sport === "mlb" && ["picks","steals","parlay","tracker","record","chat"].includes(activeTab));
+            return (
+              <button key={sport} onClick={() => setActiveTab(tab)}
+                style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, letterSpacing: 0.5, border: "none", cursor: "pointer", background: active ? "#00FF87" : "#1a1a1a", color: active ? "#000" : "#555", transition: "background 0.15s,color 0.15s" }}>
+                {label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Carousel — cycles between free pick, model record, and promo */}
@@ -1092,7 +1113,7 @@ export default function ToT() {
         </div>
       </div>
 
-      {(activeTab === "picks" || activeTab === "steals" || activeTab === "parlay") && (
+      {(activeTab === "picks" || activeTab === "steals" || activeTab === "parlay" || activeTab === "nfl") && (
         <div ref={dateScrollRef} style={S.dateScroll}>
           {weekDates.map(date => (
             <button
@@ -1121,8 +1142,8 @@ export default function ToT() {
             { id: "tracker", label: "Tracker" },
             { id: "record", label: "📅 Record" },
             { id: "chat", label: "💬 Ask AI" },
+            { id: "nfl", label: "🏈 NFL" },
             ...(isBeta ? [
-              { id: "nfl", label: "🏈 NFL" },
               { id: "props", label: "🎯 Props" },
             ] : []),
           ].map(({ id, label }) => (
@@ -1130,7 +1151,7 @@ export default function ToT() {
               key={id}
               style={{ ...S.tabBtn, borderColor: activeTab === id ? "#00FF87" : "#333", color: activeTab === id ? "#00FF87" : "#999", background: activeTab === id ? "rgba(0,255,135,0.08)" : "#111" }}
               onClick={() => {
-                if (!isPro && ["steals", "parlay", "tracker"].includes(id)) { setUpgradeModal(true); return; }
+                if (!isPro && ["steals", "parlay", "tracker", "nfl"].includes(id)) { setUpgradeModal(true); return; }
                 setActiveTab(id);
               }}
             >
@@ -2223,6 +2244,146 @@ export default function ToT() {
           );
         })()}
 
+        {activeTab === "nfl" && !isPro && (
+          <div style={{ ...S.card, textAlign: "center", padding: "28px 16px" }}>
+            <div style={{ fontSize: 22, marginBottom: 8 }}>🏈</div>
+            <div style={{ fontWeight: 700 }}>NFL picks are Pro-only</div>
+            <div style={{ fontSize: 12, color: "#777", marginTop: 6 }}>Upgrade to unlock spread & moneyline picks.</div>
+            <button style={{ ...S.saveBtn, marginTop: 12, background: "#00FF87", color: "#000", borderColor: "#00FF87" }} onClick={() => setUpgradeModal(true)}>⚡ Upgrade to Pro</button>
+          </div>
+        )}
+
+        {activeTab === "nfl" && isPro && (
+          nflPicks === null ? (
+            <div style={S.center}>
+              <div style={S.spinner} />
+              <div style={{ color: "#777", fontSize: 13, marginTop: 12 }}>Analyzing {fmtDateLabel(selectedDate)}'s games…</div>
+            </div>
+          ) : nflPicks.length === 0 ? (
+            <div style={S.center}>
+              <div style={{ fontSize: 32 }}>🏈</div>
+              <div style={{ color: "#fff", fontWeight: 700, marginTop: 8 }}>No games found</div>
+              <div style={{ color: "#777", fontSize: 13, marginTop: 4 }}>Try a different date</div>
+            </div>
+          ) : (
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "6px 0", borderBottom: "1px solid #0d0d0d", marginBottom: 4 }}>
+                <span style={{ fontSize: 11, color: "#777" }}>{nflPicks.length} picks</span>
+                <span style={{ fontSize: 11, color: "#00FF87" }}>{nflPicks.filter(p => p.isBet).length} BET</span>
+                <span style={{ fontSize: 11, color: "#555" }}>{nflPicks.filter(p => !p.isBet).length} PASS</span>
+                <button style={{ ...S.sortBtn, marginLeft: "auto", fontSize: 13 }} onClick={() => fetchNflPicks(selectedDate, true)} title="Refresh picks">↺</button>
+                {isAdmin && (
+                  <button
+                    style={{ ...S.sortBtn, fontSize: 11, background: nflGenerating ? "rgba(0,255,135,0.1)" : "#111", color: nflGenerating ? "#00FF87" : "#555", borderColor: nflGenerating ? "#00FF87" : "#333" }}
+                    onClick={generateNflPicks}
+                    disabled={nflGenerating}
+                    title="Force-generate NFL picks for this date"
+                  >{nflGenerating ? "…" : "⚡ Gen"}</button>
+                )}
+              </div>
+              {nflPicks.map(pick => {
+                const isBet = pick.isBet;
+                const edge = pick.edge || 0;
+                const t = TIER[pick.tier?.level] || TIER.Low;
+                const isOpen = nflExpanded === pick.id;
+                const f = pick.filter;
+                const verdict = f?.verdict;
+                const pickOdds = pick.marketType === "spread"
+                  ? (pick.pick === pick.homeTeam ? pick.homeSpreadOdds : pick.awaySpreadOdds)
+                  : (pick.pick === pick.homeTeam ? pick.homeOdds : pick.awayOdds);
+                const spreadLine = pick.marketType === "spread" && pick.spread != null
+                  ? (pick.pick === pick.homeTeam ? -pick.spread : pick.spread)
+                  : null;
+                const cardBorder = isOpen ? (isBet ? "#00FF87" : "#2a2a2a") : (isBet ? "rgba(0,255,135,0.25)" : "#1a1a1a");
+
+                return (
+                  <div key={pick.id} style={{ ...S.card, borderColor: cardBorder }}>
+                    <div style={S.cardTop}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+                          <span style={{
+                            fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5,
+                            background: verdict === "TRAP" ? "rgba(255,77,77,0.1)" : isBet ? "rgba(0,255,135,0.08)" : "rgba(50,50,50,0.5)",
+                            color: verdict === "TRAP" ? "#FF4D4D" : isBet ? "#00FF87" : "#333",
+                            border: `1px solid ${verdict === "TRAP" ? "rgba(255,77,77,0.3)" : isBet ? "rgba(0,255,135,0.2)" : "#222"}`,
+                          }}>
+                            {verdict === "TRAP" ? "TRAP" : isBet ? "BET" : "PASS"}
+                          </span>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 5, background: "#111", color: "#888", letterSpacing: 0.5 }}>
+                            {pick.marketType === "spread" ? "SPREAD" : "MONEYLINE"}
+                          </span>
+                          {f && <span style={{ fontSize: 11, color: isBet ? "#555" : "#333", fontFamily: "'JetBrains Mono',monospace" }}>{edge.toFixed(1)}% edge</span>}
+                          {isBet && <span style={{ fontSize: 10, color: t.color, opacity: 0.7 }}>{t.label}</span>}
+                        </div>
+                        <div style={S.cardMatchup}>{pick.awayTeam} @ {pick.homeTeam}</div>
+                        <div style={S.cardMeta}>
+                          {fmtGameTime(pick.commenceTime)}
+                          {pick.pick && <> · Take{" "}
+                            <span style={{ color: isBet ? "#00FF87" : "#aaa", fontWeight: 700 }}>
+                              {pick.pick}{spreadLine != null ? ` ${spreadLine > 0 ? "+" : ""}${spreadLine}` : ""}
+                            </span>
+                          </>}
+                          {pickOdds != null && <span style={{ color: "#888", fontFamily: "'JetBrains Mono',monospace" }}> · {fmtOdds(pickOdds)}</span>}
+                        </div>
+                        <div style={{ marginTop: 7, display: "flex", alignItems: "center", gap: 7 }}>
+                          <div style={{ flex: 1, height: 3, background: "#111", borderRadius: 2 }}>
+                            <div style={{ height: "100%", borderRadius: 2, width: `${Math.min(100, edge * 6)}%`, background: isBet ? t.color : "#222", transition: "width 0.5s ease" }} />
+                          </div>
+                          {f && <span style={{ fontSize: 10, color: isBet ? t.color : "#333", fontFamily: "'JetBrains Mono',monospace", flexShrink: 0 }}>{edge.toFixed(1)}%</span>}
+                        </div>
+                      </div>
+                      <button
+                        style={{ ...S.expandBtn, borderColor: isOpen ? (isBet ? "#00FF87" : "#444") : "#222", color: isOpen ? (isBet ? "#00FF87" : "#444") : "#333" }}
+                        onClick={() => setNflExpanded(isOpen ? null : pick.id)}
+                      >
+                        {isOpen ? "▲" : "▼"}
+                      </button>
+                    </div>
+                    <div style={S.pitchRow}>
+                      <div style={S.pitchBox}>
+                        <div style={S.pitchLabel}>{pick.awayTeam?.toUpperCase()}</div>
+                        <div style={S.pitchName}>{pick.matchup?.away || "stats unavailable"}</div>
+                      </div>
+                      <div style={S.pitchVs}>VS</div>
+                      <div style={{ ...S.pitchBox, textAlign: "right" }}>
+                        <div style={S.pitchLabel}>{pick.homeTeam?.toUpperCase()}</div>
+                        <div style={S.pitchName}>{pick.matchup?.home || "stats unavailable"}</div>
+                      </div>
+                    </div>
+                    {isOpen && f && (
+                      <div style={{ animation: "fadeUp 0.2s ease" }}>
+                        <div style={S.expDivider} />
+                        <div style={S.expSection}>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#888", marginBottom: 4 }}>
+                            <span>Confidence</span><span style={{ color: "#ccc", fontFamily: "'JetBrains Mono',monospace" }}>{f.confidence}/10</span>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#888", marginBottom: 4 }}>
+                            <span>Model win prob</span><span style={{ color: "#ccc", fontFamily: "'JetBrains Mono',monospace" }}>{f.trueWinProbPct}%</span>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#888", marginBottom: 4 }}>
+                            <span>Market implied</span><span style={{ color: "#ccc", fontFamily: "'JetBrains Mono',monospace" }}>{f.marketImpliedPct}%</span>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#888", marginBottom: 4 }}>
+                            <span>Uncertainty</span><span style={{ color: "#ccc", fontFamily: "'JetBrains Mono',monospace" }}>±{f.uncertaintyPct}%</span>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#888" }}>
+                            <span>Data variance</span><span style={{ color: "#ccc" }}>{f.variance}</span>
+                          </div>
+                          {f.failures?.length > 0 && (
+                            <div style={{ marginTop: 8, fontSize: 11, color: "#666", lineHeight: 1.5 }}>
+                              {f.failures.map((fail, i) => <div key={i}>· {fail}</div>)}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </>
+          )
+        )}
+
       </div>
 
       {upgradeModal && (
@@ -2298,14 +2459,6 @@ export default function ToT() {
               </button>
             </div>
           </div>
-        </div>
-      )}
-
-      {activeTab === "nfl" && isBeta && (
-        <div style={{ padding: "32px 20px", textAlign: "center", color: "#555" }}>
-          <div style={{ fontSize: 28, marginBottom: 12 }}>🏈</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#fff", marginBottom: 6 }}>NFL — Coming Soon</div>
-          <div style={{ fontSize: 13, lineHeight: 1.6 }}>NFL picks are under development. Check back here during beta testing.</div>
         </div>
       )}
 
