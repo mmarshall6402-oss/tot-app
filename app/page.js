@@ -123,6 +123,7 @@ export default function ToT() {
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState("");
   const [picks, setPicks] = useState(null);
+  const [picksError, setPicksError] = useState(null);
   const [savedPicks, setSavedPicks] = useState([]);
   const [gameRecaps, setGameRecaps] = useState({});
   const [chatMessages, setChatMessages] = useState([]);
@@ -356,7 +357,9 @@ export default function ToT() {
       const headers = await getAuthHeaders();
       const res = await fetch(`/api/picks?date=${date}${bust ? "&bust=1" : ""}`, { headers });
       const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
       const next = data.picks || [];
+      setPicksError(null);
       setPicks(next);
       setPicksDate(prev => {
         // Only reset parlay legs when the date changes (not on tab switch re-fetch)
@@ -368,7 +371,11 @@ export default function ToT() {
         }
         return date;
       });
-    } catch (e) { console.error("picks error", e); setPicks(prev => prev ?? []); }
+    } catch (e) {
+      console.error("picks error", e);
+      setPicksError(e.message || "Could not load games");
+      setPicks(prev => prev ?? []);
+    }
     setLoading(false);
   };
 
@@ -1319,6 +1326,13 @@ export default function ToT() {
             <div style={S.center}>
               <div style={S.spinner} />
               <div style={{ color: "#777", fontSize: 13, marginTop: 12 }}>Analyzing {fmtDateLabel(selectedDate)}'s games…</div>
+            </div>
+          ) : picksError ? (
+            <div style={S.center}>
+              <div style={{ fontSize: 32 }}>⚠️</div>
+              <div style={{ color: "#fff", fontWeight: 700, marginTop: 8 }}>Could not load games</div>
+              <div style={{ color: "#777", fontSize: 13, marginTop: 4 }}>{picksError}</div>
+              <button style={{ ...S.saveBtn, marginTop: 14 }} onClick={() => fetchPicks(selectedDate, true)}>Retry</button>
             </div>
           ) : sorted.length === 0 ? (
             <div style={S.center}>
