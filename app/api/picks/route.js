@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { fetchMLBOdds } from "../../../lib/odds.js";
+import { fetchMLBOdds, getOddsDiagnostics } from "../../../lib/odds.js";
 import { calculateEdge, getConfidenceTier, americanToDecimal, decimalToImplied, removeVig } from "../../../lib/edge.js";
 import { getModelProbability } from "../../../lib/probability.js";
 import { applyFilterLayer, buildParlayCards } from "../../../lib/filter.js";
@@ -491,6 +491,13 @@ export async function GET(request) {
 
     const { safeCard, balancedCard, aggressiveCard } = buildParlayCards(results);
 
+    // No games at all — surface why (bad odds keys, MLB schedule fetch failure,
+    // or a genuine off day) instead of leaving the client to guess.
+    const diagnostic = results.length ? undefined : {
+      mlbSchedule: mlbRes?.error ? { ok: false, error: mlbRes.error } : { ok: true, games: mlbGames.length },
+      odds: getOddsDiagnostics(),
+    };
+
     // Only cache today's picks — future dates have moving odds/pitchers and should
     // always be fetched fresh. Preserve any Claude breakdowns from the stale cache so
     // the live path doesn't wipe breakdown data written by yesterday's pre-cache run.
@@ -512,7 +519,7 @@ export async function GET(request) {
         .upsert({ date, picks: picksToCache, generated_at: new Date().toISOString() }, { onConflict: "date" });
     }
 
-    return Response.json({ picks: results, safeCard, balancedCard, aggressiveCard, cached: false });
+    return Response.json({ picks: results, safeCard, balancedCard, aggressiveCard, cached: false, ...(diagnostic ? { diagnostic } : {}) });
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });
   }
