@@ -103,6 +103,22 @@ function matchMLBGame(game, mlbGames) {
   return match || null;
 }
 
+// The cache-hit path can add a second entry for the same real-world game when
+// the "uncovered MLB games" merge fails to recognize a cached pick as already
+// covering it (e.g. a team-name mismatch between the odds source and the MLB
+// schedule). Collapse by matchup so the same game never renders twice.
+function dedupeByMatchup(list) {
+  const norm = s => (s || "").toLowerCase().trim();
+  const score = p => (p.homeOdds != null ? 2 : 0) + (p.breakdown?.preview ? 1 : 0);
+  const byKey = new Map();
+  for (const p of list) {
+    const key = `${norm(p.homeTeam)}|${norm(p.awayTeam)}`;
+    const existing = byKey.get(key);
+    if (!existing || score(p) > score(existing)) byKey.set(key, p);
+  }
+  return [...byKey.values()];
+}
+
 const ODDS_CACHE_KEY = "__odds__";
 const ODDS_TTL_MS = 1000 * 60 * 15; // 15 min
 
@@ -231,7 +247,7 @@ export async function GET(request) {
         for (const [k, v] of teamRecordMap) { if (k.includes(lwM(n)) || n.includes(lwM(k))) return v; }
         return null;
       };
-      const picks = mlbGames.length
+      let picks = mlbGames.length
         ? cached.picks.map(pick => {
             const mlb = matchMLBGame(pick, mlbGames);
             if (!mlb) return {
@@ -362,6 +378,8 @@ export async function GET(request) {
         }
       }
 
+      picks = dedupeByMatchup(picks);
+
       // Sort: CLEAN first, then BET, then PASS, then TRAP — by edge within each group
       const verdictRank = v => ({ CLEAN: 0, BET: 1, PASS: 2, TRAP: 3 }[v] ?? 4);
       picks.sort((a, b) => {
@@ -451,7 +469,7 @@ export async function GET(request) {
 
     const ipStr2 = (p) => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";
 
-    const results = mlbGames.length
+    let results = mlbGames.length
       ? mlbGames.map(mlbGame => {
           const oddsGame = findOdds(mlbGame);
           if (oddsGame) {
@@ -479,6 +497,8 @@ export async function GET(request) {
           };
         }).filter(Boolean)
       : oddsGames.map(game => buildPick(game, null, null)).filter(Boolean);
+
+    results = dedupeByMatchup(results);
 
     const verdictRank2 = v => ({ CLEAN: 0, BET: 1, PASS: 2, TRAP: 3 }[v] ?? 4);
     results.sort((a, b) => {
