@@ -66,53 +66,61 @@ function buildPick(game, mlb, breakdown) {
   };
 }
 
-function matchMLBGame(game, mlbGames) {
+// Shared by every odds↔MLB-schedule team-name match in this route. This used
+// to be reimplemented ~4 times with slightly different rules (some missing
+// the time guard, some checking only one direction) — exactly the kind of
+// drift that let the doubleheader/duplicate-game bugs slip through (see
+// dedupeByMatchup below). One bidirectional implementation, used everywhere.
+function teamNamesMatch(a, b) {
   const norm = s => (s || "").toLowerCase().trim();
-  const lastWord = s => norm(s).split(" ").pop();
-  // Reject matches where game times differ by more than 12 hours (prevents
-  // cross-game contamination when last-word matching is ambiguous).
-  const timeClose = (t1, t2) => {
-    if (!t1 || !t2) return true;
-    return Math.abs(new Date(t1) - new Date(t2)) < 12 * 3_600_000;
-  };
+  const an = norm(a), bn = norm(b);
+  if (!an || !bn) return false;
+  if (an === bn) return true;
 
-  // 1. Exact normalized full name — most reliable when both APIs use official names
-  let match = mlbGames.find(g =>
-    norm(g.homeTeam) === norm(game.homeTeam) &&
-    norm(g.awayTeam) === norm(game.awayTeam) &&
-    timeClose(g.commenceTime, game.commenceTime)
-  );
-  if (match) return match;
+  const lastWord = s => s.split(" ").pop();
+  if (an.includes(lastWord(bn)) || bn.includes(lastWord(an))) return true;
 
-  // 2. Last-word substring with time guard
-  match = mlbGames.find(g =>
-    norm(g.homeTeam).includes(lastWord(game.homeTeam)) &&
-    norm(g.awayTeam).includes(lastWord(game.awayTeam)) &&
-    timeClose(g.commenceTime, game.commenceTime)
-  );
-  if (match) return match;
+  // Two-word suffix — "White Sox", "Red Sox", "Blue Jays"
+  const tail = s => s.split(" ").slice(-2).join(" ");
+  const at = tail(an), bt = tail(bn);
+  if (at.length > 3 && bn.includes(at)) return true;
+  if (bt.length > 3 && an.includes(bt)) return true;
 
-  // 3. Two-word suffix (Red Sox / White Sox / Blue Jays) with time guard
-  match = mlbGames.find(g => {
-    const hw = norm(game.homeTeam).split(" ").slice(-2).join(" ");
-    const aw = norm(game.awayTeam).split(" ").slice(-2).join(" ");
-    return norm(g.homeTeam).includes(hw) && norm(g.awayTeam).includes(aw) &&
-      timeClose(g.commenceTime, game.commenceTime);
-  });
+  // Any shared meaningful word (>3 chars, ignoring common filler words)
+  const skip = new Set(["the", "los", "san", "new", "york", "city"]);
+  const words = s => s.split(" ").filter(w => w.length > 3 && !skip.has(w));
+  return words(bn).some(w => an.includes(w)) || words(an).some(w => bn.includes(w));
+}
 
-  return match || null;
+// Rejects matches where game times differ by more than 12 hours — prevents
+// cross-game contamination when name matching alone is ambiguous (e.g. a
+// doubleheader, where both games share identical team names).
+function commenceTimeClose(t1, t2) {
+  if (!t1 || !t2) return true;
+  return Math.abs(new Date(t1) - new Date(t2)) < 12 * 3_600_000;
+}
+
+function matchMLBGame(game, mlbGames) {
+  return mlbGames.find(g =>
+    teamNamesMatch(g.homeTeam, game.homeTeam) &&
+    teamNamesMatch(g.awayTeam, game.awayTeam) &&
+    commenceTimeClose(g.commenceTime, game.commenceTime)
+  ) || null;
 }
 
 // The cache-hit path can add a second entry for the same real-world game when
 // the "uncovered MLB games" merge fails to recognize a cached pick as already
 // covering it (e.g. a team-name mismatch between the odds source and the MLB
 // schedule). Collapse by matchup so the same game never renders twice.
+// Key includes the start hour (not just team names) so a genuine doubleheader
+// — two real games, same teams, same day, different times — isn't merged
+// into one; only true duplicates (same matchup, same start time) collapse.
 function dedupeByMatchup(list) {
   const norm = s => (s || "").toLowerCase().trim();
   const score = p => (p.homeOdds != null ? 2 : 0) + (p.breakdown?.preview ? 1 : 0);
   const byKey = new Map();
   for (const p of list) {
-    const key = `${norm(p.homeTeam)}|${norm(p.awayTeam)}`;
+    const key = `${norm(p.homeTeam)}|${norm(p.awayTeam)}|${(p.commenceTime || "").slice(0, 13)}`;
     const existing = byKey.get(key);
     if (!existing || score(p) > score(existing)) byKey.set(key, p);
   }
@@ -220,18 +228,8 @@ export async function GET(request) {
       const mlbGames = mlbRes?.games || [];
       const normM = s => (s || "").toLowerCase().trim();
       const lwM   = s => normM(s).split(" ").pop();
-      const skipM = new Set(["the","los","san","new","york","city"]);
-      const matchTeamsM = (a, b) => {
-        const an = normM(a), bn = normM(b);
-        if (an === bn) return true;
-        if (an.includes(lwM(bn)) || bn.includes(lwM(an))) return true;
-        const tail = s => normM(s).split(" ").slice(-2).join(" ");
-        if (an.includes(tail(bn)) || bn.includes(tail(an))) return true;
-        const mw = s => normM(s).split(" ").filter(w => w.length > 3 && !skipM.has(w));
-        return mw(bn).some(w => an.includes(w));
-      };
       const findLiveOdds = (pick) => liveOdds.find(g =>
-        matchTeamsM(g.homeTeam, pick.homeTeam) && matchTeamsM(g.awayTeam, pick.awayTeam)
+        teamNamesMatch(g.homeTeam, pick.homeTeam) && teamNamesMatch(g.awayTeam, pick.awayTeam)
       ) || null;
       const ipStr = (p) => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";
       const fmtRec = (s) => s ? `${s.wins}-${s.losses}` : null;
@@ -328,26 +326,16 @@ export async function GET(request) {
 
       // Add any MLB games that have no odds line and weren't in the cache
       if (mlbGames.length) {
-        const norm2 = s => (s || "").toLowerCase().trim();
-        const lw2   = s => norm2(s).split(" ").pop();
-        const skip2 = new Set(["the","los","san","new","york","city"]);
-        const covered2 = (p, g) => {
-          const ph = norm2(p.homeTeam), pa = norm2(p.awayTeam);
-          const gh = norm2(g.homeTeam), ga = norm2(g.awayTeam);
-          if (ph === gh && pa === ga) return true;
-          if (ph.includes(lw2(gh)) && pa.includes(lw2(ga))) return true;
-          const tail = s => norm2(s).split(" ").slice(-2).join(" ");
-          if (ph.includes(tail(gh)) && pa.includes(tail(ga))) return true;
-          const mw = s => norm2(s).split(" ").filter(w => w.length > 3 && !skip2.has(w));
-          return mw(gh).some(w => ph.includes(w)) && mw(ga).some(w => pa.includes(w));
-        };
+        const covered2 = (p, g) =>
+          teamNamesMatch(p.homeTeam, g.homeTeam) && teamNamesMatch(p.awayTeam, g.awayTeam) &&
+          commenceTimeClose(p.commenceTime, g.commenceTime);
         const uncovered = mlbGames.filter(g => !picks.some(p => covered2(p, g)));
         for (const g of uncovered) {
           const ipStr2 = (p) => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";
           const isPastGame = g.status === "Final" || g.status === "Completed" || date < today;
           // Check if live odds now have a line for this game (e.g. via ESPN fallback)
           const oddsMatch = liveOdds.find(o =>
-            matchTeamsM(o.homeTeam, g.homeTeam) && matchTeamsM(o.awayTeam, g.awayTeam)
+            teamNamesMatch(o.homeTeam, g.homeTeam) && teamNamesMatch(o.awayTeam, g.awayTeam)
           );
           if (oddsMatch && !isPastGame) {
             // We have odds — run the full model so this shows a real verdict instead of No Line
@@ -447,24 +435,10 @@ export async function GET(request) {
     // MLB schedule is the date-authoritative source — iterate it so we always show
     // the right games for the date. Odds supplement each game where lines are posted.
     // Games with no odds show as informational (no edge, no BET label).
-    const norm = s => (s || "").toLowerCase().trim();
-    const lastWord = s => norm(s).split(" ").pop();
-    // Multi-strategy matching: last word → 2-word suffix → any shared meaningful token
-    const matchTeams = (oddsName, mlbName) => {
-      const on = norm(oddsName), mn = norm(mlbName);
-      if (on === mn) return true;
-      if (on.includes(lastWord(mn))) return true;
-      // 2-word suffix for "White Sox", "Red Sox", "Blue Jays"
-      const tail2 = mn.split(" ").slice(-2).join(" ");
-      if (tail2.length > 3 && on.includes(tail2)) return true;
-      // shared meaningful word (>3 chars, ignoring "the", "of", "los", "san", etc.)
-      const skip = new Set(["the","los","san","new","york","city"]);
-      const mWords = mn.split(" ").filter(w => w.length > 3 && !skip.has(w));
-      return mWords.some(w => on.includes(w));
-    };
     const findOdds = (mlbGame) => oddsGames.find(g =>
-      matchTeams(g.homeTeam, mlbGame.homeTeam) &&
-      matchTeams(g.awayTeam, mlbGame.awayTeam)
+      teamNamesMatch(g.homeTeam, mlbGame.homeTeam) &&
+      teamNamesMatch(g.awayTeam, mlbGame.awayTeam) &&
+      commenceTimeClose(g.commenceTime, mlbGame.commenceTime)
     ) || null;
 
     const ipStr2 = (p) => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";

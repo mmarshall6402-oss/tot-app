@@ -1,9 +1,16 @@
+import { timingSafeEqual } from "../../../../lib/auth.js";
+
 const TOA_KEY  = process.env.THE_ODDS_API_KEY;
 const TOA_BASE = "https://api.the-odds-api.com/v4";
 const SGO_KEY  = process.env.SPORTSGAMEODDS_API_KEY;
 const SGO_BASE = "https://api.sportsgameodds.com/v2";
 
 export async function GET(request) {
+  // Require admin key — this route burns paid API quota on every call, not exposed publicly
+  const key = request.headers.get("x-admin-key");
+  if (!timingSafeEqual(key, process.env.ADMIN_KEY)) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   const results = {};
 

@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef } from "react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { createClient } from "@supabase/supabase-js";
+import { recommendedBetSize } from "../../lib/kelly.js";
 
 // Single shared instance — sign-out and auth listeners must share the same client
 // so state changes propagate correctly. Calling createClient() on every request
@@ -160,6 +161,10 @@ export default function ToT() {
   const weekDates = getWeekDates();
   const todayStr = weekDates[7];
   const [selectedDate, setSelectedDate] = useState(todayStr);
+  // Tracks the most recently selected date so a slow fetch for a date the
+  // user has since navigated away from can't clobber newer state on arrival.
+  const selectedDateRef = useRef(todayStr);
+  useEffect(() => { selectedDateRef.current = selectedDate; }, [selectedDate]);
   const dateScrollRef = useRef(null);
   const todayBtnRef = useRef(null);
   const [steals, setSteals] = useState(null);
@@ -366,8 +371,9 @@ export default function ToT() {
       const headers = await getAuthHeaders();
       const res = await fetch(`/api/steals?date=${date}`, { headers });
       const data = await res.json();
+      if (date !== selectedDateRef.current) return; // stale — user navigated away
       setSteals(data.steals || []);
-    } catch (e) { setSteals(prev => prev ?? []); }
+    } catch (e) { if (date === selectedDateRef.current) setSteals(prev => prev ?? []); }
   };
 
   const fetchPicks = async (date, bust = false) => {
@@ -377,6 +383,7 @@ export default function ToT() {
       const res = await fetch(`/api/picks?date=${date}${bust ? "&bust=1" : ""}`, { headers });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
+      if (date !== selectedDateRef.current) return; // stale — user navigated away
       const next = data.picks || [];
       setPicksError(null);
       setPicksDiagnostic(data.diagnostic || null);
@@ -393,12 +400,36 @@ export default function ToT() {
       });
     } catch (e) {
       console.error("picks error", e);
-      setPicksError(e.message || "Could not load games");
-      setPicksDiagnostic(null);
-      setPicks(prev => prev ?? []);
+      if (date === selectedDateRef.current) {
+        setPicksError(e.message || "Could not load games");
+        setPicksDiagnostic(null);
+        setPicks(prev => prev ?? []);
+      }
     }
     setLoading(false);
   };
+
+  // Fetch recaps for final games on the picks page
+  useEffect(() => {
+    if (!picks?.length) return;
+    const finals = picks.filter(p => p.liveScore?.status === "Final" && p.id && !gameRecaps[p.id]);
+    if (!finals.length) return;
+    (async () => {
+      const headers = await getAuthHeaders();
+      const entries = await Promise.all(finals.map(async p => {
+        try {
+          const hs = p.liveScore.homeScore, as2 = p.liveScore.awayScore;
+          const result = hs === as2 ? "push" : (hs > as2) === (p.pick === p.homeTeam) ? "win" : "loss";
+          const date = p.commenceTime?.split("T")[0] || "";
+          const params = new URLSearchParams({ gamePk: p.id, homeTeam: p.homeTeam, awayTeam: p.awayTeam, date, pick: p.pick || "", result, edge: p.edge != null ? String(p.edge) : "", tier: p.tier?.level || "" });
+          const res = await fetch(`/api/tracker/game-recap?${params}`, { headers });
+          const data = await res.json();
+          return [p.id, data.error ? "error" : data];
+        } catch { return [p.id, "error"]; }
+      }));
+      setGameRecaps(prev => ({ ...prev, ...Object.fromEntries(entries) }));
+    })();
+  }, [picks]);
 
   const fetchNflPicks = async (date, bust = false) => {
     setLoading(true);
@@ -407,12 +438,15 @@ export default function ToT() {
       const res = await fetch(`/api/nfl/picks?date=${date}${bust ? "&bust=1" : ""}`, { headers });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
+      if (date !== selectedDateRef.current) return; // stale — user navigated away
       setNflPicksError(null);
       setNflPicks(data.picks || []);
     } catch (e) {
       console.error("nfl picks error", e);
-      setNflPicksError(e.message || "Could not load games");
-      setNflPicks(prev => prev ?? []);
+      if (date === selectedDateRef.current) {
+        setNflPicksError(e.message || "Could not load games");
+        setNflPicks(prev => prev ?? []);
+      }
     }
     setLoading(false);
   };
@@ -970,7 +1004,7 @@ export default function ToT() {
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: 17, color: "#fff", letterSpacing: -0.3 }}>ToT Picks</div>
-                  <div style={{ fontSize: 12, color: "#777", marginTop: 2, fontFamily: "'JetBrains Mono',monospace" }}>tot-app.vercel.app</div>
+                  <div style={{ fontSize: 12, color: "#777", marginTop: 2, fontFamily: "'JetBrains Mono',monospace" }}>thisthatpicks.com</div>
                 </div>
                 <button onClick={() => setShowInstallPrompt(false)} style={{ background: "#1a1a1a", border: "none", borderRadius: "50%", width: 28, height: 28, color: "#999", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>✕</button>
               </div>
@@ -1278,7 +1312,11 @@ export default function ToT() {
                       <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 9px", borderRadius: 5, background: "rgba(255,214,0,0.08)", color: "#FFD600", border: "1px solid rgba(255,214,0,0.2)" }}>👀 LEAN</span>
                     )}
                   </div>
-                  <div style={S.cardMatchup}>{freePick.awayTeam} @ {freePick.homeTeam}</div>
+                  <div style={S.cardMatchup}>
+                    {freePick.awayTeam}{freePick.awayRecord && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 4 }}>({freePick.awayRecord})</span>}
+                    {" @ "}
+                    {freePick.homeTeam}{freePick.homeRecord && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 4 }}>({freePick.homeRecord})</span>}
+                  </div>
                   <div style={S.cardMeta}>
                     {fmtGameTime(freePick.commenceTime)} · Take{" "}
                     <span style={{ color: accentColor, fontWeight: 700 }}>{freePick.pick}</span>
@@ -1433,7 +1471,11 @@ export default function ToT() {
                         </span>
                       )}
                     </div>
-                    <div style={S.cardMatchup}>{pick.awayTeam} @ {pick.homeTeam}</div>
+                    <div style={S.cardMatchup}>
+                      {pick.awayTeam}{pick.awayRecord && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 4 }}>({pick.awayRecord})</span>}
+                      {" @ "}
+                      {pick.homeTeam}{pick.homeRecord && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 4 }}>({pick.homeRecord})</span>}
+                    </div>
                     <div style={S.cardMeta}>
                       {fmtGameTime(pick.commenceTime)}
                       {pick.pick && <> · {isScheduled ? <span style={{ color: "#4FC3F7" }}>Preview</span> : pick.homeOdds == null && !pick.filter ? "Lean" : "Take"} <span style={{ color: isBet ? betColor : isScheduled ? "#4FC3F7" : "#aaa", fontWeight: 700 }}>{pick.pick}</span></>}
@@ -1471,6 +1513,12 @@ export default function ToT() {
                         </span>
                       </div>
                     )}
+                    {ls?.status === "Final" && (() => {
+                      const recap = gameRecaps[pick.id];
+                      if (!recap || recap === "loading") return <div style={{ fontSize: 11, color: "#333", marginTop: 6 }}>Generating recap...</div>;
+                      if (recap === "error") return null;
+                      return <div style={{ fontSize: 12, color: "#777", lineHeight: 1.65, marginTop: 8, paddingTop: 8, borderTop: "1px solid #111" }}>{recap.paragraph}</div>;
+                    })()}
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end", flexShrink: 0 }}>
                     <button
@@ -1651,9 +1699,9 @@ export default function ToT() {
                       onClick={() => {
                         const odds = pick.pick === pick.homeTeam ? pick.homeOdds : pick.awayOdds;
                         const fmtO = o => o == null ? "" : o > 0 ? ` (+${o})` : ` (${o})`;
-                        const text = `${pick.awayTeam} @ ${pick.homeTeam}\nTake ${pick.pick}${fmtO(odds)} — ${pick.edge?.toFixed(1)}% edge\n\ntot-app.vercel.app | @ThisorThatPicks`;
+                        const text = `${pick.awayTeam} @ ${pick.homeTeam}\nTake ${pick.pick}${fmtO(odds)} — ${pick.edge?.toFixed(1)}% edge\n\nthisthatpicks.com | @ThisorThatPicks`;
                         if (navigator.share) {
-                          navigator.share({ text, url: "https://tot-app.vercel.app" }).catch(() => {});
+                          navigator.share({ text, url: "https://thisthatpicks.com" }).catch(() => {});
                         } else {
                           navigator.clipboard.writeText(text).then(() => alert("Copied to clipboard!")).catch(() => {});
                         }
@@ -1710,9 +1758,7 @@ export default function ToT() {
                 const pickOdds = pick.pick === pick.homeTeam ? pick.homeOdds : pick.awayOdds;
                 const decOdds = pickOdds ? (pickOdds > 0 ? 1 + pickOdds / 100 : 1 + 100 / Math.abs(pickOdds)) : null;
                 const edgeFrac = (f.trueEdgePct || 0) / 100;
-                const kB = decOdds ? decOdds - 1 : null;
-                const kP = decOdds ? edgeFrac + (1 / decOdds) : null;
-                const kellyPct = (kB && kP) ? (Math.max(0, (kB * kP - (1 - kP)) / kB) * 25).toFixed(1) : "0.0";
+                const kellyPct = decOdds ? recommendedBetSize(edgeFrac, decOdds).percentage : "0.0";
                 return (
                   <div key={pick.id} style={{ ...S.card, borderColor: "rgba(0,255,135,0.35)" }}>
                     <div style={S.cardTop}>
@@ -1728,7 +1774,11 @@ export default function ToT() {
                             {f.confidence}/10 conf
                           </span>
                         </div>
-                        <div style={S.cardMatchup}>{pick.awayTeam} @ {pick.homeTeam}</div>
+                        <div style={S.cardMatchup}>
+                          {pick.awayTeam}{pick.awayRecord && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 4 }}>({pick.awayRecord})</span>}
+                          {" @ "}
+                          {pick.homeTeam}{pick.homeRecord && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 4 }}>({pick.homeRecord})</span>}
+                        </div>
                         <div style={S.cardMeta}>
                           {fmtGameTime(pick.commenceTime)} · Take <span style={{ color: "#00FF87", fontWeight: 700 }}>{pick.pick}</span> {fmtOdds(pickOdds)}
                         </div>

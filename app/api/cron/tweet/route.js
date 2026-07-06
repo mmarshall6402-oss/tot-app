@@ -9,7 +9,7 @@ const getSupabase = () => createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-const APP_URL = "https://tot-app.vercel.app";
+const APP_URL = "https://thisthatpicks.com";
 
 function fmtOdds(o) {
   if (o == null) return "";
@@ -64,6 +64,14 @@ export async function GET(request) {
   const supabase = getSupabase();
   const today     = etDate(0);
   const yesterday = etDate(-1);
+
+  // Idempotency guard — a retried/duplicated cron invocation must not post
+  // the whole thread a second time to the live account.
+  const { data: alreadyTweeted } = await supabase
+    .from("picks_cache").select("date").eq("date", `__tweet_${today}__`).single();
+  if (alreadyTweeted) {
+    return Response.json({ skipped: true, reason: "already tweeted today" });
+  }
 
   // ── Fetch yesterday's results ──────────────────────────────────────────────
   const { data: yPicks } = await supabase

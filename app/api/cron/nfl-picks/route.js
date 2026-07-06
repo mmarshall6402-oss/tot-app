@@ -54,6 +54,21 @@ export async function GET(request) {
       await supabase
         .from("nfl_picks_cache")
         .upsert({ date, picks, generated_at: new Date().toISOString() }, { onConflict: "date" });
+
+      // Track each pick as its own row so nfl-resolve can settle results and
+      // update nfl_team_elo — without this, results/ELO have nothing to write to.
+      const { data: alreadyTracked } = await supabase
+        .from("nfl_model_picks").select("id").eq("date", date).limit(1);
+      if (!alreadyTracked?.length) {
+        const rows = picks.map(p => ({
+          date, home_team: p.homeTeam, away_team: p.awayTeam,
+          pick: p.pick, odds: p.homeOdds != null && p.awayOdds != null
+            ? (p.pick === p.homeTeam ? p.homeOdds : p.awayOdds) : null,
+          edge: p.edge ?? null, tier: p.tier?.level || "Low", is_bet: !!p.isBet,
+        }));
+        await supabase.from("nfl_model_picks").insert(rows);
+      }
+
       generated.push({ date, count: picks.length });
     }
 

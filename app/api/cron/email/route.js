@@ -9,7 +9,7 @@ const getSupabase = () => createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://tot-app.vercel.app";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://thisthatpicks.com";
 
 function shortName(team) {
   const map = {
@@ -117,7 +117,7 @@ function buildEmailHtml(pick, topPicks, yWins, yLosses, yesterday) {
     ${topPicks?.length ? buildTweetBlock(topPicks, yWins, yLosses, yesterday) : ""}
 
     <div style="text-align:center;font-size:11px;color:#222;line-height:1.8;">
-      <a href="${APP_URL}/landing" style="color:#222;text-decoration:none;">tot-app.vercel.app</a>
+      <a href="${APP_URL}/landing" style="color:#222;text-decoration:none;">thisthatpicks.com</a>
       &nbsp;·&nbsp;
       <a href="${APP_URL}/api/unsubscribe?email={{email}}&token={{token}}" style="color:#222;text-decoration:none;">Unsubscribe</a>
     </div>
@@ -146,6 +146,12 @@ export async function GET(request) {
   };
   const today     = ctParts(new Date());
   const yesterday = ctParts(new Date(Date.now() - 86400000));
+
+  // Idempotency guard — a retried/duplicated cron invocation must not re-send
+  // to the whole list a second time (can't un-send an email once it's out).
+  const { data: alreadySent } = await supabase
+    .from("picks_cache").select("date").eq("date", `__email_${today}__`).single();
+  if (alreadySent) return Response.json({ sent: 0, reason: "already sent today" });
 
   // Today's picks
   const { data: cached } = await supabase.from("picks_cache").select("picks").eq("date", today).single();
@@ -191,6 +197,13 @@ export async function GET(request) {
       if (r.ok) sent++;
       else { failed++; if (errors.length < 3) errors.push(r.err); }
     }
+  }
+
+  if (sent > 0) {
+    await supabase.from("picks_cache").upsert(
+      { date: `__email_${today}__`, picks: [], generated_at: new Date().toISOString() },
+      { onConflict: "date" }
+    );
   }
 
   return Response.json({ sent, failed, errors, today, pick: `${pick.awayTeam} @ ${pick.homeTeam}` });

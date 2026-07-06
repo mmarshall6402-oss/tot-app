@@ -11,7 +11,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const APP_URL = "https://thisorthatpicks.com";
+const APP_URL = "https://thisthatpicks.com";
 
 export const metadata = {
   title: "T|T Picks — Sharp MLB Picks",

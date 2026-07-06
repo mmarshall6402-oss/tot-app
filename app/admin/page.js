@@ -172,7 +172,7 @@ export default function AdminDash() {
     const odds = p.pick === p.homeTeam ? fmtOdds(p.homeOdds) : fmtOdds(p.awayOdds);
     const edge = p.filter?.trueEdgePct ? `+${p.filter.trueEdgePct}% edge` : p.edge ? `+${p.edge.toFixed(1)}% edge` : "";
     const preview = p.breakdown?.preview ? `\n${p.breakdown.preview.slice(0,120)}${p.breakdown.preview.length>120?"…":""}` : "";
-    return `${i+1}/${bets.length} — ${verdict}\n${shortTeam(p.awayTeam)} @ ${shortTeam(p.homeTeam)}\nTake ${shortTeam(p.pick)} ${odds} ${edge}${preview}\n\ntot-app.vercel.app | @ThisorThatPicks`;
+    return `${i+1}/${bets.length} — ${verdict}\n${shortTeam(p.awayTeam)} @ ${shortTeam(p.homeTeam)}\nTake ${shortTeam(p.pick)} ${odds} ${edge}${preview}\n\nthisthatpicks.com | @ThisorThatPicks`;
   }
 
   function copyText(key, text) {
@@ -436,7 +436,7 @@ export default function AdminDash() {
                 ["From address",   "RESEND_FROM env var (defaults to onboarding@resend.dev)"],
                 ["Subscribers",    `${emailCount ?? "?"} on email_list`],
                 ["Cron schedule",  "10:30 AM CT daily (30 15 * * * UTC)"],
-                ["Domain",         "thisorthatpicks.com — must be verified in Resend dashboard"],
+                ["Domain",         "thisthatpicks.com — must be verified in Resend dashboard"],
               ].map(([k, v]) => (
                 <div key={k} style={S.row}>
                   <span style={{ fontSize: 12, color: "#555", flexShrink: 0 }}>{k}</span>
@@ -450,10 +450,10 @@ export default function AdminDash() {
           <div style={S.card}>
             <div style={{ fontSize: 12, color: "#666", lineHeight: 1.8 }}>
               1. Go to <a href="https://resend.com/domains" target="_blank">resend.com/domains</a><br/>
-              2. Add domain <code style={{ color: "#fff" }}>thisorthatpicks.com</code><br/>
+              2. Add domain <code style={{ color: "#fff" }}>thisthatpicks.com</code><br/>
               3. Add the DNS records they give you to your domain registrar<br/>
               4. Once verified, set env var in Vercel:<br/>
-              <code style={{ color: "#00FF87" }}>RESEND_FROM = T|T Picks &lt;picks@thisorthatpicks.com&gt;</code>
+              <code style={{ color: "#00FF87" }}>RESEND_FROM = T|T Picks &lt;picks@thisthatpicks.com&gt;</code>
             </div>
           </div>
 

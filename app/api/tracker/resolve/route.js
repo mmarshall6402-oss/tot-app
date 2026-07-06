@@ -15,6 +15,18 @@ function lastWord(str) {
   return (str || "").trim().split(" ").pop().toLowerCase();
 }
 
+// MLB schedule "date" is the US game-day, not the UTC calendar date — a West
+// Coast night game's commence_time can already be past midnight UTC while
+// it's still the same evening in US time. Derive the date the same way the
+// rest of the pipeline does (America/Chicago) so the schedule lookup below
+// queries the day the game actually falls on.
+function ctDateStr(iso) {
+  const p = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date(iso));
+  return `${p.find(x => x.type === "year").value}-${p.find(x => x.type === "month").value}-${p.find(x => x.type === "day").value}`;
+}
+
 async function fetchFinalScores(date) {
   try {
     const res = await fetch(`${MLB_API}/schedule?sportId=1&hydrate=linescore&date=${date}`);
@@ -76,7 +88,7 @@ export async function POST(request) {
   // Group by game date to minimize MLB API calls
   const byDate = {};
   for (const pick of resolvable) {
-    const date = pick.commence_time.split("T")[0];
+    const date = ctDateStr(pick.commence_time);
     if (!byDate[date]) byDate[date] = [];
     byDate[date].push(pick);
   }

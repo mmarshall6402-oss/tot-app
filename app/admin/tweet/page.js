@@ -10,7 +10,7 @@ const getSupabase = () => createClient(
 const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || process.env.NEXT_PUBLIC_ADMIN_EMAIL || "")
   .split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
 
-const APP_URL = "https://tot-app.vercel.app";
+const APP_URL = "https://thisthatpicks.com";
 
 function fmtOdds(o) { return o == null ? "" : o > 0 ? ` (+${o})` : ` (${o})`; }
 function shortName(team) {
@@ -28,11 +28,6 @@ function shortName(team) {
   };
   return map[team] || team.split(" ").pop();
 }
-function etDate(offset = 0) {
-  const d = new Date(Date.now() + offset * 86400000);
-  const p = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", year:"numeric", month:"2-digit", day:"2-digit" }).formatToParts(d);
-  return `${p.find(x=>x.type==="year").value}-${p.find(x=>x.type==="month").value}-${p.find(x=>x.type==="day").value}`;
-}
 function fmtLabel(dateStr) {
   const [y,m,d] = dateStr.split("-").map(Number);
   return new Date(y,m-1,d).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
@@ -49,32 +44,25 @@ export default function TweetAdmin() {
   useEffect(() => {
     getSupabase().auth.getSession().then(({ data: { session } }) => {
       const email = session?.user?.email?.toLowerCase();
-      if (email && ADMIN_EMAILS.includes(email)) {
+      if (email && ADMIN_EMAILS.includes(email) && session?.access_token) {
         setAuthorized(true);
-        loadData();
+        loadData(session.access_token);
       } else {
         setLoading(false);
       }
     });
   }, []);
 
-  const loadData = async () => {
-    const today     = etDate(0);
-    const yesterday = etDate(-1);
-    const supabase  = getSupabase();
-
-    // Yesterday's record
-    const { data: yPicks } = await supabase.from("model_picks").select("result,is_bet")
-      .eq("date", yesterday).eq("is_bet", true).in("result", ["win","loss","push"]);
-    const yW = (yPicks||[]).filter(p=>p.result==="win").length;
-    const yL = (yPicks||[]).filter(p=>p.result==="loss").length;
-    setRecord({ wins: yW, losses: yL, date: yesterday });
-
-    // Today's picks
-    const { data: cached } = await supabase.from("picks_cache").select("picks").eq("date", today).single();
-    const picks = (cached?.picks||[]).filter(p=>p.isBet)
-      .sort((a,b)=>(b.filter?.verdict==="CLEAN"?1000:b.filter?.confidence||0)-(a.filter?.verdict==="CLEAN"?1000:a.filter?.confidence||0))
-      .slice(0,3);
+  const loadData = async (token) => {
+    // Goes through an authenticated API route (requireAuth + admin-email
+    // check, service-role client) instead of querying Supabase directly with
+    // the anon key — the admin gate above is client-side only, so the data
+    // access itself needs its own server-side check.
+    const res = await fetch("/api/admin/tweet-data", { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) { setLoading(false); return; }
+    const { picks, record: rec, today, yesterday } = await res.json();
+    const yW = rec.wins, yL = rec.losses;
+    setRecord(rec);
 
     if (!picks.length) { setLoading(false); return; }
 

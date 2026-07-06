@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef } from "react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { createClient } from "@supabase/supabase-js";
+import { recommendedBetSize } from "../lib/kelly.js";
 
 // Single shared instance — sign-out and auth listeners must share the same client
 // so state changes propagate correctly. Calling createClient() on every request
@@ -139,6 +140,10 @@ export default function ToT() {
   const [picks, setPicks] = useState(null);
   const [picksError, setPicksError] = useState(null);
   const [picksDiagnostic, setPicksDiagnostic] = useState(null);
+  const [nflPicks, setNflPicks] = useState(null);
+  const [nflPicksError, setNflPicksError] = useState(null);
+  const [nflExpanded, setNflExpanded] = useState(null);
+  const [nflGenerating, setNflGenerating] = useState(false);
   const [savedPicks, setSavedPicks] = useState([]);
   const [gameRecaps, setGameRecaps] = useState({});
   const [chatMessages, setChatMessages] = useState([]);
@@ -156,6 +161,10 @@ export default function ToT() {
   const weekDates = getWeekDates();
   const todayStr = weekDates[7];
   const [selectedDate, setSelectedDate] = useState(todayStr);
+  // Tracks the most recently selected date so a slow fetch for a date the
+  // user has since navigated away from can't clobber newer state on arrival.
+  const selectedDateRef = useRef(todayStr);
+  useEffect(() => { selectedDateRef.current = selectedDate; }, [selectedDate]);
   const dateScrollRef = useRef(null);
   const todayBtnRef = useRef(null);
   const [steals, setSteals] = useState(null);
@@ -298,6 +307,7 @@ export default function ToT() {
     if (activeTab === "parlay" && picksDate !== selectedDate) fetchPicks(selectedDate);
     if (activeTab === "steals") fetchSteals(selectedDate);
     if (activeTab === "tracker") fetchSaved();
+    if (activeTab === "nfl") fetchNflPicks(selectedDate);
   }, [user, isPro, activeTab, selectedDate]);
 
   useEffect(() => {
@@ -362,8 +372,9 @@ export default function ToT() {
       const headers = await getAuthHeaders();
       const res = await fetch(`/api/steals?date=${date}`, { headers });
       const data = await res.json();
+      if (date !== selectedDateRef.current) return; // stale — user navigated away
       setSteals(data.steals || []);
-    } catch (e) { setSteals(prev => prev ?? []); }
+    } catch (e) { if (date === selectedDateRef.current) setSteals(prev => prev ?? []); }
   };
 
   const fetchPicks = async (date, bust = false) => {
@@ -373,6 +384,7 @@ export default function ToT() {
       const res = await fetch(`/api/picks?date=${date}${bust ? "&bust=1" : ""}`, { headers });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
+      if (date !== selectedDateRef.current) return; // stale — user navigated away
       const next = data.picks || [];
       setPicksError(null);
       setPicksDiagnostic(data.diagnostic || null);
@@ -389,9 +401,11 @@ export default function ToT() {
       });
     } catch (e) {
       console.error("picks error", e);
-      setPicksError(e.message || "Could not load games");
-      setPicksDiagnostic(null);
-      setPicks(prev => prev ?? []);
+      if (date === selectedDateRef.current) {
+        setPicksError(e.message || "Could not load games");
+        setPicksDiagnostic(null);
+        setPicks(prev => prev ?? []);
+      }
     }
     setLoading(false);
   };
@@ -417,6 +431,26 @@ export default function ToT() {
       setGameRecaps(prev => ({ ...prev, ...Object.fromEntries(entries) }));
     })();
   }, [picks]);
+
+  const fetchNflPicks = async (date, bust = false) => {
+    setLoading(true);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/nfl/picks?date=${date}${bust ? "&bust=1" : ""}`, { headers });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
+      if (date !== selectedDateRef.current) return; // stale — user navigated away
+      setNflPicksError(null);
+      setNflPicks(data.picks || []);
+    } catch (e) {
+      console.error("nfl picks error", e);
+      if (date === selectedDateRef.current) {
+        setNflPicksError(e.message || "Could not load games");
+        setNflPicks(prev => prev ?? []);
+      }
+    }
+    setLoading(false);
+  };
 
   const fetchSaved = async () => {
     setLoading(activeTab === "tracker");
@@ -541,6 +575,16 @@ export default function ToT() {
       await fetchPicks(selectedDate, true);
     } catch (e) { console.error("regen error", e); }
     setGenerating(false);
+  };
+
+  const generateNflPicks = async () => {
+    setNflGenerating(true);
+    try {
+      const headers = await getAuthHeaders();
+      await fetch("/api/admin/regen", { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify({ sport: "nfl", date: selectedDate }) });
+      await fetchNflPicks(selectedDate, true);
+    } catch (e) { console.error("nfl regen error", e); }
+    setNflGenerating(false);
   };
 
   const sorted = [...(picks || [])].sort((a, b) => {
@@ -960,7 +1004,7 @@ export default function ToT() {
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: 17, color: "#fff", letterSpacing: -0.3 }}>ToT Picks</div>
-                  <div style={{ fontSize: 12, color: "#777", marginTop: 2, fontFamily: "'JetBrains Mono',monospace" }}>tot-app.vercel.app</div>
+                  <div style={{ fontSize: 12, color: "#777", marginTop: 2, fontFamily: "'JetBrains Mono',monospace" }}>thisthatpicks.com</div>
                 </div>
                 <button onClick={() => setShowInstallPrompt(false)} style={{ background: "#1a1a1a", border: "none", borderRadius: "50%", width: 28, height: 28, color: "#999", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>✕</button>
               </div>
@@ -1028,11 +1072,9 @@ export default function ToT() {
               { id: "tracker", icon: "📊", label: "Tracker" },
               { id: "record", icon: "📅", label: "Record" },
               { id: "chat", icon: "💬", label: "Assistant" },
-              ...(isBeta ? [
-                { id: "nfl", icon: "🏈", label: "NFL", beta: true },
-              ] : []),
-            ].map(({ id, icon, label, beta }) => (
-              <div key={id} style={{ ...S.drawerItem, color: activeTab === id ? (beta ? "#FF6B35" : "#00FF87") : "#fff" }} onClick={() => { setActiveTab(id); setDrawerOpen(false); }}>
+              { id: "nfl", icon: "🏈", label: "NFL" },
+            ].map(({ id, icon, label }) => (
+              <div key={id} style={{ ...S.drawerItem, color: activeTab === id ? "#00FF87" : "#fff" }} onClick={() => { setActiveTab(id); setDrawerOpen(false); }}>
                 {icon} {label}
               </div>
             ))}
@@ -1060,32 +1102,28 @@ export default function ToT() {
           {[0, 1, 2].map(i => <div key={i} style={S.menuLine} />)}
         </button>
         <div style={S.navLogo}>T<span style={{ color: "#00FF87" }}>|</span>T</div>
-        {isBeta ? (
-          <div style={{ display: "flex", gap: 4, background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 14, padding: 3 }}>
-            {[
-              { sport: "mlb", icon: "⚾", label: "MLB", tab: "picks", color: "#00FF87" },
-              { sport: "nfl", icon: "🏈", label: "NFL", tab: "nfl",   color: "#FF6B35" },
-            ].map(({ sport, icon, label, tab, color }) => {
-              const active = activeTab === tab || (sport === "mlb" && ["picks","steals","parlay","tracker","record","chat"].includes(activeTab));
-              return (
-                <button key={sport} onClick={() => setActiveTab(tab)}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 5,
-                    fontSize: 11, fontWeight: 700, padding: "5px 12px", borderRadius: 10,
-                    border: "none", cursor: "pointer", letterSpacing: 0.3,
-                    background: active ? (sport === "mlb" ? "rgba(0,255,135,0.12)" : "rgba(255,107,53,0.12)") : "transparent",
-                    color: active ? color : "#444",
-                    transition: "all 0.15s",
-                  }}>
-                  <span style={{ fontSize: 14 }}>{icon}</span>
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-        ) : (
-          <div style={S.navBadge}>MLB ✓</div>
-        )}
+        <div style={{ display: "flex", gap: 4, background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 14, padding: 3 }}>
+          {[
+            { sport: "mlb", icon: "⚾", label: "MLB", tab: "picks", color: "#00FF87" },
+            { sport: "nfl", icon: "🏈", label: "NFL", tab: "nfl",   color: "#FF6B35" },
+          ].map(({ sport, icon, label, tab, color }) => {
+            const active = activeTab === tab || (sport === "mlb" && ["picks","steals","parlay","tracker","record","chat"].includes(activeTab));
+            return (
+              <button key={sport} onClick={() => setActiveTab(tab)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 5,
+                  fontSize: 11, fontWeight: 700, padding: "5px 12px", borderRadius: 10,
+                  border: "none", cursor: "pointer", letterSpacing: 0.3,
+                  background: active ? (sport === "mlb" ? "rgba(0,255,135,0.12)" : "rgba(255,107,53,0.12)") : "transparent",
+                  color: active ? color : "#444",
+                  transition: "all 0.15s",
+                }}>
+                <span style={{ fontSize: 14 }}>{icon}</span>
+                {label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Carousel — cycles between free pick, model record, and promo */}
@@ -1663,9 +1701,9 @@ export default function ToT() {
                       onClick={() => {
                         const odds = pick.pick === pick.homeTeam ? pick.homeOdds : pick.awayOdds;
                         const fmtO = o => o == null ? "" : o > 0 ? ` (+${o})` : ` (${o})`;
-                        const text = `${pick.awayTeam} @ ${pick.homeTeam}\nTake ${pick.pick}${fmtO(odds)} — ${pick.edge?.toFixed(1)}% edge\n\ntot-app.vercel.app | @ThisorThatPicks`;
+                        const text = `${pick.awayTeam} @ ${pick.homeTeam}\nTake ${pick.pick}${fmtO(odds)} — ${pick.edge?.toFixed(1)}% edge\n\nthisthatpicks.com | @ThisorThatPicks`;
                         if (navigator.share) {
-                          navigator.share({ text, url: "https://tot-app.vercel.app" }).catch(() => {});
+                          navigator.share({ text, url: "https://thisthatpicks.com" }).catch(() => {});
                         } else {
                           navigator.clipboard.writeText(text).then(() => alert("Copied to clipboard!")).catch(() => {});
                         }
@@ -1722,9 +1760,7 @@ export default function ToT() {
                 const pickOdds = pick.pick === pick.homeTeam ? pick.homeOdds : pick.awayOdds;
                 const decOdds = pickOdds ? (pickOdds > 0 ? 1 + pickOdds / 100 : 1 + 100 / Math.abs(pickOdds)) : null;
                 const edgeFrac = (f.trueEdgePct || 0) / 100;
-                const kB = decOdds ? decOdds - 1 : null;
-                const kP = decOdds ? edgeFrac + (1 / decOdds) : null;
-                const kellyPct = (kB && kP) ? (Math.max(0, (kB * kP - (1 - kP)) / kB) * 25).toFixed(1) : "0.0";
+                const kellyPct = decOdds ? recommendedBetSize(edgeFrac, decOdds).percentage : "0.0";
                 return (
                   <div key={pick.id} style={{ ...S.card, borderColor: "rgba(0,255,135,0.35)" }}>
                     <div style={S.cardTop}>
@@ -2381,8 +2417,155 @@ export default function ToT() {
         </div>
       )}
 
-      {activeTab === "nfl" && isBeta && (
-        <NFLSection getAuthHeaders={getAuthHeaders} />
+      {activeTab === "nfl" && !isPro && (
+        <div style={{ ...S.card, textAlign: "center", padding: "28px 16px" }}>
+          <div style={{ fontSize: 22, marginBottom: 8 }}>🏈</div>
+          <div style={{ fontWeight: 700 }}>NFL picks are Pro-only</div>
+          <div style={{ fontSize: 12, color: "#777", marginTop: 6 }}>Upgrade to unlock spread & moneyline picks.</div>
+          <button style={{ ...S.saveBtn, marginTop: 12, background: "#00FF87", color: "#000", borderColor: "#00FF87" }} onClick={() => setUpgradeModal(true)}>⚡ Upgrade to Pro</button>
+        </div>
+      )}
+
+      {activeTab === "nfl" && isPro && (
+        nflPicks === null ? (
+          <div style={S.center}>
+            <div style={S.spinner} />
+            <div style={{ color: "#777", fontSize: 13, marginTop: 12 }}>Analyzing {fmtDateLabel(selectedDate)}'s games…</div>
+          </div>
+        ) : nflPicksError ? (
+          <div style={S.center}>
+            <div style={{ fontSize: 32 }}>⚠️</div>
+            <div style={{ color: "#fff", fontWeight: 700, marginTop: 8 }}>Could not load games</div>
+            <div style={{ color: "#777", fontSize: 13, marginTop: 4 }}>{nflPicksError}</div>
+            <button style={{ ...S.saveBtn, marginTop: 14 }} onClick={() => fetchNflPicks(selectedDate, true)}>Retry</button>
+          </div>
+        ) : nflPicks.length === 0 ? (
+          <div style={S.center}>
+            <div style={{ fontSize: 32 }}>🏈</div>
+            <div style={{ color: "#fff", fontWeight: 700, marginTop: 8 }}>No games found</div>
+            <div style={{ color: "#777", fontSize: 13, marginTop: 4 }}>Try a different date</div>
+          </div>
+        ) : (
+          <>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "6px 0", borderBottom: "1px solid #0d0d0d", marginBottom: 4 }}>
+              <span style={{ fontSize: 11, color: "#777" }}>{nflPicks.length} picks</span>
+              <span style={{ fontSize: 11, color: "#00FF87" }}>{nflPicks.filter(p => p.isBet).length} BET</span>
+              <span style={{ fontSize: 11, color: "#555" }}>{nflPicks.filter(p => !p.isBet).length} PASS</span>
+              <button style={{ ...S.sortBtn, marginLeft: "auto", fontSize: 13 }} onClick={() => fetchNflPicks(selectedDate, true)} title="Refresh picks">↺</button>
+              {isAdmin && (
+                <button
+                  style={{ ...S.sortBtn, fontSize: 11, background: nflGenerating ? "rgba(0,255,135,0.1)" : "#111", color: nflGenerating ? "#00FF87" : "#555", borderColor: nflGenerating ? "#00FF87" : "#333" }}
+                  onClick={generateNflPicks}
+                  disabled={nflGenerating}
+                  title="Force-generate NFL picks for this date"
+                >{nflGenerating ? "…" : "⚡ Gen"}</button>
+              )}
+            </div>
+            {nflPicks.map(pick => {
+              const isBet = pick.isBet;
+              const edge = pick.edge || 0;
+              const t = TIER[pick.tier?.level] || TIER.Low;
+              const isOpen = nflExpanded === pick.id;
+              const f = pick.filter;
+              const verdict = f?.verdict;
+              const pickOdds = pick.marketType === "spread"
+                ? (pick.pick === pick.homeTeam ? pick.homeSpreadOdds : pick.awaySpreadOdds)
+                : (pick.pick === pick.homeTeam ? pick.homeOdds : pick.awayOdds);
+              const spreadLine = pick.marketType === "spread" && pick.spread != null
+                ? (pick.pick === pick.homeTeam ? -pick.spread : pick.spread)
+                : null;
+              const cardBorder = isOpen ? (isBet ? "#00FF87" : "#2a2a2a") : (isBet ? "rgba(0,255,135,0.25)" : "#1a1a1a");
+
+              return (
+                <div key={pick.id} style={{ ...S.card, borderColor: cardBorder }}>
+                  <div style={S.cardTop}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+                        <span style={{
+                          fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5,
+                          background: verdict === "TRAP" ? "rgba(255,77,77,0.1)" : isBet ? "rgba(0,255,135,0.08)" : "rgba(50,50,50,0.5)",
+                          color: verdict === "TRAP" ? "#FF4D4D" : isBet ? "#00FF87" : "#333",
+                          border: `1px solid ${verdict === "TRAP" ? "rgba(255,77,77,0.3)" : isBet ? "rgba(0,255,135,0.2)" : "#222"}`,
+                        }}>
+                          {verdict === "TRAP" ? "TRAP" : isBet ? "BET" : "PASS"}
+                        </span>
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 5, background: "#111", color: "#888", letterSpacing: 0.5 }}>
+                          {pick.marketType === "spread" ? "SPREAD" : "MONEYLINE"}
+                        </span>
+                        {f && <span style={{ fontSize: 11, color: isBet ? "#555" : "#333", fontFamily: "'JetBrains Mono',monospace" }}>{edge.toFixed(1)}% edge</span>}
+                        {isBet && <span style={{ fontSize: 10, color: t.color, opacity: 0.7 }}>{t.label}</span>}
+                      </div>
+                      <div style={S.cardMatchup}>
+                        {pick.awayTeam}{pick.awayRecord && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 4 }}>({pick.awayRecord})</span>}
+                        {" @ "}
+                        {pick.homeTeam}{pick.homeRecord && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 4 }}>({pick.homeRecord})</span>}
+                      </div>
+                      <div style={S.cardMeta}>
+                        {fmtGameTime(pick.commenceTime)}
+                        {pick.pick && <> · Take{" "}
+                          <span style={{ color: isBet ? "#00FF87" : "#aaa", fontWeight: 700 }}>
+                            {pick.pick}{spreadLine != null ? ` ${spreadLine > 0 ? "+" : ""}${spreadLine}` : ""}
+                          </span>
+                        </>}
+                        {pickOdds != null && <span style={{ color: "#888", fontFamily: "'JetBrains Mono',monospace" }}> · {fmtOdds(pickOdds)}</span>}
+                      </div>
+                      <div style={{ marginTop: 7, display: "flex", alignItems: "center", gap: 7 }}>
+                        <div style={{ flex: 1, height: 3, background: "#111", borderRadius: 2 }}>
+                          <div style={{ height: "100%", borderRadius: 2, width: `${Math.min(100, edge * 6)}%`, background: isBet ? t.color : "#222", transition: "width 0.5s ease" }} />
+                        </div>
+                        {f && <span style={{ fontSize: 10, color: isBet ? t.color : "#333", fontFamily: "'JetBrains Mono',monospace", flexShrink: 0 }}>{edge.toFixed(1)}%</span>}
+                      </div>
+                    </div>
+                    <button
+                      style={{ ...S.expandBtn, borderColor: isOpen ? (isBet ? "#00FF87" : "#444") : "#222", color: isOpen ? (isBet ? "#00FF87" : "#444") : "#333" }}
+                      onClick={() => setNflExpanded(isOpen ? null : pick.id)}
+                    >
+                      {isOpen ? "▲" : "▼"}
+                    </button>
+                  </div>
+                  <div style={S.pitchRow}>
+                    <div style={S.pitchBox}>
+                      <div style={S.pitchLabel}>{pick.awayTeam?.toUpperCase()}</div>
+                      <div style={S.pitchName}>{pick.matchup?.away || "stats unavailable"}</div>
+                    </div>
+                    <div style={S.pitchVs}>VS</div>
+                    <div style={{ ...S.pitchBox, textAlign: "right" }}>
+                      <div style={S.pitchLabel}>{pick.homeTeam?.toUpperCase()}</div>
+                      <div style={S.pitchName}>{pick.matchup?.home || "stats unavailable"}</div>
+                    </div>
+                  </div>
+                  {isOpen && f && (
+                    <div style={{ animation: "fadeUp 0.2s ease" }}>
+                      <div style={S.expDivider} />
+                      <div style={S.expSection}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#888", marginBottom: 4 }}>
+                          <span>Confidence</span><span style={{ color: "#ccc", fontFamily: "'JetBrains Mono',monospace" }}>{f.confidence}/10</span>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#888", marginBottom: 4 }}>
+                          <span>Model win prob</span><span style={{ color: "#ccc", fontFamily: "'JetBrains Mono',monospace" }}>{f.trueWinProbPct}%</span>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#888", marginBottom: 4 }}>
+                          <span>Market implied</span><span style={{ color: "#ccc", fontFamily: "'JetBrains Mono',monospace" }}>{f.marketImpliedPct}%</span>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#888", marginBottom: 4 }}>
+                          <span>Uncertainty</span><span style={{ color: "#ccc", fontFamily: "'JetBrains Mono',monospace" }}>±{f.uncertaintyPct}%</span>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#888" }}>
+                          <span>Data variance</span><span style={{ color: "#ccc" }}>{f.variance}</span>
+                        </div>
+                        {f.failures?.length > 0 && (
+                          <div style={{ marginTop: 8, fontSize: 11, color: "#666", lineHeight: 1.5 }}>
+                            {f.failures.map((fail, i) => <div key={i}>· {fail}</div>)}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </>
+        )
       )}
 
       <div style={S.legal}>
@@ -2393,311 +2576,6 @@ export default function ToT() {
         <a href="/privacy" style={{ color: "#222", textDecoration: "underline" }}>Privacy</a>
         <br />
         Problem gambling? Call <span style={{ color: "#777" }}>1-800-GAMBLER</span>
-      </div>
-    </div>
-  );
-}
-
-const NFL_ORANGE = "#FF6B35";
-const fmtO = o => o == null ? "—" : o > 0 ? `+${o}` : `${o}`;
-
-function NFLSection({ getAuthHeaders }) {
-  const [subTab, setSubTab] = useState("fantasy");
-  const [scoring, setScoring] = useState("PPR");
-  const [fantasyMode, setFantasyMode] = useState("startSit");
-
-  // Start/Sit state
-  const [playerA, setPlayerA] = useState("");
-  const [playerB, setPlayerB] = useState("");
-  const [ssResult, setSsResult] = useState(null);
-  const [ssLoading, setSsLoading] = useState(false);
-
-  // Trade state
-  const [tradeGive, setTradeGive] = useState("");
-  const [tradeGet, setTradeGet] = useState("");
-  const [tradeResult, setTradeResult] = useState(null);
-  const [tradeLoading, setTradeLoading] = useState(false);
-
-  // Ask AI state
-  const [askQ, setAskQ] = useState("");
-  const [askResult, setAskResult] = useState(null);
-  const [askLoading, setAskLoading] = useState(false);
-
-  // Odds/picks state
-  const [nflGames, setNflGames] = useState(null);
-  const [nflLoading, setNflLoading] = useState(false);
-  const [nflMsg, setNflMsg] = useState(null);
-
-  const callFantasy = async (mode, body) => {
-    const headers = await getAuthHeaders();
-    const res = await fetch("/api/nfl/fantasy", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...headers },
-      body: JSON.stringify({ mode, scoring, ...body }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Error");
-    return data.result;
-  };
-
-  const runStartSit = async () => {
-    if (!playerA.trim() || !playerB.trim()) return;
-    setSsLoading(true); setSsResult(null);
-    try { setSsResult(await callFantasy("startSit", { playerA: playerA.trim(), playerB: playerB.trim() })); }
-    catch (e) { setSsResult("Error: " + e.message); }
-    setSsLoading(false);
-  };
-
-  const runTrade = async () => {
-    if (!tradeGive.trim() || !tradeGet.trim()) return;
-    setTradeLoading(true); setTradeResult(null);
-    try { setTradeResult(await callFantasy("trade", { tradeGive: tradeGive.trim(), tradeGet: tradeGet.trim() })); }
-    catch (e) { setTradeResult("Error: " + e.message); }
-    setTradeLoading(false);
-  };
-
-  const runAsk = async () => {
-    if (!askQ.trim()) return;
-    setAskLoading(true); setAskResult(null);
-    try { setAskResult(await callFantasy("ask", { question: askQ.trim() })); }
-    catch (e) { setAskResult("Error: " + e.message); }
-    setAskLoading(false);
-  };
-
-  const loadOdds = async () => {
-    setNflLoading(true); setNflGames(null); setNflMsg(null);
-    try {
-      const headers = await getAuthHeaders();
-      const res = await fetch("/api/nfl/odds", { headers });
-      const data = await res.json();
-      setNflGames(data.games || []);
-      if (data.message) setNflMsg(data.message);
-    } catch (e) { setNflMsg("Failed to load odds"); setNflGames([]); }
-    setNflLoading(false);
-  };
-
-  const inputStyle = {
-    background: "#0a0a0a", border: "1px solid #222", borderRadius: 10,
-    padding: "11px 14px", color: "#fff", fontSize: 14, outline: "none", width: "100%",
-  };
-  const orangeBtn = (disabled) => ({
-    background: disabled ? "#1a1a1a" : NFL_ORANGE, color: disabled ? "#444" : "#000",
-    border: "none", borderRadius: 10, padding: "12px 0", fontWeight: 800,
-    fontSize: 14, width: "100%", cursor: disabled ? "default" : "pointer",
-    transition: "all 0.15s",
-  });
-
-  return (
-    <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-
-      {/* Sub-nav */}
-      <div style={{ display: "flex", gap: 6, padding: "10px 20px", borderBottom: "1px solid #1a1a1a", overflowX: "auto" }}>
-        {[
-          { id: "fantasy", label: "⚡ Fantasy" },
-          { id: "picks",   label: "🏈 Picks" },
-          { id: "record",  label: "📅 Record" },
-        ].map(({ id, label }) => (
-          <button key={id}
-            style={{
-              flexShrink: 0, padding: "6px 16px", borderRadius: 20, fontSize: 12, fontWeight: 600,
-              background: subTab === id ? "rgba(255,107,53,0.1)" : "#111",
-              border: `1px solid ${subTab === id ? NFL_ORANGE : "#333"}`,
-              color: subTab === id ? NFL_ORANGE : "#999", letterSpacing: 0.3,
-            }}
-            onClick={() => setSubTab(id)}>
-            {label}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ flex: 1, padding: "16px 20px 40px", display: "flex", flexDirection: "column", gap: 14 }}>
-
-        {/* Scoring format */}
-        {(subTab === "fantasy") && (
-          <div style={{ display: "flex", gap: 6 }}>
-            {["PPR", "Half-PPR", "Standard"].map(fmt => (
-              <button key={fmt} onClick={() => setScoring(fmt)} style={{
-                flex: 1, padding: "8px 6px", borderRadius: 10, fontSize: 11, fontWeight: 700,
-                border: `1px solid ${scoring === fmt ? NFL_ORANGE : "#1a1a1a"}`,
-                background: scoring === fmt ? "rgba(255,107,53,0.08)" : "#0d0d0d",
-                color: scoring === fmt ? NFL_ORANGE : "#444",
-              }}>{fmt}</button>
-            ))}
-          </div>
-        )}
-
-        {/* ── FANTASY TAB ── */}
-        {subTab === "fantasy" && (
-          <>
-            {/* Mode selector */}
-            <div style={{ display: "flex", gap: 6 }}>
-              {[
-                { id: "startSit", label: "Start/Sit" },
-                { id: "trade",    label: "Trade" },
-                { id: "ask",      label: "Ask AI" },
-              ].map(({ id, label }) => (
-                <button key={id} onClick={() => setFantasyMode(id)} style={{
-                  flex: 1, padding: "10px 6px", borderRadius: 10, fontSize: 13, fontWeight: 700,
-                  border: `1px solid ${fantasyMode === id ? NFL_ORANGE : "#222"}`,
-                  background: fantasyMode === id ? "rgba(255,107,53,0.1)" : "#0d0d0d",
-                  color: fantasyMode === id ? NFL_ORANGE : "#555",
-                }}>{label}</button>
-              ))}
-            </div>
-
-            {fantasyMode === "startSit" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <input style={inputStyle} placeholder="Player A (e.g. Justin Jefferson)" value={playerA}
-                    onChange={e => setPlayerA(e.target.value)}
-                    onKeyDown={e => e.key === "Enter" && runStartSit()} />
-                  <span style={{ color: "#444", fontWeight: 700, flexShrink: 0 }}>vs</span>
-                  <input style={inputStyle} placeholder="Player B (e.g. CeeDee Lamb)" value={playerB}
-                    onChange={e => setPlayerB(e.target.value)}
-                    onKeyDown={e => e.key === "Enter" && runStartSit()} />
-                </div>
-                <button style={orangeBtn(!playerA.trim() || !playerB.trim() || ssLoading)}
-                  disabled={!playerA.trim() || !playerB.trim() || ssLoading}
-                  onClick={runStartSit}>
-                  {ssLoading ? "Analyzing…" : "Get verdict →"}
-                </button>
-                {ssResult && (
-                  <div style={{ background: "#0d0d0d", border: `1px solid rgba(255,107,53,0.25)`, borderRadius: 14, padding: 16 }}>
-                    <div style={{ fontSize: 10, color: NFL_ORANGE, fontWeight: 700, letterSpacing: 1.5, marginBottom: 8 }}>START / SIT · {scoring}</div>
-                    <div style={{ fontSize: 13, color: "#ccc", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{ssResult}</div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {fantasyMode === "trade" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <div>
-                  <div style={{ fontSize: 11, color: "#555", marginBottom: 6, letterSpacing: 0.5 }}>I'M GIVING</div>
-                  <input style={inputStyle} placeholder="e.g. Saquon Barkley + WR2" value={tradeGive}
-                    onChange={e => setTradeGive(e.target.value)} />
-                </div>
-                <div>
-                  <div style={{ fontSize: 11, color: "#555", marginBottom: 6, letterSpacing: 0.5 }}>I'M GETTING</div>
-                  <input style={inputStyle} placeholder="e.g. Tyreek Hill" value={tradeGet}
-                    onChange={e => setTradeGet(e.target.value)} />
-                </div>
-                <button style={orangeBtn(!tradeGive.trim() || !tradeGet.trim() || tradeLoading)}
-                  disabled={!tradeGive.trim() || !tradeGet.trim() || tradeLoading}
-                  onClick={runTrade}>
-                  {tradeLoading ? "Analyzing…" : "Analyze trade →"}
-                </button>
-                {tradeResult && (
-                  <div style={{ background: "#0d0d0d", border: `1px solid rgba(255,107,53,0.25)`, borderRadius: 14, padding: 16 }}>
-                    <div style={{ fontSize: 10, color: NFL_ORANGE, fontWeight: 700, letterSpacing: 1.5, marginBottom: 8 }}>TRADE ANALYSIS · {scoring}</div>
-                    <div style={{ fontSize: 13, color: "#ccc", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{tradeResult}</div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {fantasyMode === "ask" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <textarea style={{ ...inputStyle, minHeight: 80, resize: "vertical", fontFamily: "inherit" }}
-                  placeholder="e.g. Who should I stream at flex this week? My WR1 is out."
-                  value={askQ} onChange={e => setAskQ(e.target.value)} />
-                <button style={orangeBtn(!askQ.trim() || askLoading)}
-                  disabled={!askQ.trim() || askLoading}
-                  onClick={runAsk}>
-                  {askLoading ? "Thinking…" : "Ask →"}
-                </button>
-                {askResult && (
-                  <div style={{ background: "#0d0d0d", border: `1px solid rgba(255,107,53,0.25)`, borderRadius: 14, padding: 16 }}>
-                    <div style={{ fontSize: 10, color: NFL_ORANGE, fontWeight: 700, letterSpacing: 1.5, marginBottom: 8 }}>AI VERDICT · {scoring}</div>
-                    <div style={{ fontSize: 13, color: "#ccc", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{askResult}</div>
-                  </div>
-                )}
-              </div>
-            )}
-          </>
-        )}
-
-        {/* ── PICKS TAB ── */}
-        {subTab === "picks" && (
-          <>
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.2)", borderRadius: 30, padding: "4px 12px", alignSelf: "flex-start" }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: NFL_ORANGE, display: "inline-block", animation: "pulse 1.5s ease-in-out infinite" }} />
-              <span style={{ fontSize: 10, color: NFL_ORANGE, fontWeight: 700, letterSpacing: 1.5 }}>LIVE ODDS · NFL</span>
-            </div>
-
-            {nflGames === null && !nflLoading && (
-              <button style={orangeBtn(false)} onClick={loadOdds}>Load NFL odds →</button>
-            )}
-            {nflLoading && (
-              <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#555", fontSize: 13 }}>
-                <div style={{ width: 18, height: 18, border: "2px solid #222", borderTopColor: NFL_ORANGE, borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
-                Loading odds…
-              </div>
-            )}
-            {nflMsg && <div style={{ fontSize: 12, color: "#555", textAlign: "center" }}>{nflMsg}</div>}
-            {nflGames !== null && nflGames.length === 0 && !nflMsg && (
-              <div style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 14, padding: "28px 16px", textAlign: "center" }}>
-                <div style={{ fontSize: 28, marginBottom: 10 }}>🏈</div>
-                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>No games on the board</div>
-                <div style={{ fontSize: 13, color: "#555", lineHeight: 1.6 }}>NFL odds will appear here during preseason and the regular season. Check back in August.</div>
-              </div>
-            )}
-            {nflGames?.map(g => (
-              <div key={g.id} style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 14, padding: 16, animation: "fadeUp 0.3s ease" }}>
-                <div style={{ fontSize: 11, color: "#555", marginBottom: 8 }}>
-                  {new Date(g.commenceTime).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-                </div>
-                <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
-                  {g.awayTeam} @ {g.homeTeam}
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-                  {[
-                    { label: "ML", away: fmtO(g.awayOdds), home: fmtO(g.homeOdds) },
-                    { label: `SPREAD (${g.spread > 0 ? "+" : ""}${g.spread ?? "—"})`, away: fmtO(g.awaySpreadOdds), home: fmtO(g.homeSpreadOdds) },
-                    { label: `TOTAL (${g.total ?? "—"})`, away: `O ${fmtO(g.overOdds)}`, home: `U ${fmtO(g.underOdds)}` },
-                  ].map(({ label, away, home }) => (
-                    <div key={label} style={{ background: "#080808", border: "1px solid #1a1a1a", borderRadius: 10, padding: "10px 10px" }}>
-                      <div style={{ fontSize: 9, color: "#444", fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>{label}</div>
-                      <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: "#888", marginBottom: 2 }}>{away}</div>
-                      <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: "#888" }}>{home}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-            {nflGames !== null && nflGames.length > 0 && (
-              <button style={{ ...orangeBtn(false), marginTop: 4 }} onClick={loadOdds}>↺ Refresh</button>
-            )}
-            <div style={{ background: "#080808", border: "1px solid #1a1a1a", borderRadius: 14, padding: "16px" }}>
-              <div style={{ fontSize: 10, color: NFL_ORANGE, fontWeight: 700, letterSpacing: 2, marginBottom: 8 }}>MODEL PICKS — COMING WEEK 1</div>
-              <div style={{ fontSize: 13, color: "#555", lineHeight: 1.6 }}>
-                Spread, moneyline, and O/U picks with CLEAN/BET/PASS verdicts will generate automatically once the 2026 season kicks off — same pipeline as MLB.
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* ── RECORD TAB ── */}
-        {subTab === "record" && (
-          <div style={{ background: "#080808", border: "1px solid rgba(255,107,53,0.2)", borderRadius: 16, padding: "20px 18px" }}>
-            <div style={{ fontSize: 10, color: NFL_ORANGE, fontWeight: 700, letterSpacing: 2, marginBottom: 10 }}>NFL RECORD</div>
-            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 18, fontWeight: 700, marginBottom: 8, lineHeight: 1.2 }}>
-              ATS record tracked<br/><span style={{ color: NFL_ORANGE }}>week by week.</span>
-            </div>
-            <div style={{ fontSize: 13, color: "#555", lineHeight: 1.65 }}>
-              W-L calendar, ATS %, and unit P&L will populate once the 2026 season kicks off.
-            </div>
-            <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-              {["W-L Record", "ATS %", "Units"].map(label => (
-                <div key={label} style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 10, padding: "14px 10px", textAlign: "center" }}>
-                  <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 18, fontWeight: 700, color: "#222" }}>—</div>
-                  <div style={{ fontSize: 10, color: "#333", marginTop: 4, letterSpacing: 1 }}>{label.toUpperCase()}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
       </div>
     </div>
   );
