@@ -48,6 +48,20 @@ function fmtDateLabel(dateStr) {
   return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
 
+// Summarizes why no games came back — surfaces which odds source(s) failed
+// (bad/missing API key, rate limit, etc.) vs. a genuine off day.
+function fmtDiagnostic(d) {
+  const parts = [];
+  if (d.mlbSchedule) parts.push(`MLB schedule: ${d.mlbSchedule.ok ? `${d.mlbSchedule.games} games` : d.mlbSchedule.error}`);
+  const o = d.odds || {};
+  for (const key of ["toa", "sgo", "espn"]) {
+    const s = o[key];
+    if (!s) continue;
+    parts.push(`${key.toUpperCase()}: ${s.ok ? `${s.games} games` : s.error}`);
+  }
+  return parts.join(" · ");
+}
+
 const TIER = {
   High:   { color: "#00FF87", bg: "rgba(0,255,135,0.08)", label: "🔥 Value Pick" },
   Medium: { color: "#FFD600", bg: "rgba(255,214,0,0.08)",  label: "✅ Solid Pick" },
@@ -123,6 +137,8 @@ export default function ToT() {
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState("");
   const [picks, setPicks] = useState(null);
+  const [picksError, setPicksError] = useState(null);
+  const [picksDiagnostic, setPicksDiagnostic] = useState(null);
   const [savedPicks, setSavedPicks] = useState([]);
   const [gameRecaps, setGameRecaps] = useState({});
   const [chatMessages, setChatMessages] = useState([]);
@@ -356,7 +372,10 @@ export default function ToT() {
       const headers = await getAuthHeaders();
       const res = await fetch(`/api/picks?date=${date}${bust ? "&bust=1" : ""}`, { headers });
       const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
       const next = data.picks || [];
+      setPicksError(null);
+      setPicksDiagnostic(data.diagnostic || null);
       setPicks(next);
       setPicksDate(prev => {
         // Only reset parlay legs when the date changes (not on tab switch re-fetch)
@@ -368,7 +387,12 @@ export default function ToT() {
         }
         return date;
       });
-    } catch (e) { console.error("picks error", e); setPicks(prev => prev ?? []); }
+    } catch (e) {
+      console.error("picks error", e);
+      setPicksError(e.message || "Could not load games");
+      setPicksDiagnostic(null);
+      setPicks(prev => prev ?? []);
+    }
     setLoading(false);
   };
 
@@ -1320,11 +1344,23 @@ export default function ToT() {
               <div style={S.spinner} />
               <div style={{ color: "#777", fontSize: 13, marginTop: 12 }}>Analyzing {fmtDateLabel(selectedDate)}'s games…</div>
             </div>
+          ) : picksError ? (
+            <div style={S.center}>
+              <div style={{ fontSize: 32 }}>⚠️</div>
+              <div style={{ color: "#fff", fontWeight: 700, marginTop: 8 }}>Could not load games</div>
+              <div style={{ color: "#777", fontSize: 13, marginTop: 4 }}>{picksError}</div>
+              <button style={{ ...S.saveBtn, marginTop: 14 }} onClick={() => fetchPicks(selectedDate, true)}>Retry</button>
+            </div>
           ) : sorted.length === 0 ? (
             <div style={S.center}>
               <div style={{ fontSize: 32 }}>⚾</div>
               <div style={{ color: "#fff", fontWeight: 700, marginTop: 8 }}>No games found</div>
               <div style={{ color: "#777", fontSize: 13, marginTop: 4 }}>Try a different date</div>
+              {picksDiagnostic && (
+                <div style={{ color: "#555", fontSize: 11, marginTop: 10, fontFamily: "'JetBrains Mono',monospace", maxWidth: 280 }}>
+                  {fmtDiagnostic(picksDiagnostic)}
+                </div>
+              )}
             </div>
           ) : sorted.map(pick => {
             const isBet   = pick.isBet;
