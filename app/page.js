@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef } from "react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { createClient } from "@supabase/supabase-js";
+import { impliedWinPct, oddsMovement } from "../lib/odds-display.js";
 
 // Single shared instance — sign-out and auth listeners must share the same client
 // so state changes propagate correctly. Calling createClient() on every request
@@ -60,6 +61,26 @@ function fmtDiagnostic(d) {
     parts.push(`${key.toUpperCase()}: ${s.ok ? `${s.games} games` : s.error}`);
   }
   return parts.join(" · ");
+}
+
+// Devigged win % for both teams, plus an open→current movement arrow when
+// opening odds were captured for this pick. Renders nothing without odds.
+function WinPctRow({ homeTeam, awayTeam, homeOdds, awayOdds, openHomeOdds, openAwayOdds }) {
+  const wp = impliedWinPct(homeOdds, awayOdds);
+  if (!wp) return null;
+  const move = oddsMovement(openHomeOdds, homeOdds, openAwayOdds, awayOdds);
+  const arrow = move?.direction === "up" ? "▲" : move?.direction === "down" ? "▼" : null;
+  const arrowColor = move?.direction === "up" ? "#00FF87" : move?.direction === "down" ? "#FF4D4D" : "#555";
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 6, fontSize: 11, fontFamily: "'JetBrains Mono',monospace" }}>
+      <span style={{ color: "#666" }}>{(awayTeam || "").split(" ").pop()} <b style={{ color: "#bbb" }}>{wp.away}%</b></span>
+      <span style={{ color: "#333" }}>·</span>
+      <span style={{ color: "#666" }}>{(homeTeam || "").split(" ").pop()} <b style={{ color: "#bbb" }}>{wp.home}%</b></span>
+      {arrow && (
+        <span style={{ color: arrowColor }}>{arrow} {move.delta}% since open</span>
+      )}
+    </div>
+  );
 }
 
 const TIER = {
@@ -150,6 +171,7 @@ export default function ToT() {
   const [sortBy, setSortBy] = useState("edge");
   const [expanded, setExpanded] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [saving, setSaving] = useState({});
   const [freePick, setFreePick] = useState(null);
   const [carouselIdx, setCarouselIdx] = useState(0);
@@ -1060,6 +1082,17 @@ export default function ToT() {
           {[0, 1, 2].map(i => <div key={i} style={S.menuLine} />)}
         </button>
         <div style={S.navLogo}>T<span style={{ color: "#00FF87" }}>|</span>T</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <button
+          onClick={() => setSearchOpen(true)}
+          aria-label="Search"
+          style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: "#888", display: "flex", alignItems: "center" }}
+        >
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="7" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+        </button>
         {isBeta ? (
           <div style={{ display: "flex", gap: 4, background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 14, padding: 3 }}>
             {[
@@ -1086,7 +1119,15 @@ export default function ToT() {
         ) : (
           <div style={S.navBadge}>MLB ✓</div>
         )}
+        </div>
       </div>
+
+      <SearchOverlay
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        picks={picks}
+        savedPicks={savedPicks}
+      />
 
       {/* Carousel — cycles between free pick, model record, and promo */}
       {activeTab !== "nfl" && <div style={S.carousel}>
@@ -1444,6 +1485,7 @@ export default function ToT() {
                       {!pick.pick && <span style={{ color: "#444" }}> · No line posted</span>}
                       {isBet && pick.homeOdds != null && <span style={{ color: "#888", fontFamily: "'JetBrains Mono',monospace" }}> · {fmtOdds(pick.pick === pick.homeTeam ? pick.homeOdds : pick.awayOdds)}</span>}
                     </div>
+                    <WinPctRow homeTeam={pick.homeTeam} awayTeam={pick.awayTeam} homeOdds={pick.homeOdds} awayOdds={pick.awayOdds} openHomeOdds={pick.openHomeOdds} openAwayOdds={pick.openAwayOdds} />
                     <div style={{ marginTop: 7, display: "flex", alignItems: "center", gap: 7 }}>
                       <div style={{ flex: 1, height: 3, background: "#111", borderRadius: 2 }}>
                         <div style={{ height: "100%", borderRadius: 2, width: `${Math.min(100, edge * 6)}%`, background: isBet ? t.color : "#222", transition: "width 0.5s ease" }} />
@@ -1748,6 +1790,7 @@ export default function ToT() {
                         <div style={S.cardMeta}>
                           {fmtGameTime(pick.commenceTime)} · Take <span style={{ color: "#00FF87", fontWeight: 700 }}>{pick.pick}</span> {fmtOdds(pickOdds)}
                         </div>
+                        <WinPctRow homeTeam={pick.homeTeam} awayTeam={pick.awayTeam} homeOdds={pick.homeOdds} awayOdds={pick.awayOdds} openHomeOdds={pick.openHomeOdds} openAwayOdds={pick.openAwayOdds} />
                       </div>
                       <button
                         style={{ ...S.saveBtn, background: isSaved ? "#00FF87" : "transparent", color: isSaved ? "#000" : "#00FF87", borderColor: "#00FF87" }}
@@ -2398,6 +2441,126 @@ export default function ToT() {
   );
 }
 
+function SearchOverlay({ open, onClose, picks, savedPicks }) {
+  const [query, setQuery] = useState("");
+  const [activeId, setActiveId] = useState(null);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (open) { setQuery(""); setActiveId(null); setTimeout(() => inputRef.current?.focus(), 50); }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  const q = query.trim().toLowerCase();
+  const matchesGame = (p) => !q || (p.homeTeam || "").toLowerCase().includes(q) || (p.awayTeam || "").toLowerCase().includes(q);
+  const matchesTracker = (p) => !q || (p.home_team || "").toLowerCase().includes(q) || (p.away_team || "").toLowerCase().includes(q) || (p.pick || "").toLowerCase().includes(q);
+
+  const gameResults = q ? (picks || []).filter(matchesGame).slice(0, 20) : [];
+  const trackerResults = q ? (savedPicks || []).filter(matchesTracker).slice(0, 20) : [];
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "8vh 16px 16px" }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 480, background: "#0a0a0a", border: "1px solid #1e1e1e", borderRadius: 16, overflow: "hidden", maxHeight: "76vh", display: "flex", flexDirection: "column", animation: "fadeUp 0.15s ease" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", borderBottom: "1px solid #1a1a1a" }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="7" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={e => { setQuery(e.target.value); setActiveId(null); }}
+            placeholder="Search teams, games, tracker history…"
+            style={{ flex: 1, background: "none", border: "none", outline: "none", color: "#fff", fontSize: 15 }}
+          />
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 18, lineHeight: 1, padding: 4 }}>✕</button>
+        </div>
+        <div style={{ overflowY: "auto", padding: q ? "6px 0" : "0" }}>
+          {!q && (
+            <div style={{ padding: "36px 20px", textAlign: "center", color: "#444", fontSize: 13 }}>
+              Type a team name to search today's games and your tracker history.
+            </div>
+          )}
+          {q && !gameResults.length && !trackerResults.length && (
+            <div style={{ padding: "36px 20px", textAlign: "center", color: "#444", fontSize: 13 }}>
+              No matches for "{query}"
+            </div>
+          )}
+          {gameResults.length > 0 && (
+            <div>
+              <div style={{ padding: "8px 16px 4px", fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 1.5 }}>GAMES</div>
+              {gameResults.map(p => {
+                const isOpen = activeId === `g-${p.id}`;
+                return (
+                  <div key={p.id}>
+                    <div
+                      onClick={() => setActiveId(isOpen ? null : `g-${p.id}`)}
+                      style={{ padding: "10px 16px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #141414" }}
+                    >
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "#eee" }}>{p.awayTeam} @ {p.homeTeam}</div>
+                        <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>{fmtGameTime(p.commenceTime)}{p.pick ? ` · Take ${p.pick}` : ""}</div>
+                      </div>
+                      <span style={{ color: "#444", fontSize: 12 }}>{isOpen ? "▲" : "▼"}</span>
+                    </div>
+                    {isOpen && (
+                      <div style={{ padding: "0 16px 14px", background: "#080808" }}>
+                        <WinPctRow homeTeam={p.homeTeam} awayTeam={p.awayTeam} homeOdds={p.homeOdds} awayOdds={p.awayOdds} openHomeOdds={p.openHomeOdds} openAwayOdds={p.openAwayOdds} />
+                        {p.filter && (
+                          <div style={{ fontSize: 11, color: "#888", marginTop: 6 }}>
+                            {p.filter.verdict} · {(p.edge || 0).toFixed(1)}% edge {p.homeOdds != null && `· ${fmtOdds(p.pick === p.homeTeam ? p.homeOdds : p.awayOdds)}`}
+                          </div>
+                        )}
+                        {p.breakdown?.preview && <div style={{ fontSize: 12, color: "#666", marginTop: 6, lineHeight: 1.5 }}>{p.breakdown.preview}</div>}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {trackerResults.length > 0 && (
+            <div>
+              <div style={{ padding: "12px 16px 4px", fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 1.5 }}>TRACKER HISTORY</div>
+              {trackerResults.map(p => {
+                const isOpen = activeId === `t-${p.id}`;
+                const resultColor = p.result === "win" ? "#00FF87" : p.result === "loss" ? "#FF4D4D" : p.result === "push" ? "#FFD600" : "#666";
+                return (
+                  <div key={p.id}>
+                    <div
+                      onClick={() => setActiveId(isOpen ? null : `t-${p.id}`)}
+                      style={{ padding: "10px 16px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #141414" }}
+                    >
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "#eee" }}>{p.away_team} @ {p.home_team}</div>
+                        <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>Take {p.pick} {p.odds != null ? fmtOdds(p.odds) : ""}</div>
+                      </div>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: resultColor, textTransform: "uppercase" }}>{p.result}</span>
+                    </div>
+                    {isOpen && (
+                      <div style={{ padding: "0 16px 14px", background: "#080808", fontSize: 12, color: "#666" }}>
+                        {p.commence_time ? new Date(p.commence_time).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : ""} · Tier: {p.tier || "—"}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const NFL_ORANGE = "#FF6B35";
 const fmtO = o => o == null ? "—" : o > 0 ? `+${o}` : `${o}`;
 
@@ -2665,10 +2828,11 @@ function NFLSection({ getAuthHeaders }) {
                 <div style={{ fontSize: 11, color: "#555", marginBottom: 8 }}>
                   {new Date(g.commenceTime).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                 </div>
-                <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
+                <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 15, fontWeight: 700, marginBottom: 4 }}>
                   {g.awayTeam} @ {g.homeTeam}
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                <WinPctRow homeTeam={g.homeTeam} awayTeam={g.awayTeam} homeOdds={g.homeOdds} awayOdds={g.awayOdds} />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 12 }}>
                   {[
                     { label: "ML", away: fmtO(g.awayOdds), home: fmtO(g.homeOdds) },
                     { label: `SPREAD (${g.spread > 0 ? "+" : ""}${g.spread ?? "—"})`, away: fmtO(g.awaySpreadOdds), home: fmtO(g.homeSpreadOdds) },

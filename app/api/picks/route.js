@@ -282,6 +282,8 @@ export async function GET(request) {
             if (gameStarted) {
               return {
                 ...pick,
+                openHomeOdds: pick.homeOdds,
+                openAwayOdds: pick.awayOdds,
                 homeRecord: fmtRec(mlb.homeStandings) ?? pick.homeRecord,
                 awayRecord: fmtRec(mlb.awayStandings) ?? pick.awayRecord,
                 liveScore,
@@ -310,6 +312,8 @@ export async function GET(request) {
               pick: freshPick,
               homeOdds: freshHomeOdds,
               awayOdds: freshAwayOdds,
+              openHomeOdds: pick.homeOdds,
+              openAwayOdds: pick.awayOdds,
               homeRecord: fmtRec(mlb.homeStandings) ?? pick.homeRecord,
               awayRecord: fmtRec(mlb.awayStandings) ?? pick.awayRecord,
               edge: edgePct,
