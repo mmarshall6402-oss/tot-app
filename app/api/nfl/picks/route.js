@@ -81,8 +81,9 @@ export async function GET(request) {
     const cacheStale = cacheCtDate && cacheCtDate !== date;
     const isFutureDate = date > today;
 
-    // No cron in Phase 1 — cache is populated by the admin regen endpoint. Serve
-    // cache as-is for today/past dates; no live-score overlay yet (fast-follow).
+    // Cache is populated by the weekly /api/cron/nfl-picks run (or the admin regen
+    // endpoint for a manual force). Serve cache as-is for today/past dates; no
+    // live-score overlay yet (fast-follow).
     if (!bust && !cacheStale && !isFutureDate && cached?.picks?.length) {
       return Response.json({ picks: cached.picks, cached: true, generated_at: cached.generated_at });
     }

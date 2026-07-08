@@ -2291,7 +2291,7 @@ export default function ToT() {
           <div style={{ ...S.card, textAlign: "center", padding: "28px 16px" }}>
             <div style={{ fontSize: 22, marginBottom: 8 }}>🏈</div>
             <div style={{ fontWeight: 700 }}>NFL picks are Pro-only</div>
-            <div style={{ fontSize: 12, color: "#777", marginTop: 6 }}>Upgrade to unlock spread & moneyline picks.</div>
+            <div style={{ fontSize: 12, color: "#777", marginTop: 6 }}>Upgrade to unlock spread, moneyline & total picks.</div>
             <button style={{ ...S.saveBtn, marginTop: 12, background: "#00FF87", color: "#000", borderColor: "#00FF87" }} onClick={() => setUpgradeModal(true)}>⚡ Upgrade to Pro</button>
           </div>
         )}
@@ -2340,10 +2340,13 @@ export default function ToT() {
                 const verdict = f?.verdict;
                 const pickOdds = pick.marketType === "spread"
                   ? (pick.pick === pick.homeTeam ? pick.homeSpreadOdds : pick.awaySpreadOdds)
+                  : pick.marketType === "total"
+                  ? (pick.pick === "Over" ? pick.overOdds : pick.underOdds)
                   : (pick.pick === pick.homeTeam ? pick.homeOdds : pick.awayOdds);
                 const spreadLine = pick.marketType === "spread" && pick.spread != null
                   ? (pick.pick === pick.homeTeam ? -pick.spread : pick.spread)
                   : null;
+                const totalLine = pick.marketType === "total" && pick.total != null ? pick.total : null;
                 const cardBorder = isOpen ? (isBet ? "#00FF87" : "#2a2a2a") : (isBet ? "rgba(0,255,135,0.25)" : "#1a1a1a");
 
                 return (
@@ -2360,7 +2363,7 @@ export default function ToT() {
                             {verdict === "TRAP" ? "TRAP" : isBet ? "BET" : "PASS"}
                           </span>
                           <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 5, background: "#111", color: "#888", letterSpacing: 0.5 }}>
-                            {pick.marketType === "spread" ? "SPREAD" : "MONEYLINE"}
+                            {pick.marketType === "spread" ? "SPREAD" : pick.marketType === "total" ? "TOTAL" : "MONEYLINE"}
                           </span>
                           {f && <span style={{ fontSize: 11, color: isBet ? "#555" : "#333", fontFamily: "'JetBrains Mono',monospace" }}>{edge.toFixed(1)}% edge</span>}
                           {isBet && <span style={{ fontSize: 10, color: t.color, opacity: 0.7 }}>{t.label}</span>}
@@ -2370,7 +2373,9 @@ export default function ToT() {
                           {fmtGameTime(pick.commenceTime)}
                           {pick.pick && <> · Take{" "}
                             <span style={{ color: isBet ? "#00FF87" : "#aaa", fontWeight: 700 }}>
-                              {pick.pick}{spreadLine != null ? ` ${spreadLine > 0 ? "+" : ""}${spreadLine}` : ""}
+                              {pick.pick}
+                              {spreadLine != null ? ` ${spreadLine > 0 ? "+" : ""}${spreadLine}` : ""}
+                              {totalLine != null ? ` ${totalLine}` : ""}
                             </span>
                           </>}
                           {pickOdds != null && <span style={{ color: "#888", fontFamily: "'JetBrains Mono',monospace" }}> · {fmtOdds(pickOdds)}</span>}

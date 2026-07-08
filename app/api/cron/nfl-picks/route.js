@@ -1,11 +1,11 @@
 // app/api/cron/nfl-picks/route.js
-// No scheduled cron yet in Phase 1 (explicit fast-follow) — this is the
-// CRON_SECRET-gated generation endpoint that app/api/admin/regen/route.js
-// forwards to for sport=nfl, so picks can be force-generated manually while
-// the model is being validated.
+// Scheduled weekly via Vercel cron (Tuesday early morning — see vercel.json — after
+// Monday Night Football wraps and the following week's lines/schedule have settled).
+// Also the CRON_SECRET-gated endpoint app/api/admin/regen/route.js forwards to for
+// sport=nfl, so picks can still be force-regenerated manually.
 import { createClient } from "@supabase/supabase-js";
 import { fetchNFLOdds } from "../../../../lib/nfl-odds.js";
-import { buildNFLPicksForGames } from "../../../../lib/nfl-picks.js";
+import { buildNFLPicksForGames, buildNFLModelPickRows } from "../../../../lib/nfl-picks.js";
 import { timingSafeEqual } from "../../../../lib/auth.js";
 
 const getSupabase = () => createClient(
@@ -54,6 +54,21 @@ export async function GET(request) {
       await supabase
         .from("nfl_picks_cache")
         .upsert({ date, picks, generated_at: new Date().toISOString() }, { onConflict: "date" });
+
+      // Only (re)seed nfl_model_picks if nothing for this date has resolved yet —
+      // don't clobber picks that are already being graded (mirrors cron/picks.js's
+      // existingSettled guard for MLB's model_picks table).
+      const { data: existingSettled } = await supabase.from("nfl_model_picks")
+        .select("id").eq("date", date).in("result", ["win", "loss", "push"]).limit(1);
+      if (!existingSettled?.length) {
+        const rows = buildNFLModelPickRows(picks, date);
+        if (rows.length) {
+          await supabase.from("nfl_model_picks").delete().eq("date", date);
+          const { error: insErr } = await supabase.from("nfl_model_picks").insert(rows);
+          if (insErr) console.warn("[cron/nfl-picks] nfl_model_picks insert failed:", insErr.message);
+        }
+      }
+
       generated.push({ date, count: picks.length });
     }
 

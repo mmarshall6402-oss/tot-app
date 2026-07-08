@@ -19,6 +19,14 @@
     {
       "path": "/api/cron/snapshot",
       "schedule": "0 23 * * *"
+    },
+    {
+      "path": "/api/cron/nfl-picks",
+      "schedule": "0 9 * * 2"
+    },
+    {
+      "path": "/api/cron/nfl-resolve",
+      "schedule": "0 13 * * *"
     }
   ],
   "functions": {
@@ -27,6 +35,8 @@
     "app/api/cron/resolve/route.js": { "maxDuration": 60 },
     "app/api/cron/email/route.js": { "maxDuration": 60 },
     "app/api/cron/tweet/route.js": { "maxDuration": 60 },
-    "app/api/cron/snapshot/route.js": { "maxDuration": 60 }
+    "app/api/cron/snapshot/route.js": { "maxDuration": 60 },
+    "app/api/cron/nfl-picks/route.js": { "maxDuration": 300 },
+    "app/api/cron/nfl-resolve/route.js": { "maxDuration": 60 }
   }
 }

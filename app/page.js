@@ -2428,6 +2428,10 @@ function NFLSection({ getAuthHeaders }) {
   const [nflLoading, setNflLoading] = useState(false);
   const [nflMsg, setNflMsg] = useState(null);
 
+  // Record state
+  const [nflRecord, setNflRecord] = useState(null);
+  const [nflRecordLoading, setNflRecordLoading] = useState(false);
+
   const callFantasy = async (mode, body) => {
     const headers = await getAuthHeaders();
     const res = await fetch("/api/nfl/fantasy", {
@@ -2475,6 +2479,20 @@ function NFLSection({ getAuthHeaders }) {
     } catch (e) { setNflMsg("Failed to load odds"); setNflGames([]); }
     setNflLoading(false);
   };
+
+  const loadRecord = async () => {
+    setNflRecordLoading(true);
+    try {
+      const res = await fetch("/api/nfl/daily-record");
+      const data = await res.json();
+      setNflRecord(!data.error ? data : {});
+    } catch (e) { setNflRecord({}); }
+    setNflRecordLoading(false);
+  };
+
+  useEffect(() => {
+    if (subTab === "record" && nflRecord === null && !nflRecordLoading) loadRecord();
+  }, [subTab, nflRecord, nflRecordLoading]);
 
   const inputStyle = {
     background: "#0a0a0a", border: "1px solid #222", borderRadius: 10,
@@ -2669,10 +2687,13 @@ function NFLSection({ getAuthHeaders }) {
               <button style={{ ...orangeBtn(false), marginTop: 4 }} onClick={loadOdds}>↺ Refresh</button>
             )}
             <div style={{ background: "#080808", border: "1px solid #1a1a1a", borderRadius: 14, padding: "16px" }}>
-              <div style={{ fontSize: 10, color: NFL_ORANGE, fontWeight: 700, letterSpacing: 2, marginBottom: 8 }}>MODEL PICKS — COMING WEEK 1</div>
+              <div style={{ fontSize: 10, color: NFL_ORANGE, fontWeight: 700, letterSpacing: 2, marginBottom: 8 }}>MODEL PICKS</div>
               <div style={{ fontSize: 13, color: "#555", lineHeight: 1.6 }}>
-                Spread, moneyline, and O/U picks with CLEAN/BET/PASS verdicts will generate automatically once the 2026 season kicks off — same pipeline as MLB.
+                Spread, moneyline, and total picks with BET/PASS/TRAP verdicts are live now — generated weekly by the same model pipeline as MLB.
               </div>
+              <a href="/app" style={{ display: "inline-block", marginTop: 12, fontSize: 12, fontWeight: 700, color: NFL_ORANGE, textDecoration: "none" }}>
+                See full NFL picks in the app →
+              </a>
             </div>
           </>
         )}
@@ -2685,12 +2706,18 @@ function NFLSection({ getAuthHeaders }) {
               ATS record tracked<br/><span style={{ color: NFL_ORANGE }}>week by week.</span>
             </div>
             <div style={{ fontSize: 13, color: "#555", lineHeight: 1.65 }}>
-              W-L calendar, ATS %, and unit P&L will populate once the 2026 season kicks off.
+              {nflRecordLoading ? "Loading…" : (nflRecord?.wins ?? 0) + (nflRecord?.losses ?? 0) > 0
+                ? "Every settled BET-tier pick since the model went live, moneyline + spread + total combined."
+                : "No settled picks yet — record fills in as this week's games finish."}
             </div>
             <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-              {["W-L Record", "ATS %", "Units"].map(label => (
+              {[
+                { label: "W-L Record", value: nflRecord ? `${nflRecord.wins ?? 0}-${nflRecord.losses ?? 0}` : null },
+                { label: "ATS %",      value: nflRecord?.atsPct != null ? `${nflRecord.atsPct}%` : null },
+                { label: "Units",      value: nflRecord?.units != null ? `${nflRecord.units >= 0 ? "+" : ""}${nflRecord.units}` : null },
+              ].map(({ label, value }) => (
                 <div key={label} style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 10, padding: "14px 10px", textAlign: "center" }}>
-                  <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 18, fontWeight: 700, color: "#222" }}>—</div>
+                  <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 18, fontWeight: 700, color: value != null ? "#fff" : "#222" }}>{value ?? "—"}</div>
                   <div style={{ fontSize: 10, color: "#333", marginTop: 4, letterSpacing: 1 }}>{label.toUpperCase()}</div>
                 </div>
               ))}
