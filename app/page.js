@@ -1877,7 +1877,7 @@ export default function ToT() {
                     { label: "SAFE", legs: steals.slice(0, 2), color: "#00FF87" },
                     { label: "BALANCED", legs: steals.slice(0, 3), color: "#FFD600" },
                     { label: "AGGRESSIVE", legs: steals.slice(0, 4), color: "#FF4D4D" },
-                  ].filter(c => c.legs.length >= 2).map(card => {
+                  ].filter(c => c.legs.length >= 2).filter((c, i, arr) => i === 0 || c.legs.length > arr[i - 1].legs.length).map(card => {
                     const comboDec = card.legs.reduce((acc, leg) => {
                       const o = leg.pick === leg.homeTeam ? leg.homeOdds : leg.awayOdds;
                       if (!o) return acc;

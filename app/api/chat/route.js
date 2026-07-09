@@ -44,14 +44,15 @@ export async function POST(request) {
     contextBlock = `\nToday's picks data:\n${lines.join("\n")}\n`;
   }
 
-  // Inject context as a system-adjacent user message at the start if not already there
-  const fullMessages = [...messages];
-  if (contextBlock && fullMessages[0]?.role !== "system") {
-    fullMessages[0] = {
-      ...fullMessages[0],
-      content: `${contextBlock}\n\nUser: ${fullMessages[0].content}`,
-    };
-  }
+  // Prepend context as a dedicated user/assistant exchange so it isn't appended
+  // to the first user message again on every subsequent call.
+  const contextPrefix = contextBlock
+    ? [
+        { role: "user", content: contextBlock.trim() },
+        { role: "assistant", content: "Got it — I have today's picks data. What would you like to know?" },
+      ]
+    : [];
+  const fullMessages = [...contextPrefix, ...messages];
 
   try {
     const msg = await anthropic.messages.create({

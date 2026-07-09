@@ -126,7 +126,12 @@ Return ONLY a JSON array, no markdown. Each element:
   const text = data.content?.[0]?.text || "[]";
   const clean = text.replace(/```json|```/g, "").trim();
   try {
-    return JSON.parse(clean);
+    const parsed = JSON.parse(clean);
+    if (!Array.isArray(parsed)) {
+      console.warn("[claude] response is not an array, using stub breakdowns");
+      return gameContexts.map(() => null);
+    }
+    return parsed;
   } catch {
     // Partial truncation: extract as many complete objects as possible from the array
     const partial = [];
