@@ -210,6 +210,19 @@ export default function ToT() {
   const [upgradeModal, setUpgradeModal] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [activatingPro, setActivatingPro] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [modelStreak, setModelStreak] = useState(null);
+  const [teamSearchOpen, setTeamSearchOpen] = useState(false);
+  const [teamQuery, setTeamQuery] = useState("");
+  const [teamView, setTeamView] = useState(null); // { team, games }
+  const [teamViewLoading, setTeamViewLoading] = useState(false);
+  const [livePicks, setLivePicks] = useState(null);
+  const [liveLoading, setLiveLoading] = useState(false);
+  const [toastQueue, setToastQueue] = useState([]);
+  const prevLiveRef = useRef([]);
+  const [feedEvents, setFeedEvents] = useState(null);
+  const [feedTopPicks, setFeedTopPicks] = useState([]);
+  const [feedLoading, setFeedLoading] = useState(false);
 
   // Auth state — use the shared singleton so getAuthHeaders() shares the same session.
   useEffect(() => {
@@ -278,6 +291,7 @@ export default function ToT() {
       if (d.quietDay) setFreePick({ _quietDay: true });
     }).catch(() => {});
     fetch("/api/model-record").then(r => r.json()).then(d => setModelRecord(d)).catch(() => {});
+    fetch("/api/streak").then(r => r.json()).then(d => setModelStreak(d)).catch(() => {});
     const t = setInterval(() => setCarouselIdx(i => i + 1), 3000);
     return () => clearInterval(t);
   }, []);
@@ -331,6 +345,42 @@ export default function ToT() {
     if (user && isPro && activeTab !== "tracker") fetchSaved();
   }, [user, isPro]);
 
+  // Live tab polling — fetch today's picks every 60s, detect settlements
+  useEffect(() => {
+    if (!user || !isPro || activeTab !== "live") return;
+    setLiveLoading(!livePicks);
+    fetchLive();
+    const interval = setInterval(fetchLive, 60_000);
+    return () => clearInterval(interval);
+  }, [user, isPro, activeTab]);
+
+  // Dismiss toasts one at a time after 5s
+  useEffect(() => {
+    if (!toastQueue.length) return;
+    const t = setTimeout(() => setToastQueue(q => q.slice(1)), 5000);
+    return () => clearTimeout(t);
+  }, [toastQueue]);
+
+  const fetchFeed = async () => {
+    if (!user || !isPro) return;
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch("/api/activity", { headers });
+      const data = await res.json();
+      setFeedEvents(data.events || []);
+      setFeedTopPicks(data.topPicks || []);
+    } catch {}
+    setFeedLoading(false);
+  };
+
+  useEffect(() => {
+    if (!user || !isPro || activeTab !== "feed") return;
+    setFeedLoading(!feedEvents);
+    fetchFeed();
+    const interval = setInterval(fetchFeed, 30_000);
+    return () => clearInterval(interval);
+  }, [user, isPro, activeTab]);
+
   const startCheckout = async (plan) => {
     setCheckingOut(plan);
     try {
@@ -346,7 +396,12 @@ export default function ToT() {
     setCheckingOut(false);
   };
 
-  const manageBilling = async () => {
+  const manageBilling = () => {
+    setDrawerOpen(false);
+    setShowCancelModal(true);
+  };
+
+  const goToBillingPortal = async () => {
     try {
       const authHeaders = await getAuthHeaders();
       const res = await fetch("/api/stripe/portal", {
@@ -386,6 +441,74 @@ export default function ToT() {
   const getAuthHeaders = async () => {
     const { data: { session } } = await getSupabase().auth.getSession();
     return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
+  };
+
+  const ALL_MLB_TEAMS = [
+    "Arizona Diamondbacks","Atlanta Braves","Baltimore Orioles","Boston Red Sox",
+    "Chicago Cubs","Chicago White Sox","Cincinnati Reds","Cleveland Guardians",
+    "Colorado Rockies","Detroit Tigers","Houston Astros","Kansas City Royals",
+    "Los Angeles Angels","Los Angeles Dodgers","Miami Marlins","Milwaukee Brewers",
+    "Minnesota Twins","New York Mets","New York Yankees","Oakland Athletics",
+    "Philadelphia Phillies","Pittsburgh Pirates","San Diego Padres","San Francisco Giants",
+    "Seattle Mariners","St. Louis Cardinals","Tampa Bay Rays","Texas Rangers",
+    "Toronto Blue Jays","Washington Nationals",
+  ];
+
+  const teamSuggestions = teamQuery.length >= 2
+    ? ALL_MLB_TEAMS.filter(t => t.toLowerCase().includes(teamQuery.toLowerCase())).slice(0, 5)
+    : [];
+
+  const fetchTeamSchedule = async (team) => {
+    setTeamQuery(team);
+    setTeamViewLoading(true);
+    setTeamView(null);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/team-schedule?team=${encodeURIComponent(team)}`, { headers });
+      const data = await res.json();
+      setTeamView(data);
+    } catch {}
+    setTeamViewLoading(false);
+  };
+
+  const clearTeamSearch = () => {
+    setTeamSearchOpen(false);
+    setTeamQuery("");
+    setTeamView(null);
+  };
+
+  const showToast = (t) => setToastQueue(q => [...q, { ...t, id: Date.now() }]);
+
+  const fetchLive = async () => {
+    if (!user || !isPro) return;
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/picks?date=${todayStr}`, { headers });
+      const data = await res.json();
+      const next = data.picks || [];
+
+      // Detect any game that just went Final since last poll
+      const prev = prevLiveRef.current;
+      for (const pick of next) {
+        const was = prev.find(p => p.id === pick.id);
+        const justFinished = was && was.liveScore?.status !== "Final" && pick.liveScore?.status === "Final";
+        if (justFinished) {
+          const hs = pick.liveScore.homeScore ?? 0;
+          const as = pick.liveScore.awayScore ?? 0;
+          const modelWon = pick.pick === pick.homeTeam ? hs > as : as > hs;
+          const modelPush = hs === as;
+          showToast({
+            icon: modelPush ? "➖" : modelWon ? "✅" : "❌",
+            message: `${pick.awayTeam.split(" ").pop()} ${as} · ${pick.homeTeam.split(" ").pop()} ${hs} — Final`,
+            sub: modelPush ? "Push" : modelWon ? `${pick.pick.split(" ").pop()} won — model HIT` : `${pick.pick.split(" ").pop()} lost — model MISS`,
+            color: modelPush ? "#888" : modelWon ? "#00FF87" : "#FF4D4D",
+          });
+        }
+      }
+      prevLiveRef.current = next;
+      setLivePicks(next);
+    } catch {}
+    setLiveLoading(false);
   };
 
   const fetchSteals = async (date) => {
@@ -1212,6 +1335,8 @@ export default function ToT() {
         <div style={{ display: "flex", gap: 6 }}>
           {[
             { id: "picks", label: "Picks" },
+            { id: "live", label: "🔴 Live" },
+            { id: "feed", label: "⚡ Feed" },
             { id: "steals", label: "Steals" },
             { id: "parlay", label: "🎲 Parlay" },
             { id: "tracker", label: "Tracker" },
@@ -1226,7 +1351,7 @@ export default function ToT() {
               key={id}
               style={{ ...S.tabBtn, borderColor: activeTab === id ? "#00FF87" : "#333", color: activeTab === id ? "#00FF87" : "#999", background: activeTab === id ? "rgba(0,255,135,0.08)" : "#111" }}
               onClick={() => {
-                if (!isPro && ["steals", "parlay", "tracker", "nfl"].includes(id)) { setUpgradeModal(true); return; }
+                if (!isPro && ["steals", "parlay", "tracker", "nfl", "live", "feed"].includes(id)) { setUpgradeModal(true); return; }
                 setActiveTab(id);
               }}
             >
@@ -1258,11 +1383,188 @@ export default function ToT() {
                 title="Force-generate picks for today + tomorrow"
               >{generating ? "…" : "⚡ Gen"}</button>
             )}
+            <button
+              style={{ ...S.sortBtn, fontSize: 14, background: teamSearchOpen ? "rgba(0,255,135,0.1)" : "#111", borderColor: teamSearchOpen ? "#00FF87" : "#2a2a2a", color: teamSearchOpen ? "#00FF87" : "#999" }}
+              onClick={() => { if (teamSearchOpen) { clearTeamSearch(); } else setTeamSearchOpen(true); }}
+              title="Search by team"
+            >🔍</button>
           </div>
         )}
       </div>
 
+      {activeTab === "picks" && teamSearchOpen && (
+        <div style={{ padding: "10px 20px", borderBottom: "1px solid #1a1a1a", position: "relative" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#0d0d0d", border: "1px solid #2a2a2a", borderRadius: 10, padding: "8px 12px" }}>
+            <span style={{ fontSize: 14, flexShrink: 0 }}>🔍</span>
+            <input
+              autoFocus
+              type="text"
+              placeholder="Search team — e.g. Yankees, Dodgers, Red Sox…"
+              value={teamQuery}
+              onChange={e => setTeamQuery(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && teamSuggestions.length === 1) fetchTeamSchedule(teamSuggestions[0]); if (e.key === "Escape") clearTeamSearch(); }}
+              style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: "#fff", fontSize: 14, minWidth: 0 }}
+            />
+            {teamQuery.length > 0 && (
+              <button onClick={() => { setTeamQuery(""); setTeamView(null); }} style={{ background: "none", border: "none", color: "#555", fontSize: 16, cursor: "pointer", flexShrink: 0, padding: 0 }}>✕</button>
+            )}
+          </div>
+          {teamSuggestions.length > 0 && !teamViewLoading && !teamView && (
+            <div style={{ position: "absolute", left: 20, right: 20, top: "calc(100% - 10px)", background: "#111", border: "1px solid #2a2a2a", borderRadius: 10, zIndex: 50, overflow: "hidden", boxShadow: "0 8px 24px rgba(0,0,0,0.6)" }}>
+              {teamSuggestions.map(t => (
+                <button
+                  key={t}
+                  onClick={() => fetchTeamSchedule(t)}
+                  style={{ width: "100%", padding: "11px 14px", background: "none", border: "none", color: "#ccc", fontSize: 14, textAlign: "left", cursor: "pointer", borderBottom: "1px solid #1a1a1a", display: "flex", alignItems: "center", gap: 10 }}
+                >
+                  <span style={{ fontSize: 12 }}>⚾</span>
+                  {t}
+                </button>
+              ))}
+            </div>
+          )}
+          {teamViewLoading && (
+            <div style={{ fontSize: 12, color: "#555", marginTop: 8, textAlign: "center" }}>Loading schedule…</div>
+          )}
+        </div>
+      )}
+
       <div style={S.content}>
+        {activeTab === "picks" && teamView && (() => {
+          const { team, games = [] } = teamView;
+          const todayStr2 = new Date().toISOString().slice(0, 10);
+          // Get the team's record from the most recent game that has standings
+          const recordGame = [...games].reverse().find(g => {
+            const norm = s => (s || "").toLowerCase();
+            return norm(g.homeTeam).includes(norm(team).split(" ").pop()) ? g.homeRecord
+              : norm(g.awayTeam).includes(norm(team).split(" ").pop()) ? g.awayRecord : null;
+          });
+          const teamRecord = recordGame
+            ? (recordGame.homeTeam.toLowerCase().includes(team.toLowerCase().split(" ").pop())
+                ? recordGame.homeRecord : recordGame.awayRecord)
+            : null;
+
+          const verdictColor = v => ({ CLEAN: "#00FF87", BET: "#FFD600", PASS: "#555", TRAP: "#FF4D4D" })[v] || "#555";
+          const verdictLabel = v => ({ CLEAN: "🔥 CLEAN", BET: "✅ BET", PASS: "👀 PASS", TRAP: "⚠️ TRAP" })[v] || v || "—";
+
+          return (
+            <div style={{ background: "#0a0a0a", border: "1px solid #1a1a1a", borderRadius: 14, overflow: "hidden", marginBottom: 4 }}>
+              <div style={{ padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: games.length > 0 ? "1px solid #1a1a1a" : "none" }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>{team}</div>
+                  {teamRecord && <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>{teamRecord} · {games.length} game{games.length !== 1 ? "s" : ""} this week</div>}
+                  {!teamRecord && <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>{games.length} game{games.length !== 1 ? "s" : ""} this week</div>}
+                </div>
+                <button onClick={() => { setTeamView(null); setTeamQuery(""); }} style={{ background: "none", border: "none", color: "#555", fontSize: 18, cursor: "pointer", padding: "0 4px" }}>✕</button>
+              </div>
+              {games.length === 0 && (
+                <div style={{ padding: "16px 14px", fontSize: 13, color: "#555" }}>No games found for {team} this week.</div>
+              )}
+              {games.map((g, i) => {
+                const isHome = g.homeTeam.toLowerCase().includes(team.toLowerCase().split(" ").pop());
+                const opponent = isHome ? g.awayTeam : g.homeTeam;
+                const opponentRecord = isHome ? g.awayRecord : g.homeRecord;
+                const teamOdds = isHome ? g.homeOdds : g.awayOdds;
+                const fmtOdds = o => o == null ? "—" : o > 0 ? `+${o}` : `${o}`;
+                const verdict = g.filter?.verdict;
+                const dateObj = new Date(g.date + "T12:00:00");
+                const isToday = g.date === todayStr2;
+                const isFuture = g.date > todayStr2;
+                const dateLabel = isToday ? "Today" : dateObj.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+                const liveStatus = g.liveScore?.status;
+                const scoreStr = liveStatus === "Live" || liveStatus === "Final"
+                  ? (isHome ? `${g.liveScore.homeScore ?? ""}–${g.liveScore.awayScore ?? ""}` : `${g.liveScore.awayScore ?? ""}–${g.liveScore.homeScore ?? ""}`)
+                  : null;
+                const gameTime = g.commenceTime
+                  ? new Date(g.commenceTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "America/New_York" })
+                  : null;
+
+                return (
+                  <button
+                    key={g.date + g.homeTeam}
+                    onClick={() => { setSelectedDate(g.date); setTeamView(null); setTeamQuery(""); setTeamSearchOpen(false); }}
+                    style={{ width: "100%", background: "none", border: "none", borderBottom: i < games.length - 1 ? "1px solid #111" : "none", padding: "10px 14px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, textAlign: "left" }}
+                  >
+                    <div style={{ width: 48, flexShrink: 0 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: isToday ? "#00FF87" : isFuture ? "#777" : "#444", letterSpacing: 0.5 }}>{dateLabel}</div>
+                      {gameTime && !scoreStr && <div style={{ fontSize: 10, color: "#333", marginTop: 1 }}>{gameTime}</div>}
+                      {scoreStr && <div style={{ fontSize: 10, color: liveStatus === "Final" ? "#555" : "#FFD600", marginTop: 1 }}>{liveStatus === "Final" ? "Final" : "LIVE"}</div>}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#ccc", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {isHome ? "vs " : "@ "}{opponent.split(" ").pop()}
+                        {opponentRecord && <span style={{ fontSize: 10, color: "#444", fontWeight: 400, marginLeft: 5 }}>{opponentRecord}</span>}
+                      </div>
+                      {scoreStr && <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: "#888", marginTop: 1 }}>{scoreStr}</div>}
+                    </div>
+                    {verdict && (
+                      <div style={{ fontSize: 10, fontWeight: 800, color: verdictColor(verdict), flexShrink: 0, letterSpacing: 0.5 }}>{verdictLabel(verdict)}</div>
+                    )}
+                    {teamOdds != null && (
+                      <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: "#666", flexShrink: 0, minWidth: 36, textAlign: "right" }}>{fmtOdds(teamOdds)}</div>
+                    )}
+                    <span style={{ color: "#333", fontSize: 12, flexShrink: 0 }}>›</span>
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })()}
+
+        {activeTab === "picks" && selectedDate === todayStr && modelStreak?.last7 && (modelStreak.last7.wins + modelStreak.last7.losses) > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#080808", border: "1px solid #1a1a1a", borderRadius: 10, padding: "9px 13px" }}>
+            <span style={{ fontSize: 11, color: "#555", letterSpacing: 1 }}>LAST 7 DAYS</span>
+            <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13, fontWeight: 700, color: modelStreak.last7.wins > modelStreak.last7.losses ? "#00FF87" : modelStreak.last7.wins < modelStreak.last7.losses ? "#FF4D4D" : "#888" }}>
+              {modelStreak.last7.wins}–{modelStreak.last7.losses}
+            </span>
+            <span style={{ fontSize: 11, color: "#444" }}>
+              {(() => { const t = modelStreak.last7.wins + modelStreak.last7.losses; const pct = Math.round(modelStreak.last7.wins / t * 100); return `${pct}% this week`; })()}
+            </span>
+          </div>
+        )}
+
+        {activeTab === "picks" && selectedDate === todayStr && picks?.some(p => p.isLock) && (() => {
+          const lock = picks.find(p => p.isLock);
+          const lockOdds = lock.pick === lock.homeTeam ? lock.homeOdds : lock.awayOdds;
+          const fmtO = o => o == null ? "" : o > 0 ? `+${o}` : `${o}`;
+          return (
+            <div style={{ background: "linear-gradient(135deg, rgba(0,255,135,0.08) 0%, rgba(0,255,135,0.03) 100%)", border: "1px solid rgba(0,255,135,0.3)", borderRadius: 14, padding: "14px 16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <span style={{ fontSize: 10, fontWeight: 800, color: "#00FF87", letterSpacing: 2 }}>🔒 LOCK OF THE DAY</span>
+                {lock.filter?.verdict && (
+                  <span style={{ fontSize: 10, fontWeight: 800, color: "#000", background: "#00FF87", padding: "2px 8px", borderRadius: 20, letterSpacing: 1 }}>{lock.filter.verdict}</span>
+                )}
+              </div>
+              <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 15, fontWeight: 700, marginBottom: 4 }}>
+                {lock.awayTeam} @ {lock.homeTeam}
+              </div>
+              <div style={{ fontSize: 13, color: "#00FF87", fontWeight: 700, marginBottom: 4 }}>
+                Take {lock.pick} {fmtO(lockOdds)}
+                {lock.edge != null && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 8 }}>+{lock.edge.toFixed(1)}% edge</span>}
+              </div>
+              {lock.breakdown?.preview && (
+                <div style={{ fontSize: 12, color: "#555", lineHeight: 1.6, marginTop: 6 }}>{lock.breakdown.preview.slice(0, 140)}</div>
+              )}
+            </div>
+          );
+        })()}
+
+        {activeTab === "picks" && modelStreak?.streak >= 3 && (
+          <div style={{ background: modelStreak.streakType === "win" ? "rgba(0,255,135,0.06)" : "rgba(255,77,77,0.06)", border: `1px solid ${modelStreak.streakType === "win" ? "rgba(0,255,135,0.2)" : "rgba(255,77,77,0.2)"}`, borderRadius: 10, padding: "9px 13px", marginBottom: 6, display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 16 }}>{modelStreak.streakType === "win" ? "🔥" : "📉"}</span>
+            <div>
+              <span style={{ fontSize: 12, fontWeight: 700, color: modelStreak.streakType === "win" ? "#00FF87" : "#FF4D4D" }}>
+                {modelStreak.streak}-day {modelStreak.streakType === "win" ? "win" : "loss"} streak
+              </span>
+              {modelStreak.last7 && (
+                <span style={{ fontSize: 11, color: "#555", marginLeft: 8 }}>
+                  ({modelStreak.last7.wins}–{modelStreak.last7.losses} last 7 days)
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
         {activeTab === "picks" && modelRecord?.total > 0 && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0 4px", flexWrap: "wrap" }}>
             <span style={{ fontSize: 10, color: "#777", letterSpacing: 1 }}>MODEL RECORD</span>
@@ -2398,6 +2700,222 @@ export default function ToT() {
           );
         })()}
 
+        {activeTab === "feed" && (() => {
+          const events = feedEvents || [];
+
+          const fmtAgo = (secs) => {
+            if (secs < 60) return "just now";
+            if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
+            return `${Math.floor(secs / 3600)}h ago`;
+          };
+
+          const tierColor = t => ({ High: "#00FF87", Medium: "#FFD600", Low: "#888" })[t] || "#555";
+          const tierLabel = t => ({ High: "🔥 CLEAN", Medium: "✅ BET", Low: "👀 LEAN" })[t] || t || "";
+
+          return (
+            <div>
+              {/* Top picks today */}
+              {feedTopPicks.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 2, marginBottom: 8 }}>MOST TRACKED TODAY</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {feedTopPicks.map((g, i) => (
+                      <div key={i} style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+                        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 16, fontWeight: 700, color: "#555", minWidth: 20 }}>{i + 1}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: "#ccc" }}>{g.away} @ {g.home}</div>
+                          {g.tier && <div style={{ fontSize: 10, color: tierColor(g.tier), marginTop: 2 }}>{tierLabel(g.tier)}</div>}
+                        </div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "#00FF87", flexShrink: 0 }}>{g.count} tracking</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Activity feed */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 2 }}>LIVE ACTIVITY</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {feedLoading && <div style={{ width: 12, height: 12, border: "2px solid #222", borderTopColor: "#00FF87", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />}
+                  <button onClick={fetchFeed} style={{ background: "none", border: "none", color: "#555", fontSize: 12, cursor: "pointer", padding: 0 }}>↺</button>
+                </div>
+              </div>
+
+              {!feedLoading && events.length === 0 && (
+                <div style={{ ...S.center, padding: 40 }}>
+                  <div style={{ fontSize: 28, marginBottom: 10 }}>👀</div>
+                  <div style={{ fontSize: 13, color: "#555" }}>No recent activity yet. Be the first to track a pick today.</div>
+                </div>
+              )}
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                {events.map((e, i) => {
+                  const isHit  = e.type === "hit";
+                  const isMiss = e.type === "miss";
+                  const isTrack = e.type === "tracked";
+                  const color = isHit ? "#00FF87" : isMiss ? "#FF4D4D" : "#555";
+                  const icon  = isHit ? "✅" : isMiss ? "❌" : "⚾";
+
+                  return (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "1px solid #0d0d0d" }}>
+                      <span style={{ fontSize: 16, flexShrink: 0 }}>{icon}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, color: "#ccc", lineHeight: 1.4 }}>
+                          <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: "#444" }}>{e.handle} </span>
+                          {isTrack && <>tracked <span style={{ color: "#fff", fontWeight: 700 }}>{e.pick}</span>{e.tier && <span style={{ color: tierColor(e.tier), fontSize: 10, marginLeft: 6 }}>{tierLabel(e.tier)}</span>}</>}
+                          {isHit && <>hit <span style={{ color: "#00FF87", fontWeight: 700 }}>{e.pick}</span>{e.pnl != null && <span style={{ color: "#00FF87", fontWeight: 700, marginLeft: 4 }}>+${e.pnl.toFixed(2)}</span>}</>}
+                          {isMiss && <>missed on <span style={{ color: "#FF4D4D", fontWeight: 700 }}>{e.pick}</span></>}
+                        </div>
+                        {(e.awayTeam || e.homeTeam) && (
+                          <div style={{ fontSize: 10, color: "#333", marginTop: 2 }}>
+                            {e.awayTeam?.split(" ").pop()} @ {e.homeTeam?.split(" ").pop()}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 10, color: "#333", flexShrink: 0 }}>{fmtAgo(e.ago)}</div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{ fontSize: 10, color: "#222", textAlign: "center", marginTop: 16 }}>
+                All activity is anonymized. Updates every 30s.
+              </div>
+            </div>
+          );
+        })()}
+
+        {activeTab === "live" && (() => {
+          const games = livePicks || [];
+          const fmtO = o => o == null ? "—" : o > 0 ? `+${o}` : `${o}`;
+          const fmtTime = iso => iso ? new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "America/New_York" }) : "";
+          const vcol = v => ({ CLEAN: "#00FF87", BET: "#FFD600", PASS: "#555", TRAP: "#FF4D4D" })[v] || "#555";
+
+          const inProgress = games.filter(g => g.liveScore?.status === "Live");
+          const upcoming   = games.filter(g => !g.liveScore?.status || g.liveScore.status === "Preview" || g.liveScore.status === "Scheduled");
+          const finished   = games.filter(g => g.liveScore?.status === "Final");
+
+          const LiveCard = ({ g }) => {
+            const live   = g.liveScore || {};
+            const isLive = live.status === "Live";
+            const isFin  = live.status === "Final";
+            const hs     = live.homeScore ?? "–";
+            const as     = live.awayScore ?? "–";
+            const modelPick = g.pick;
+            const modelWon  = isFin && g.homeOdds != null
+              ? (modelPick === g.homeTeam ? (live.homeScore ?? 0) > (live.awayScore ?? 0) : (live.awayScore ?? 0) > (live.homeScore ?? 0))
+              : null;
+            const verdict = g.filter?.verdict;
+            const odds    = modelPick === g.homeTeam ? g.homeOdds : g.awayOdds;
+            const isSaved = savedPicks.some(p => p.game_id === g.id);
+            const inningLabel = live.inning ? `${live.inningHalf === "top" ? "▲" : "▼"}${live.inning}` : "";
+
+            return (
+              <div style={{ background: "#0d0d0d", border: `1px solid ${isLive ? "rgba(255,214,0,0.25)" : isFin ? "#1a1a1a" : "#1a1a1a"}`, borderRadius: 14, padding: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    {isLive && <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#FFD600", display: "inline-block", animation: "pulse 1.5s ease-in-out infinite" }} />}
+                    <span style={{ fontSize: 10, fontWeight: 700, color: isLive ? "#FFD600" : isFin ? "#555" : "#888", letterSpacing: 1.5 }}>
+                      {isLive ? `LIVE ${inningLabel}` : isFin ? "FINAL" : fmtTime(g.commenceTime)}
+                    </span>
+                  </div>
+                  {verdict && (
+                    <span style={{ fontSize: 10, fontWeight: 800, color: vcol(verdict), letterSpacing: 1 }}>{verdict}</span>
+                  )}
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: modelPick === g.awayTeam ? 700 : 400, color: modelPick === g.awayTeam ? "#fff" : "#888" }}>{g.awayTeam.split(" ").pop()}</div>
+                    <div style={{ fontSize: 10, color: "#444", marginTop: 1 }}>{g.awayRecord || "away"}</div>
+                  </div>
+                  {(isLive || isFin) ? (
+                    <div style={{ textAlign: "center", minWidth: 64 }}>
+                      <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 22, fontWeight: 700, letterSpacing: 2 }}>
+                        <span style={{ color: (live.awayScore ?? 0) > (live.homeScore ?? 0) ? "#fff" : "#555" }}>{as}</span>
+                        <span style={{ color: "#333", margin: "0 4px" }}>·</span>
+                        <span style={{ color: (live.homeScore ?? 0) > (live.awayScore ?? 0) ? "#fff" : "#555" }}>{hs}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: "center", minWidth: 48, fontSize: 10, color: "#333" }}>@</div>
+                  )}
+                  <div style={{ flex: 1, textAlign: "right" }}>
+                    <div style={{ fontSize: 13, fontWeight: modelPick === g.homeTeam ? 700 : 400, color: modelPick === g.homeTeam ? "#fff" : "#888" }}>{g.homeTeam.split(" ").pop()}</div>
+                    <div style={{ fontSize: 10, color: "#444", marginTop: 1 }}>{g.homeRecord || "home"}</div>
+                  </div>
+                </div>
+
+                <div style={{ borderTop: "1px solid #1a1a1a", marginTop: 10, paddingTop: 10, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ fontSize: 12 }}>
+                    <span style={{ color: "#555" }}>Model: </span>
+                    <span style={{ color: "#00FF87", fontWeight: 700 }}>{modelPick.split(" ").pop()}</span>
+                    <span style={{ color: "#444", marginLeft: 6, fontSize: 11 }}>{fmtO(odds)}</span>
+                  </div>
+                  {isFin && modelWon !== null && (
+                    <span style={{ fontSize: 12, fontWeight: 700, color: modelWon ? "#00FF87" : "#FF4D4D" }}>
+                      {modelWon ? "✅ HIT" : "❌ MISS"}
+                    </span>
+                  )}
+                  {isLive && modelPick && (
+                    <span style={{ fontSize: 11, color: "#555" }}>
+                      {modelPick === g.homeTeam
+                        ? ((live.homeScore ?? 0) > (live.awayScore ?? 0) ? "⬆️ Winning" : (live.homeScore ?? 0) < (live.awayScore ?? 0) ? "⬇️ Losing" : "Even")
+                        : ((live.awayScore ?? 0) > (live.homeScore ?? 0) ? "⬆️ Winning" : (live.awayScore ?? 0) < (live.homeScore ?? 0) ? "⬇️ Losing" : "Even")}
+                    </span>
+                  )}
+                  {!isLive && !isFin && isSaved && <span style={{ fontSize: 10, color: "#00FF87" }}>✓ Tracked</span>}
+                </div>
+              </div>
+            );
+          };
+
+          return (
+            <div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <div style={{ fontSize: 10, color: "#555", letterSpacing: 1 }}>AUTO-REFRESHES EVERY 60s</div>
+                {liveLoading && <div style={{ width: 14, height: 14, border: "2px solid #222", borderTopColor: "#FFD600", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />}
+                <button onClick={fetchLive} style={{ background: "none", border: "none", color: "#555", fontSize: 12, cursor: "pointer", padding: 0 }}>↺ Refresh</button>
+              </div>
+
+              {!liveLoading && games.length === 0 && (
+                <div style={{ ...S.center, padding: 40 }}>
+                  <div style={{ fontSize: 32, marginBottom: 12 }}>⚾</div>
+                  <div style={{ fontSize: 14, color: "#555" }}>No games loaded yet. Check back after 10 AM CT when picks drop.</div>
+                </div>
+              )}
+
+              {inProgress.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#FFD600", letterSpacing: 2, marginBottom: 8 }}>IN PROGRESS</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {inProgress.map(g => <LiveCard key={g.id} g={g} />)}
+                  </div>
+                </div>
+              )}
+
+              {upcoming.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 2, marginBottom: 8 }}>UP NEXT</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {upcoming.map(g => <LiveCard key={g.id} g={g} />)}
+                  </div>
+                </div>
+              )}
+
+              {finished.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#444", letterSpacing: 2, marginBottom: 8 }}>FINISHED</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {finished.map(g => <LiveCard key={g.id} g={g} />)}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         {activeTab === "chat" && (() => {
           const sendChat = async (text) => {
             if (!text?.trim() || chatLoading) return;
@@ -2566,6 +3084,87 @@ export default function ToT() {
               <button style={{ width: "100%", background: "transparent", border: "none", color: "#444", fontSize: 13, padding: "8px 0", marginBottom: 4, cursor: "pointer" }}
                 onClick={() => setUpgradeModal(false)}>
                 Maybe later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toastQueue.length > 0 && (() => {
+        const t = toastQueue[0];
+        return (
+          <div style={{ position: "fixed", bottom: 90, left: "50%", transform: "translateX(-50%)", zIndex: 9998, width: "calc(100% - 40px)", maxWidth: 420, background: "#111", border: `1px solid ${t.color}44`, borderRadius: 14, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.7)", animation: "fadeUp 0.3s ease" }}>
+            <span style={{ fontSize: 22, flexShrink: 0 }}>{t.icon}</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 2 }}>{t.message}</div>
+              <div style={{ fontSize: 11, color: t.color }}>{t.sub}</div>
+            </div>
+            <button onClick={() => setToastQueue(q => q.slice(1))} style={{ background: "none", border: "none", color: "#555", fontSize: 16, cursor: "pointer", flexShrink: 0 }}>✕</button>
+          </div>
+        );
+      })()}
+
+      {showCancelModal && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.82)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+          onClick={() => setShowCancelModal(false)}>
+          <div style={{ width: "100%", maxWidth: 500, background: "#0a0a0a", borderRadius: "24px 24px 0 0", border: "1px solid #1a1a1a", borderBottom: "none", padding: "0 0 max(28px, env(safe-area-inset-bottom)) 0", animation: "slideUp 0.3s cubic-bezier(0.32,0.72,0,1)" }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "center", padding: "12px 0 4px" }}>
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: "#222" }} />
+            </div>
+            <div style={{ padding: "16px 24px 8px" }}>
+              <div style={{ textAlign: "center", marginBottom: 20 }}>
+                <div style={{ fontSize: 24, marginBottom: 8 }}>⚡</div>
+                <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Before you go…</div>
+                <div style={{ fontSize: 13, color: "#555", lineHeight: 1.6 }}>Here's what your Pro membership is doing for you:</div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+                {decisioned > 0 && (
+                  <div style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 12, padding: "14px 12px", textAlign: "center" }}>
+                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 22, fontWeight: 700, color: winPct >= 55 ? "#00FF87" : winPct >= 50 ? "#FFD600" : "#FF4D4D" }}>{winPct}%</div>
+                    <div style={{ fontSize: 10, color: "#444", marginTop: 3, letterSpacing: 1 }}>YOUR WIN RATE</div>
+                    <div style={{ fontSize: 11, color: "#333", marginTop: 2 }}>{decisioned} settled picks</div>
+                  </div>
+                )}
+                {pnl !== 0 && (
+                  <div style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 12, padding: "14px 12px", textAlign: "center" }}>
+                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 22, fontWeight: 700, color: pnl >= 0 ? "#00FF87" : "#FF4D4D" }}>{pnl >= 0 ? "+" : ""}${Math.abs(pnl).toFixed(0)}</div>
+                    <div style={{ fontSize: 10, color: "#444", marginTop: 3, letterSpacing: 1 }}>YOUR P&L</div>
+                    <div style={{ fontSize: 11, color: "#333", marginTop: 2 }}>at ${unitSize}/unit</div>
+                  </div>
+                )}
+                {modelRecord?.pct != null && (
+                  <div style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 12, padding: "14px 12px", textAlign: "center" }}>
+                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 22, fontWeight: 700, color: modelRecord.pct >= 55 ? "#00FF87" : "#FFD600" }}>{modelRecord.pct}%</div>
+                    <div style={{ fontSize: 10, color: "#444", marginTop: 3, letterSpacing: 1 }}>MODEL WIN RATE</div>
+                    <div style={{ fontSize: 11, color: "#333", marginTop: 2 }}>{modelRecord.wins}–{modelRecord.losses} all-time</div>
+                  </div>
+                )}
+                {modelStreak?.streak >= 2 && (
+                  <div style={{ background: modelStreak.streakType === "win" ? "rgba(0,255,135,0.05)" : "rgba(255,77,77,0.05)", border: `1px solid ${modelStreak.streakType === "win" ? "rgba(0,255,135,0.2)" : "rgba(255,77,77,0.15)"}`, borderRadius: 12, padding: "14px 12px", textAlign: "center" }}>
+                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 22, fontWeight: 700, color: modelStreak.streakType === "win" ? "#00FF87" : "#FF4D4D" }}>{modelStreak.streak}</div>
+                    <div style={{ fontSize: 10, color: "#444", marginTop: 3, letterSpacing: 1 }}>DAY {modelStreak.streakType === "win" ? "WIN" : "LOSS"} STREAK</div>
+                    <div style={{ fontSize: 11, color: "#333", marginTop: 2 }}>{modelStreak.streakType === "win" ? "Model is hot 🔥" : "Bounce-back due"}</div>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ background: "rgba(0,255,135,0.04)", border: "1px solid rgba(0,255,135,0.12)", borderRadius: 12, padding: "12px 16px", marginBottom: 16, textAlign: "center" }}>
+                <div style={{ fontSize: 12, color: "#555", marginBottom: 4 }}>You're paying less than a coffee a month.</div>
+                <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 18, fontWeight: 700, color: "#00FF87" }}>$2/month</div>
+                <div style={{ fontSize: 11, color: "#444", marginTop: 2 }}>for 30 days of sharp picks, AI breakdowns, and edge scores</div>
+              </div>
+
+              <button
+                style={{ width: "100%", background: "#00FF87", color: "#000", border: "none", borderRadius: 12, padding: "14px", fontSize: 15, fontWeight: 800, cursor: "pointer", marginBottom: 10 }}
+                onClick={() => setShowCancelModal(false)}>
+                Keep Pro — stay sharp
+              </button>
+              <button
+                style={{ width: "100%", background: "transparent", border: "1px solid #1a1a1a", borderRadius: 12, padding: "12px", fontSize: 13, color: "#444", cursor: "pointer", marginBottom: 4 }}
+                onClick={() => { setShowCancelModal(false); goToBillingPortal(); }}>
+                Manage / cancel subscription →
               </button>
             </div>
           </div>
