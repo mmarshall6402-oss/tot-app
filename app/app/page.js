@@ -699,6 +699,11 @@ export default function ToT() {
     setGenerating(false);
   };
 
+  // Which top-level sport pill should read as "active" — everything that isn't NFL
+  // or Settings is an MLB-scoped tab, so it defaults to "mlb" rather than needing
+  // every MLB tab id listed out here.
+  const currentSport = activeTab === "nfl" ? "nfl" : activeTab === "settings" ? "settings" : "mlb";
+
   const sorted = [...(picks || [])].sort((a, b) => {
     if (sortBy === "time") return new Date(a.commenceTime) - new Date(b.commenceTime);
     const vRank = { CLEAN: 3, BET: 2, PASS: 1, TRAP: 0 };
@@ -1188,6 +1193,7 @@ export default function ToT() {
               ...(isBeta ? [
                 { id: "props", icon: "🎯", label: "Props" },
               ] : []),
+              { id: "settings", icon: "⚙️", label: "Settings" },
             ].map(({ id, icon, label }) => (
               <div key={id} style={{ ...S.drawerItem, color: activeTab === id ? "#00FF87" : "#fff" }} onClick={() => { setActiveTab(id); setDrawerOpen(false); }}>
                 {icon} {label}
@@ -1228,16 +1234,24 @@ export default function ToT() {
             <line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
         </button>
-        <div style={{ display: "flex", gap: 5 }}>
+        <div style={{ display: "flex", gap: 4, background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 14, padding: 3 }}>
           {[
-            { sport: "mlb", label: "MLB", tab: "picks" },
-            { sport: "nfl", label: "NFL", tab: "nfl" },
-            ...(isBeta ? [{ sport: "props", label: "Props", tab: "props" }] : []),
-          ].map(({ sport, label, tab }) => {
-            const active = activeTab === tab || (sport === "mlb" && ["picks","steals","parlay","tracker","record","chat"].includes(activeTab));
+            { sport: "mlb", icon: "⚾", label: "MLB", tab: "picks", color: "#00FF87" },
+            { sport: "nfl", icon: "🏈", label: "NFL", tab: "nfl", color: "#FF6B35" },
+            { sport: "settings", icon: "⚙️", label: "", tab: "settings", color: "#888" },
+          ].map(({ sport, icon, label, tab, color }) => {
+            const active = currentSport === sport;
             return (
-              <button key={sport} onClick={() => setActiveTab(tab)}
-                style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, letterSpacing: 0.5, border: "none", cursor: "pointer", background: active ? "#00FF87" : "#1a1a1a", color: active ? "#000" : "#555", transition: "background 0.15s,color 0.15s" }}>
+              <button key={sport} onClick={() => setActiveTab(tab)} aria-label={sport === "settings" ? "Settings" : label}
+                style={{
+                  display: "flex", alignItems: "center", gap: 5,
+                  fontSize: 11, fontWeight: 700, padding: label ? "5px 12px" : "5px 9px", borderRadius: 10,
+                  border: "none", cursor: "pointer", letterSpacing: 0.3,
+                  background: active ? `${color}1f` : "transparent",
+                  color: active ? color : "#444",
+                  transition: "all 0.15s",
+                }}>
+                <span style={{ fontSize: 14 }}>{icon}</span>
                 {label}
               </button>
             );
@@ -1331,6 +1345,7 @@ export default function ToT() {
         </div>
       )}
 
+      {currentSport === "mlb" && (
       <div style={S.subNav}>
         <div style={{ display: "flex", gap: 6 }}>
           {[
@@ -1342,7 +1357,6 @@ export default function ToT() {
             { id: "tracker", label: "Tracker" },
             { id: "record", label: "📅 Record" },
             { id: "chat", label: "💬 Ask AI" },
-            { id: "nfl", label: "🏈 NFL" },
             ...(isBeta ? [
               { id: "props", label: "🎯 Props" },
             ] : []),
@@ -1351,7 +1365,7 @@ export default function ToT() {
               key={id}
               style={{ ...S.tabBtn, borderColor: activeTab === id ? "#00FF87" : "#333", color: activeTab === id ? "#00FF87" : "#999", background: activeTab === id ? "rgba(0,255,135,0.08)" : "#111" }}
               onClick={() => {
-                if (!isPro && ["steals", "parlay", "tracker", "nfl", "live", "feed"].includes(id)) { setUpgradeModal(true); return; }
+                if (!isPro && ["steals", "parlay", "tracker", "live", "feed"].includes(id)) { setUpgradeModal(true); return; }
                 setActiveTab(id);
               }}
             >
@@ -1391,6 +1405,7 @@ export default function ToT() {
           </div>
         )}
       </div>
+      )}
 
       {activeTab === "picks" && teamSearchOpen && (
         <div style={{ padding: "10px 20px", borderBottom: "1px solid #1a1a1a", position: "relative" }}>
@@ -3010,6 +3025,58 @@ export default function ToT() {
             saving={saving}
             selectedDate={selectedDate}
           />
+        )}
+
+        {activeTab === "settings" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 14, padding: "16px 18px" }}>
+              <div style={{ fontSize: 10, color: "#555", letterSpacing: 1.5, fontWeight: 700, marginBottom: 10 }}>ACCOUNT</div>
+              <div style={{ fontSize: 14, color: "#fff", marginBottom: 6 }}>{user?.email}</div>
+              <span style={{
+                display: "inline-block", fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 20, letterSpacing: 0.5,
+                background: isPro ? "rgba(0,255,135,0.1)" : "rgba(136,136,136,0.1)",
+                color: isPro ? "#00FF87" : "#888",
+                border: `1px solid ${isPro ? "rgba(0,255,135,0.3)" : "#333"}`,
+              }}>
+                {isPro ? "⚡ PRO" : "FREE"}
+              </span>
+            </div>
+
+            <div style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 14, padding: "16px 18px" }}>
+              <div style={{ fontSize: 10, color: "#555", letterSpacing: 1.5, fontWeight: 700, marginBottom: 10 }}>PREFERENCES</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div>
+                  <div style={{ fontSize: 13, color: "#ccc" }}>Unit size</div>
+                  <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>Used for Tracker P&L and the cancel-flow summary</div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <span style={{ fontSize: 13, color: "#999" }}>$</span>
+                  <input
+                    type="number"
+                    value={unitSize}
+                    onChange={e => setUnitSize(Math.max(1, parseInt(e.target.value) || 10))}
+                    style={{ width: 64, background: "#111", border: "1px solid #222", borderRadius: 6, color: "#fff", fontSize: 14, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, padding: "6px 8px", textAlign: "right" }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 14, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ fontSize: 10, color: "#555", letterSpacing: 1.5, fontWeight: 700, marginBottom: 2 }}>BILLING</div>
+              {isPro ? (
+                <button style={{ ...S.saveBtn, textAlign: "left", padding: "10px 12px" }} onClick={manageBilling}>⚡ Manage Billing</button>
+              ) : (
+                <button style={{ ...S.saveBtn, textAlign: "left", padding: "10px 12px", background: "#00FF87", color: "#000", borderColor: "#00FF87" }} onClick={() => setUpgradeModal(true)}>⚡ Upgrade to Pro</button>
+              )}
+            </div>
+
+            <button
+              style={{ ...S.saveBtn, textAlign: "left", padding: "10px 12px", color: "#FF4D4D", borderColor: "rgba(255,77,77,0.3)" }}
+              onClick={signOut}
+            >
+              Sign Out
+            </button>
+          </div>
         )}
 
       </div>
