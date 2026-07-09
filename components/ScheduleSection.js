@@ -99,7 +99,7 @@ export default function ScheduleSection({ S, getAuthHeaders }) {
         <div style={{ color: "#777", fontSize: 13, textAlign: "center", padding: 24 }}>{error}</div>
       ) : byDate.length === 0 ? (
         <div style={{ color: "#777", fontSize: 13, textAlign: "center", padding: 24 }}>
-          {sport === "nfl" ? "No games with posted lines yet — check back closer to kickoff." : "No games scheduled in this window."}
+          {sport === "nfl" ? "No games scheduled in this window — check back during the season." : "No games scheduled in this window."}
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
