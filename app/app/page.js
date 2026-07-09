@@ -3458,7 +3458,7 @@ export default function ToT() {
       <div style={S.bottomBar}>
         {[
           { group: "home", icon: "🏠", label: "Home" },
-          { group: "games", icon: "⚾", label: "Games" },
+          { group: "games", icon: "🏟️", label: "Games" },
           { group: "portfolio", icon: "💰", label: "Portfolio" },
           { group: "profile", icon: "👤", label: "Profile" },
         ].map(({ group, icon, label }) => {

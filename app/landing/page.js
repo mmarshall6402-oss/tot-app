@@ -37,11 +37,11 @@ export default function Landing() {
   const rateColor = winPct == null ? "#fff" : winPct >= 58 ? "#00FF87" : winPct >= 52 ? "#FFD600" : "#fff";
 
   const MOCK_PICKS = [
-    { away: "Yankees", home: "Red Sox",    verdict: "CLEAN", pick: "Yankees", odds: "-118", edge: "+4.2%", blur: false },
-    { away: "Dodgers", home: "Padres",     verdict: "BET",   pick: "Dodgers", odds: "-132", edge: "+3.1%", blur: false },
-    { away: "Astros",  home: "Rangers",    verdict: null,    pick: "Rangers", odds: "+104", edge: null,    blur: true  },
-    { away: "Cubs",    home: "Cardinals",  verdict: null,    pick: "Cubs",    odds: "-110", edge: null,    blur: true  },
-    { away: "Braves",  home: "Mets",       verdict: null,    pick: "Braves",  odds: "+108", edge: null,    blur: true  },
+    { away: "Yankees", home: "Red Sox",    verdict: "CLEAN", pick: "Yankees", odds: "-118", edge: "+4.2%", blur: false, sport: "MLB" },
+    { away: "Dodgers", home: "Padres",     verdict: "BET",   pick: "Dodgers", odds: "-132", edge: "+3.1%", blur: false, sport: "MLB" },
+    { away: "Bills",   home: "Dolphins",   verdict: null,    pick: "Bills",   odds: "-145", edge: null,    blur: true,  sport: "NFL" },
+    { away: "Cubs",    home: "Cardinals",  verdict: null,    pick: "Cubs",    odds: "-110", edge: null,    blur: true,  sport: "MLB" },
+    { away: "Braves",  home: "Mets",       verdict: null,    pick: "Braves",  odds: "+108", edge: null,    blur: true,  sport: "MLB" },
   ];
 
   return (
@@ -109,7 +109,7 @@ export default function Landing() {
         {/* Live badge */}
         <div className="fade-up" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(0,255,135,0.06)", border: "1px solid rgba(0,255,135,0.15)", borderRadius: 40, padding: "6px 14px", marginBottom: 28 }}>
           <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#00FF87", animation: "pulse 1.5s ease-in-out infinite", display: "inline-block" }} />
-          <span style={{ fontSize: 11, color: "#00FF87", fontWeight: 700, letterSpacing: 1.5 }}>LIVE TODAY · MLB</span>
+          <span style={{ fontSize: 11, color: "#00FF87", fontWeight: 700, letterSpacing: 1.5 }}>LIVE TODAY · MLB & NFL</span>
         </div>
 
         <h1 className="fade-up-2" style={{ fontSize: "clamp(40px,8vw,76px)", fontWeight: 800, lineHeight: 1.05, letterSpacing: -2, marginBottom: 22 }}>
@@ -119,8 +119,9 @@ export default function Landing() {
         </h1>
 
         <p className="fade-up-3" style={{ fontSize: "clamp(15px,2.5vw,18px)", color: "#666", lineHeight: 1.65, maxWidth: 560, margin: "0 auto 36px" }}>
-          T|T is a sharp MLB model that finds genuine edges the books miss —
-          pitcher match-ups, bullpen state, park factors, and line movement. Not gut feelings. Edges.
+          T|T is a sharp MLB and NFL model that finds genuine edges the books miss —
+          pitcher/bullpen state and park factors for baseball, matchup and EPA data for football,
+          plus line movement across both. Not gut feelings. Edges.
         </p>
 
         <div className="fade-up-4" style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", marginBottom: 48 }}>
@@ -169,8 +170,8 @@ export default function Landing() {
               T<span style={{ color: "#00FF87" }}>|</span>T
             </div>
             <div style={{ display: "flex", gap: 10 }}>
-              {["⚾ Picks", "💎 Steals", "📊 Tracker"].map(t => (
-                <div key={t} style={{ fontSize: 10, color: t === "⚾ Picks" ? "#00FF87" : "#3d424f", fontWeight: 700 }}>{t}</div>
+              {["🏠 Home", "🏟️ Games", "💰 Portfolio"].map(t => (
+                <div key={t} style={{ fontSize: 10, color: t === "🏠 Home" ? "#00FF87" : "#3d424f", fontWeight: 700 }}>{t}</div>
               ))}
             </div>
           </div>
@@ -238,7 +239,7 @@ export default function Landing() {
                 </div>
               )}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                <span style={{ fontSize: 10, color: "#444" }}>MLB</span>
+                <span style={{ fontSize: 10, color: "#444" }}>{p.sport}</span>
                 {!p.blur && p.verdict && (
                   <span style={{ background: `rgba(${p.verdict === "CLEAN" ? "0,255,135" : "255,214,0"},0.1)`, color: verdictColor[p.verdict], fontSize: 9, fontWeight: 800, padding: "2px 7px", borderRadius: 5, letterSpacing: 1 }}>
                     {verdictLabel[p.verdict]}
@@ -276,7 +277,7 @@ export default function Landing() {
             Built different from the jump
           </h2>
           <p style={{ color: "#555", fontSize: 15, marginTop: 12, maxWidth: 480, margin: "12px auto 0" }}>
-            Most pick sites use vibes. We use a six-layer quantitative filter that needs every condition to pass.
+            Most pick sites use vibes. We use a multi-layer quantitative filter, tuned per sport, that needs every condition to pass.
           </p>
         </div>
 
@@ -284,21 +285,27 @@ export default function Landing() {
           {[
             {
               icon: "⚾",
-              title: "Pitcher-first analysis",
+              title: "MLB: pitcher-first analysis",
               body: "Starting pitcher ERA, WHIP, innings pitched, and sample size. Plus bullpen ERA, WHIP, and K/9 for the full game picture. Starters get the spotlight; bullpens finish ~40% of outs.",
-              tag: "DATA LAYER 1",
+              tag: "MLB DATA LAYER",
+            },
+            {
+              icon: "🏈",
+              title: "NFL: matchup + EPA",
+              body: "Team offensive/defensive efficiency (EPA per play), recent form, and Elo ratings feed the model's win probability for every game and market — moneyline, spread, and total.",
+              tag: "NFL DATA LAYER",
             },
             {
               icon: "📐",
               title: "Market edge scoring",
-              body: "We compare our model's win probability to the book's implied probability. Only plays with a verified edge above 2.5% after market calibration pass. No phantom edges.",
-              tag: "DATA LAYER 2",
+              body: "We compare our model's win probability to the book's implied probability. Only plays with a verified edge after market calibration pass. No phantom edges.",
+              tag: "BOTH SPORTS",
             },
             {
               icon: "🏟️",
               title: "Park + lineup context",
-              body: "Coors isn't Petco. Every pick accounts for park factor, the lineup's OPS vs pitcher hand, and recent form over the last 10 games.",
-              tag: "DATA LAYER 3",
+              body: "Coors isn't Petco. Every MLB pick accounts for park factor, the lineup's OPS vs pitcher hand, and recent form over the last 10 games.",
+              tag: "MLB DATA LAYER",
             },
             {
               icon: "⚡",
@@ -309,13 +316,13 @@ export default function Landing() {
             {
               icon: "📊",
               title: "Personal tracker + P&L",
-              body: "Every pick you save tracks wins, losses, and ties automatically. Real-time P&L in dollars based on your unit size. See your actual edge over time.",
+              body: "Every pick you save — MLB or NFL — tracks wins, losses, and ties automatically. Real-time P&L in dollars based on your unit size. See your actual edge over time.",
               tag: "TRACKER",
             },
             {
               icon: "🤖",
               title: "Claude AI breakdowns",
-              body: "Every pick comes with a 2-sentence preview, key deciding factor, main risk, and honest lean from Claude claude-sonnet-4-6 — the same reasoning layer that powers the pick.",
+              body: "Every MLB pick comes with a 2-sentence preview, key deciding factor, main risk, and honest lean from Claude — the same reasoning layer that powers the pick. NFL picks show the same underlying model reasoning as plain-English bullets.",
               tag: "AI LAYER",
             },
           ].map(({ icon, title, body, tag }) => (
@@ -371,7 +378,7 @@ export default function Landing() {
         {/* Disclaimer */}
         <div style={{ textAlign: "center", background: "linear-gradient(155deg,#17191f,#101216)", border: "1px solid #242832", boxShadow: "0 4px 18px rgba(0,0,0,0.3)", borderRadius: 12, padding: "16px 20px" }}>
           <div style={{ fontSize: 12, color: "#3d424f", lineHeight: 1.6 }}>
-            MLB carries extreme variance. Even 60% pickers lose stretches. This is a tool for finding edges, not a guarantee. Bet responsibly.
+Sports betting carries extreme variance — MLB and NFL alike. Even 60% pickers lose stretches. This is a tool for finding edges, not a guarantee. Bet responsibly.
           </div>
         </div>
       </section>
@@ -397,7 +404,7 @@ export default function Landing() {
             {
               quote: "Hit 4 of 5 CLEAN picks last week. The breakdowns are insane — it told me exactly what to watch and it played out. Not giving this up.",
               name: "Darius T.",
-              tag: "Pro member · baseball bettor",
+              tag: "Pro member · MLB & NFL",
             },
             {
               quote: "Free pick alone is worth it. CLEAN + edge data on one game every morning for free? Already 2-0 this week just off the free pick.",
