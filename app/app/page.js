@@ -180,6 +180,7 @@ export default function ToT() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [saving, setSaving] = useState({});
   const [freePick, setFreePick] = useState(null);
+  const [homeNflPicks, setHomeNflPicks] = useState(null);
   const [carouselIdx, setCarouselIdx] = useState(0);
   const weekDates = getWeekDates();
   const todayStr = weekDates[7];
@@ -354,6 +355,22 @@ export default function ToT() {
   useEffect(() => {
     if (user && isPro && activeTab !== "tracker") fetchSaved();
   }, [user, isPro]);
+
+  // Home needs today's NFL picks too — the "best bet" hero has to compare
+  // across both sports, not just default to MLB. NFLSection.js fetches its
+  // own copy of this independently; duplicated here rather than lifting
+  // NFLSection's state since the two views can be open on different dates.
+  useEffect(() => {
+    if (!user || !isPro || activeTab !== "home") return;
+    (async () => {
+      try {
+        const headers = await getAuthHeaders();
+        const res = await fetch(`/api/nfl/picks?date=${selectedDate}`, { headers });
+        const data = await res.json();
+        setHomeNflPicks(res.ok ? (data.picks || []) : []);
+      } catch { setHomeNflPicks([]); }
+    })();
+  }, [user, isPro, activeTab, selectedDate]);
 
   // Live tab polling — fetch today's picks every 60s, detect settlements
   useEffect(() => {
@@ -3044,10 +3061,26 @@ export default function ToT() {
           );
         })()}
 
-        {activeTab === "home" && (
+        {activeTab === "home" && (() => {
+          // Best bet has to be compared across both sports, not default to
+          // MLB just because /api/free-pick only covers MLB (there's no free
+          // NFL equivalent — NFL real picks are Pro-only everywhere else too,
+          // so free users only ever see the MLB free pick here).
+          const nflBets = isPro ? (homeNflPicks || []).filter(p => p.isBet) : [];
+          const bestNfl = nflBets.length ? [...nflBets].sort((a, b) => (b.edge || 0) - (a.edge || 0))[0] : null;
+          const hasMlbHero = freePick && !freePick._quietDay;
+          const useNflHero = bestNfl && (!hasMlbHero || (bestNfl.edge || 0) > (freePick.edge || 0));
+          const heroPick = useNflHero ? bestNfl : (hasMlbHero ? freePick : null);
+          const heroSport = useNflHero ? "nfl" : "mlb";
+
+          const mlbTop = (picks || []).filter(p => p.isBet && !(heroSport === "mlb" && p.id === heroPick?.id)).map(p => ({ p, sport: "mlb" }));
+          const nflTop = nflBets.filter(p => !(heroSport === "nfl" && p.id === heroPick?.id)).map(p => ({ p, sport: "nfl" }));
+          const top3 = [...mlbTop, ...nflTop].sort((a, b) => (b.p.edge || 0) - (a.p.edge || 0)).slice(0, 3);
+
+          return (
           <div style={{ padding: "16px 20px 84px", display: "flex", flexDirection: "column", gap: 20 }}>
-            {freePick && !freePick._quietDay ? (
-              <DecisionCard pick={freePick} sport="mlb" S={S} savePick={savePick} saving={saving} />
+            {heroPick ? (
+              <DecisionCard pick={heroPick} sport={heroSport} S={S} savePick={savePick} saving={saving} />
             ) : (
               <div style={S.center}>
                 <div style={{ fontSize: 28, marginBottom: 8 }}>🌙</div>
@@ -3056,17 +3089,13 @@ export default function ToT() {
             )}
 
             {isPro ? (
-              picks?.filter(p => p.id !== freePick?.id && p.isBet).length > 0 && (
+              top3.length > 0 && (
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: "#999", letterSpacing: 0.5, marginBottom: 10 }}>TOP 3 TODAY</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {picks
-                      .filter(p => p.id !== freePick?.id && p.isBet)
-                      .sort((a, b) => (b.edge || 0) - (a.edge || 0))
-                      .slice(0, 3)
-                      .map(p => (
-                        <DecisionCard key={p.id} pick={p} sport="mlb" S={S} savePick={savePick} saving={saving} compact />
-                      ))}
+                    {top3.map(({ p, sport }) => (
+                      <DecisionCard key={`${sport}-${p.id}`} pick={p} sport={sport} S={S} savePick={savePick} saving={saving} compact />
+                    ))}
                   </div>
                 </div>
               )
@@ -3077,7 +3106,8 @@ export default function ToT() {
               </div>
             )}
           </div>
-        )}
+          );
+        })()}
 
         {activeTab === "nfl" && (
           <NFLSection
