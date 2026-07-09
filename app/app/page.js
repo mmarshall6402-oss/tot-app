@@ -5,6 +5,7 @@ import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { createClient } from "@supabase/supabase-js";
 import NFLSection from "../../components/NFLSection.js";
 import ScheduleSection from "../../components/ScheduleSection.js";
+import TeamModal, { TeamMatchupLink } from "../../components/TeamModal.js";
 import { impliedWinPct, oddsMovement } from "../../lib/odds-display.js";
 
 // Single shared instance — sign-out and auth listeners must share the same client
@@ -215,6 +216,8 @@ export default function ToT() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [teamModal, setTeamModal] = useState(null); // { sport, team }
+  const openTeam = (sport, team) => { if (team) setTeamModal({ sport, team }); };
   const [modelStreak, setModelStreak] = useState(null);
   const [teamSearchOpen, setTeamSearchOpen] = useState(false);
   const [teamQuery, setTeamQuery] = useState("");
@@ -1312,6 +1315,7 @@ export default function ToT() {
         onClose={() => setSearchOpen(false)}
         picks={picks}
         savedPicks={savedPicks}
+        onTeamClick={openTeam}
       />
 
       {/* Carousel — cycles between free pick, model record, and promo */}
@@ -1321,7 +1325,7 @@ export default function ToT() {
             <div style={S.carouselTag}>FREE PICK</div>
             {freePick ? (
               <>
-                <div style={S.carouselMatchup}>{freePick.awayTeam} @ {freePick.homeTeam}</div>
+                <div style={S.carouselMatchup}><TeamMatchupLink sport="mlb" awayTeam={freePick.awayTeam} homeTeam={freePick.homeTeam} onPick={openTeam} /></div>
                 <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6 }}>
                   <span style={{ ...S.badge, background: TIER[freePick.tier?.level]?.bg, color: TIER[freePick.tier?.level]?.color }}>
                     {TIER[freePick.tier?.level]?.label}
@@ -1596,7 +1600,7 @@ export default function ToT() {
                 )}
               </div>
               <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 15, fontWeight: 700, marginBottom: 4 }}>
-                {lock.awayTeam} @ {lock.homeTeam}
+                <TeamMatchupLink sport="mlb" awayTeam={lock.awayTeam} homeTeam={lock.homeTeam} onPick={openTeam} />
               </div>
               <div style={{ fontSize: 13, color: "#00FF87", fontWeight: 700, marginBottom: 4 }}>
                 Take {lock.pick} {fmtO(lockOdds)}
@@ -1684,7 +1688,7 @@ export default function ToT() {
                       <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 9px", borderRadius: 5, background: "rgba(255,214,0,0.08)", color: "#FFD600", border: "1px solid rgba(255,214,0,0.2)" }}>👀 LEAN</span>
                     )}
                   </div>
-                  <div style={S.cardMatchup}>{freePick.awayTeam} @ {freePick.homeTeam}</div>
+                  <div style={S.cardMatchup}><TeamMatchupLink sport="mlb" awayTeam={freePick.awayTeam} homeTeam={freePick.homeTeam} onPick={openTeam} /></div>
                   <div style={S.cardMeta}>
                     {fmtGameTime(freePick.commenceTime)} · Take{" "}
                     <span style={{ color: accentColor, fontWeight: 700 }}>{freePick.pick}</span>
@@ -1839,7 +1843,7 @@ export default function ToT() {
                         </span>
                       )}
                     </div>
-                    <div style={S.cardMatchup}>{pick.awayTeam} @ {pick.homeTeam}</div>
+                    <div style={S.cardMatchup}><TeamMatchupLink sport="mlb" awayTeam={pick.awayTeam} homeTeam={pick.homeTeam} onPick={openTeam} /></div>
                     <div style={S.cardMeta}>
                       {fmtGameTime(pick.commenceTime)}
                       {pick.pick && <> · {isScheduled ? <span style={{ color: "#4FC3F7" }}>Preview</span> : pick.homeOdds == null && !pick.filter ? "Lean" : "Take"} <span style={{ color: isBet ? betColor : isScheduled ? "#4FC3F7" : "#aaa", fontWeight: 700 }}>{pick.pick}</span></>}
@@ -2135,7 +2139,7 @@ export default function ToT() {
                             {f.confidence}/10 conf
                           </span>
                         </div>
-                        <div style={S.cardMatchup}>{pick.awayTeam} @ {pick.homeTeam}</div>
+                        <div style={S.cardMatchup}><TeamMatchupLink sport="mlb" awayTeam={pick.awayTeam} homeTeam={pick.homeTeam} onPick={openTeam} /></div>
                         <div style={S.cardMeta}>
                           {fmtGameTime(pick.commenceTime)} · Take <span style={{ color: "#00FF87", fontWeight: 700 }}>{pick.pick}</span> {fmtOdds(pickOdds)}
                         </div>
@@ -2221,7 +2225,7 @@ export default function ToT() {
                         </div>
                         {card.legs.map((leg, i) => (
                           <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: i < card.legs.length - 1 ? "1px solid #111" : "none" }}>
-                            <span style={{ fontSize: 12, fontFamily: "'JetBrains Mono',monospace" }}>{leg.awayTeam} @ {leg.homeTeam}</span>
+                            <TeamMatchupLink sport="mlb" awayTeam={leg.awayTeam} homeTeam={leg.homeTeam} onPick={openTeam} style={{ fontSize: 12, fontFamily: "'JetBrains Mono',monospace" }} />
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                               <span style={{ fontSize: 11, color: "#00FF87", fontWeight: 700 }}>{leg.pick}</span>
                               <span style={{ fontSize: 11, color: "#888", fontFamily: "'JetBrains Mono',monospace" }}>+{(leg.filter?.trueEdgePct || 0).toFixed(1)}%</span>
@@ -2281,7 +2285,7 @@ export default function ToT() {
                     return (
                       <div key={game.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderTop: "1px solid #111" }}>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 11, color: "#999" }}>{game.awayTeam} @ {game.homeTeam}</div>
+                          <TeamMatchupLink sport="mlb" awayTeam={game.awayTeam} homeTeam={game.homeTeam} onPick={openTeam} style={{ fontSize: 11, color: "#999" }} />
                           <div style={{ fontSize: 13, fontWeight: 700, color: "#FFD600" }}>{teamPick}{o != null ? ` ${fmtOdds(o)}` : ""}</div>
                         </div>
                         <button
@@ -2410,7 +2414,7 @@ export default function ToT() {
                                 <div style={{ display: "flex", alignItems: "flex-start", gap: 8, flex: 1 }}>
                                   <div {...provided.dragHandleProps} style={{ color: "#444", fontSize: 16, paddingTop: 2, cursor: "grab", userSelect: "none" }}>⠿</div>
                                   <div style={{ flex: 1 }}>
-                                    <div style={S.cardMatchup}>{p.away_team} @ {p.home_team}</div>
+                                    <div style={S.cardMatchup}><TeamMatchupLink sport={p.sport === "nfl" ? "nfl" : "mlb"} awayTeam={p.away_team} homeTeam={p.home_team} onPick={openTeam} /></div>
                                     <div style={S.cardMeta}>Pick: <span style={{ color: "#00FF87" }}>{p.pick}</span> · {fmtOdds(p.odds)}</div>
                                     <div style={{ fontSize: 11, color: "#777", marginTop: 3 }}>
                                       {new Date(p.commence_time).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
@@ -3069,11 +3073,12 @@ export default function ToT() {
             savePick={savePick}
             saving={saving}
             selectedDate={selectedDate}
+            onTeamClick={openTeam}
           />
         )}
 
         {activeTab === "schedule" && (
-          <ScheduleSection S={S} getAuthHeaders={getAuthHeaders} />
+          <ScheduleSection S={S} getAuthHeaders={getAuthHeaders} onTeamClick={openTeam} />
         )}
 
         {activeTab === "settings" && (
@@ -3343,6 +3348,15 @@ export default function ToT() {
         </div>
       )}
 
+      <TeamModal
+        open={!!teamModal}
+        sport={teamModal?.sport}
+        team={teamModal?.team}
+        onClose={() => setTeamModal(null)}
+        getAuthHeaders={getAuthHeaders}
+        S={S}
+      />
+
       {activeTab === "props" && isBeta && (
         <div style={{ padding: "32px 20px", textAlign: "center", color: "#555" }}>
           <div style={{ fontSize: 28, marginBottom: 12 }}>🎯</div>
@@ -3375,7 +3389,7 @@ function GoogleIcon() {
   );
 }
 
-function SearchOverlay({ open, onClose, picks, nflPicks, savedPicks }) {
+function SearchOverlay({ open, onClose, picks, nflPicks, savedPicks, onTeamClick }) {
   const [query, setQuery] = useState("");
   const [activeId, setActiveId] = useState(null);
   const inputRef = useRef(null);
@@ -3401,7 +3415,7 @@ function SearchOverlay({ open, onClose, picks, nflPicks, savedPicks }) {
   const nflResults = q ? (nflPicks || []).filter(matchesGame).slice(0, 20) : [];
   const trackerResults = q ? (savedPicks || []).filter(matchesTracker).slice(0, 20) : [];
 
-  const renderGameRow = (p, prefix) => {
+  const renderGameRow = (p, prefix, sport = "mlb") => {
     const isOpen = activeId === `${prefix}-${p.id}`;
     return (
       <div key={`${prefix}-${p.id}`}>
@@ -3410,7 +3424,7 @@ function SearchOverlay({ open, onClose, picks, nflPicks, savedPicks }) {
           style={{ padding: "10px 16px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #1c1f26" }}
         >
           <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "#eee" }}>{p.awayTeam} @ {p.homeTeam}</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#eee" }}><TeamMatchupLink sport={sport} awayTeam={p.awayTeam} homeTeam={p.homeTeam} onPick={onTeamClick} /></div>
             <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>{fmtGameTime(p.commenceTime)}{p.pick ? ` · Take ${p.pick}` : ""}</div>
           </div>
           <span style={{ color: "#444", fontSize: 12 }}>{isOpen ? "▲" : "▼"}</span>
@@ -3461,13 +3475,13 @@ function SearchOverlay({ open, onClose, picks, nflPicks, savedPicks }) {
           {gameResults.length > 0 && (
             <div>
               <div style={{ padding: "8px 16px 4px", fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 1.5 }}>MLB GAMES</div>
-              {gameResults.map(p => renderGameRow(p, "g"))}
+              {gameResults.map(p => renderGameRow(p, "g", "mlb"))}
             </div>
           )}
           {nflResults.length > 0 && (
             <div>
               <div style={{ padding: "12px 16px 4px", fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 1.5 }}>NFL GAMES</div>
-              {nflResults.map(p => renderGameRow(p, "n"))}
+              {nflResults.map(p => renderGameRow(p, "n", "nfl"))}
             </div>
           )}
           {trackerResults.length > 0 && (
@@ -3483,7 +3497,7 @@ function SearchOverlay({ open, onClose, picks, nflPicks, savedPicks }) {
                       style={{ padding: "10px 16px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #1c1f26" }}
                     >
                       <div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: "#eee" }}>{p.away_team} @ {p.home_team}</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "#eee" }}><TeamMatchupLink sport={p.sport === "nfl" ? "nfl" : "mlb"} awayTeam={p.away_team} homeTeam={p.home_team} onPick={onTeamClick} /></div>
                         <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>Take {p.pick} {p.odds != null ? fmtOdds(p.odds) : ""}</div>
                       </div>
                       <span style={{ fontSize: 11, fontWeight: 700, color: resultColor, textTransform: "uppercase" }}>{p.result}</span>

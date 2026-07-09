@@ -6,6 +6,7 @@
 // own `S` style tokens rather than this component guessing at theme values.
 
 import { useState, useEffect } from "react";
+import { TeamMatchupLink } from "./TeamModal.js";
 
 const MLB_GREEN = "#00FF87";
 const NFL_ORANGE = "#FF6B35";
@@ -28,7 +29,7 @@ function fmtTime(iso) {
   return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 }
 
-export default function ScheduleSection({ S, getAuthHeaders }) {
+export default function ScheduleSection({ S, getAuthHeaders, onTeamClick }) {
   const [sport, setSport] = useState("mlb");
   const [games, setGames] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -110,11 +111,11 @@ export default function ScheduleSection({ S, getAuthHeaders }) {
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {day.games.map(g => (
-                  <div key={g.id} style={{ ...S.card, borderColor: "#1a1a1a" }}>
+                  <div key={g.id} style={{ ...S.card, borderColor: "#242832" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <div>
                         <div style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>
-                          {g.awayTeam} @ {g.homeTeam}
+                          <TeamMatchupLink sport={sport} awayTeam={g.awayTeam} homeTeam={g.homeTeam} onPick={onTeamClick} />
                         </div>
                         <div style={{ fontSize: 11, color: "#666", marginTop: 3 }}>
                           {g.status === "Final" || g.status?.startsWith("Final") ? (

@@ -16,6 +16,7 @@
 
 import { useState, useEffect } from "react";
 import { impliedWinPct, oddsMovement } from "../lib/odds-display.js";
+import { TeamMatchupLink } from "./TeamModal.js";
 
 const NFL_ORANGE = "#FF6B35";
 
@@ -31,7 +32,7 @@ function WinPctRow({ homeTeam, awayTeam, homeOdds, awayOdds, openHomeOdds, openA
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 6, fontSize: 11, fontFamily: "'JetBrains Mono',monospace" }}>
       <span style={{ color: "#666" }}>{(awayTeam || "").split(" ").pop()} <b style={{ color: "#bbb" }}>{wp.away}%</b></span>
-      <span style={{ color: "#333" }}>·</span>
+      <span style={{ color: "#3d424f" }}>·</span>
       <span style={{ color: "#666" }}>{(homeTeam || "").split(" ").pop()} <b style={{ color: "#bbb" }}>{wp.home}%</b></span>
       {arrow && (
         <span style={{ color: arrowColor }}>{arrow} {move.delta}% since open</span>
@@ -56,7 +57,7 @@ const TIER = {
   Low:    { color: "#888",    bg: "rgba(136,136,136,0.08)", label: "👀 Lean" },
 };
 
-export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgradeModal, savePick, saving, selectedDate }) {
+export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgradeModal, savePick, saving, selectedDate, onTeamClick }) {
   const [subTab, setSubTab] = useState("fantasy");
   const [scoring, setScoring] = useState("PPR");
   const [fantasyMode, setFantasyMode] = useState("startSit");
@@ -188,11 +189,11 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
   }, [subTab, isPro, selectedDate, nflPicks, nflPicksLoading]);
 
   const inputStyle = {
-    background: "#0a0a0a", border: "1px solid #222", borderRadius: 10,
+    background: "linear-gradient(160deg, #14161c, #0d0e12)", border: "1px solid #2b2f3a", borderRadius: 10,
     padding: "11px 14px", color: "#fff", fontSize: 14, outline: "none", width: "100%",
   };
   const orangeBtn = (disabled) => ({
-    background: disabled ? "#1a1a1a" : NFL_ORANGE, color: disabled ? "#444" : "#000",
+    background: disabled ? "#242832" : NFL_ORANGE, color: disabled ? "#444" : "#000",
     border: "none", borderRadius: 10, padding: "12px 0", fontWeight: 800,
     fontSize: 14, width: "100%", cursor: disabled ? "default" : "pointer",
     transition: "all 0.15s",
@@ -202,7 +203,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
     <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
 
       {/* Sub-nav */}
-      <div style={{ display: "flex", gap: 6, padding: "10px 20px", borderBottom: "1px solid #1a1a1a", overflowX: "auto" }}>
+      <div style={{ display: "flex", gap: 6, padding: "10px 20px", borderBottom: "1px solid #242832", overflowX: "auto" }}>
         {[
           { id: "fantasy", label: "⚡ Fantasy" },
           { id: "picks",   label: "🏈 Picks" },
@@ -211,8 +212,8 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
           <button key={id}
             style={{
               flexShrink: 0, padding: "6px 16px", borderRadius: 20, fontSize: 12, fontWeight: 600,
-              background: subTab === id ? "rgba(255,107,53,0.1)" : "#111",
-              border: `1px solid ${subTab === id ? NFL_ORANGE : "#333"}`,
+              background: subTab === id ? "rgba(255,107,53,0.1)" : "#181b22",
+              border: `1px solid ${subTab === id ? NFL_ORANGE : "#3d424f"}`,
               color: subTab === id ? NFL_ORANGE : "#999", letterSpacing: 0.3,
             }}
             onClick={() => setSubTab(id)}>
@@ -229,8 +230,8 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
             {["PPR", "Half-PPR", "Standard"].map(fmt => (
               <button key={fmt} onClick={() => setScoring(fmt)} style={{
                 flex: 1, padding: "8px 6px", borderRadius: 10, fontSize: 11, fontWeight: 700,
-                border: `1px solid ${scoring === fmt ? NFL_ORANGE : "#1a1a1a"}`,
-                background: scoring === fmt ? "rgba(255,107,53,0.08)" : "#0d0d0d",
+                border: `1px solid ${scoring === fmt ? NFL_ORANGE : "#242832"}`,
+                background: scoring === fmt ? "rgba(255,107,53,0.08)" : "#1c1f26",
                 color: scoring === fmt ? NFL_ORANGE : "#444",
               }}>{fmt}</button>
             ))}
@@ -249,8 +250,8 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
               ].map(({ id, label }) => (
                 <button key={id} onClick={() => setFantasyMode(id)} style={{
                   flex: 1, padding: "10px 6px", borderRadius: 10, fontSize: 13, fontWeight: 700,
-                  border: `1px solid ${fantasyMode === id ? NFL_ORANGE : "#222"}`,
-                  background: fantasyMode === id ? "rgba(255,107,53,0.1)" : "#0d0d0d",
+                  border: `1px solid ${fantasyMode === id ? NFL_ORANGE : "#2b2f3a"}`,
+                  background: fantasyMode === id ? "rgba(255,107,53,0.1)" : "#1c1f26",
                   color: fantasyMode === id ? NFL_ORANGE : "#555",
                 }}>{label}</button>
               ))}
@@ -273,7 +274,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                   {ssLoading ? "Analyzing…" : "Get verdict →"}
                 </button>
                 {ssResult && (
-                  <div style={{ background: "#0d0d0d", border: `1px solid rgba(255,107,53,0.25)`, borderRadius: 14, padding: 16 }}>
+                  <div style={{ background: "linear-gradient(155deg, #1c202a, #14161c)", border: `1px solid rgba(255,107,53,0.25)`, borderRadius: 14, padding: 16 }}>
                     <div style={{ fontSize: 10, color: NFL_ORANGE, fontWeight: 700, letterSpacing: 1.5, marginBottom: 8 }}>START / SIT · {scoring}</div>
                     <div style={{ fontSize: 13, color: "#ccc", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{ssResult}</div>
                   </div>
@@ -299,7 +300,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                   {tradeLoading ? "Analyzing…" : "Analyze trade →"}
                 </button>
                 {tradeResult && (
-                  <div style={{ background: "#0d0d0d", border: `1px solid rgba(255,107,53,0.25)`, borderRadius: 14, padding: 16 }}>
+                  <div style={{ background: "linear-gradient(155deg, #1c202a, #14161c)", border: `1px solid rgba(255,107,53,0.25)`, borderRadius: 14, padding: 16 }}>
                     <div style={{ fontSize: 10, color: NFL_ORANGE, fontWeight: 700, letterSpacing: 1.5, marginBottom: 8 }}>TRADE ANALYSIS · {scoring}</div>
                     <div style={{ fontSize: 13, color: "#ccc", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{tradeResult}</div>
                   </div>
@@ -318,7 +319,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                   {askLoading ? "Thinking…" : "Ask →"}
                 </button>
                 {askResult && (
-                  <div style={{ background: "#0d0d0d", border: `1px solid rgba(255,107,53,0.25)`, borderRadius: 14, padding: 16 }}>
+                  <div style={{ background: "linear-gradient(155deg, #1c202a, #14161c)", border: `1px solid rgba(255,107,53,0.25)`, borderRadius: 14, padding: 16 }}>
                     <div style={{ fontSize: 10, color: NFL_ORANGE, fontWeight: 700, letterSpacing: 1.5, marginBottom: 8 }}>AI VERDICT · {scoring}</div>
                     <div style={{ fontSize: 13, color: "#ccc", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{askResult}</div>
                   </div>
@@ -341,23 +342,23 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
             )}
             {nflLoading && (
               <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#555", fontSize: 13 }}>
-                <div style={{ width: 18, height: 18, border: "2px solid #222", borderTopColor: NFL_ORANGE, borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+                <div style={{ width: 18, height: 18, border: "2px solid #2b2f3a", borderTopColor: NFL_ORANGE, borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
                 Loading odds…
               </div>
             )}
             {nflMsg && <div style={{ fontSize: 12, color: "#555", textAlign: "center" }}>{nflMsg}</div>}
             {nflGames !== null && nflGames.length === 0 && !nflMsg && (
-              <div style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 14, padding: "28px 16px", textAlign: "center" }}>
+              <div style={{ background: "linear-gradient(155deg, #1c202a, #14161c)", border: "1px solid #242832", borderRadius: 14, padding: "28px 16px", textAlign: "center" }}>
                 <div style={{ fontSize: 28, marginBottom: 10 }}>🏈</div>
                 <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>No games on the board</div>
                 <div style={{ fontSize: 13, color: "#555", lineHeight: 1.6 }}>NFL odds will appear here during preseason and the regular season. Check back in August.</div>
               </div>
             )}
             {nflGames?.map(g => (
-              <div key={g.id} style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 14, padding: 16, animation: "fadeUp 0.3s ease" }}>
+              <div key={g.id} style={{ background: "linear-gradient(155deg, #1c202a, #14161c)", border: "1px solid #242832", borderRadius: 14, padding: 16, animation: "fadeUp 0.3s ease" }}>
                 <div style={{ fontSize: 11, color: "#555", marginBottom: 8 }}>{fmtGameTime(g.commenceTime)}</div>
                 <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
-                  {g.awayTeam} @ {g.homeTeam}
+                  <TeamMatchupLink sport="nfl" awayTeam={g.awayTeam} homeTeam={g.homeTeam} onPick={onTeamClick} />
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
                   {[
@@ -365,7 +366,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                     { label: `SPREAD (${g.spread > 0 ? "+" : ""}${g.spread ?? "—"})`, away: fmtOdds(g.awaySpreadOdds), home: fmtOdds(g.homeSpreadOdds) },
                     { label: `TOTAL (${g.total ?? "—"})`, away: `O ${fmtOdds(g.overOdds)}`, home: `U ${fmtOdds(g.underOdds)}` },
                   ].map(({ label, away, home }) => (
-                    <div key={label} style={{ background: "#080808", border: "1px solid #1a1a1a", borderRadius: 10, padding: "10px 10px" }}>
+                    <div key={label} style={{ background: "#10131a", border: "1px solid #242832", borderRadius: 10, padding: "10px 10px" }}>
                       <div style={{ fontSize: 9, color: "#444", fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>{label}</div>
                       <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: "#888", marginBottom: 2 }}>{away}</div>
                       <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: "#888" }}>{home}</div>
@@ -377,7 +378,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
             {nflGames !== null && nflGames.length > 0 && (
               <button style={{ ...orangeBtn(false), marginTop: 4 }} onClick={loadOdds}>↺ Refresh</button>
             )}
-            <div style={{ background: "#080808", border: "1px solid #1a1a1a", borderRadius: 14, padding: "16px" }}>
+            <div style={{ background: "#10131a", border: "1px solid #242832", borderRadius: 14, padding: "16px" }}>
               <div style={{ fontSize: 10, color: NFL_ORANGE, fontWeight: 700, letterSpacing: 2, marginBottom: 8 }}>MODEL PICKS</div>
               <div style={{ fontSize: 13, color: "#555", lineHeight: 1.6 }}>
                 Spread, moneyline, and total picks with BET/PASS/TRAP verdicts are live now — generated weekly by the same model pipeline as MLB.
@@ -409,14 +410,14 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
             </div>
           ) : (
             <>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "6px 0", borderBottom: "1px solid #0d0d0d", marginBottom: 4 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "6px 0", borderBottom: "1px solid #1c1f26", marginBottom: 4 }}>
                 <span style={{ fontSize: 11, color: "#777" }}>{nflPicks.length} picks</span>
                 <span style={{ fontSize: 11, color: "#00FF87" }}>{nflPicks.filter(p => p.isBet).length} BET</span>
                 <span style={{ fontSize: 11, color: "#555" }}>{nflPicks.filter(p => !p.isBet).length} PASS</span>
                 <button style={{ ...S.sortBtn, marginLeft: "auto", fontSize: 13 }} onClick={() => fetchNflPicks(selectedDate, true)} title="Refresh picks">↺</button>
                 {isAdmin && (
                   <button
-                    style={{ ...S.sortBtn, fontSize: 11, background: nflGenerating ? "rgba(0,255,135,0.1)" : "#111", color: nflGenerating ? "#00FF87" : "#555", borderColor: nflGenerating ? "#00FF87" : "#333" }}
+                    style={{ ...S.sortBtn, fontSize: 11, background: nflGenerating ? "rgba(0,255,135,0.1)" : "#181b22", color: nflGenerating ? "#00FF87" : "#555", borderColor: nflGenerating ? "#00FF87" : "#3d424f" }}
                     onClick={generateNflPicks}
                     disabled={nflGenerating}
                     title="Force-generate NFL picks for this date"
@@ -440,7 +441,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                   : null;
                 const totalLine = pick.marketType === "total" && pick.total != null ? pick.total : null;
                 const isNflSaved = saving[pick.id] === "saved";
-                const cardBorder = isOpen ? (isBet ? "#00FF87" : "#2a2a2a") : (isBet ? "rgba(0,255,135,0.25)" : "#1a1a1a");
+                const cardBorder = isOpen ? (isBet ? "#00FF87" : "#333947") : (isBet ? "rgba(0,255,135,0.25)" : "#242832");
 
                 return (
                   <div key={pick.id} style={{ ...S.card, borderColor: cardBorder }}>
@@ -450,18 +451,18 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                           <span style={{
                             fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5,
                             background: verdict === "TRAP" ? "rgba(255,77,77,0.1)" : isBet ? "rgba(0,255,135,0.08)" : "rgba(50,50,50,0.5)",
-                            color: verdict === "TRAP" ? "#FF4D4D" : isBet ? "#00FF87" : "#333",
-                            border: `1px solid ${verdict === "TRAP" ? "rgba(255,77,77,0.3)" : isBet ? "rgba(0,255,135,0.2)" : "#222"}`,
+                            color: verdict === "TRAP" ? "#FF4D4D" : isBet ? "#00FF87" : "#3d424f",
+                            border: `1px solid ${verdict === "TRAP" ? "rgba(255,77,77,0.3)" : isBet ? "rgba(0,255,135,0.2)" : "#2b2f3a"}`,
                           }}>
                             {verdict === "TRAP" ? "TRAP" : isBet ? "BET" : "PASS"}
                           </span>
-                          <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 5, background: "#111", color: "#888", letterSpacing: 0.5 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 5, background: "#181b22", color: "#888", letterSpacing: 0.5 }}>
                             {pick.marketType === "spread" ? "SPREAD" : pick.marketType === "total" ? "TOTAL" : "MONEYLINE"}
                           </span>
-                          {f && <span style={{ fontSize: 11, color: isBet ? "#555" : "#333", fontFamily: "'JetBrains Mono',monospace" }}>{edge.toFixed(1)}% edge</span>}
+                          {f && <span style={{ fontSize: 11, color: isBet ? "#555" : "#3d424f", fontFamily: "'JetBrains Mono',monospace" }}>{edge.toFixed(1)}% edge</span>}
                           {isBet && <span style={{ fontSize: 10, color: t.color, opacity: 0.7 }}>{t.label}</span>}
                         </div>
-                        <div style={S.cardMatchup}>{pick.awayTeam} @ {pick.homeTeam}</div>
+                        <div style={S.cardMatchup}><TeamMatchupLink sport="nfl" awayTeam={pick.awayTeam} homeTeam={pick.homeTeam} onPick={onTeamClick} /></div>
                         <div style={S.cardMeta}>
                           {fmtGameTime(pick.commenceTime)}
                           {pick.pick && <> · Take{" "}
@@ -477,10 +478,10 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                           <WinPctRow homeTeam={pick.homeTeam} awayTeam={pick.awayTeam} homeOdds={pick.homeOdds} awayOdds={pick.awayOdds} />
                         )}
                         <div style={{ marginTop: 7, display: "flex", alignItems: "center", gap: 7 }}>
-                          <div style={{ flex: 1, height: 3, background: "#111", borderRadius: 2 }}>
-                            <div style={{ height: "100%", borderRadius: 2, width: `${Math.min(100, edge * 6)}%`, background: isBet ? t.color : "#222", transition: "width 0.5s ease" }} />
+                          <div style={{ flex: 1, height: 3, background: "#181b22", borderRadius: 2 }}>
+                            <div style={{ height: "100%", borderRadius: 2, width: `${Math.min(100, edge * 6)}%`, background: isBet ? t.color : "#2b2f3a", transition: "width 0.5s ease" }} />
                           </div>
-                          {f && <span style={{ fontSize: 10, color: isBet ? t.color : "#333", fontFamily: "'JetBrains Mono',monospace", flexShrink: 0 }}>{edge.toFixed(1)}%</span>}
+                          {f && <span style={{ fontSize: 10, color: isBet ? t.color : "#3d424f", fontFamily: "'JetBrains Mono',monospace", flexShrink: 0 }}>{edge.toFixed(1)}%</span>}
                         </div>
                       </div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end", flexShrink: 0 }}>
@@ -491,7 +492,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                           {isNflSaved ? "✓ Saved" : "+ Save"}
                         </button>
                         <button
-                          style={{ ...S.expandBtn, borderColor: isOpen ? (isBet ? "#00FF87" : "#444") : "#222", color: isOpen ? (isBet ? "#00FF87" : "#444") : "#333" }}
+                          style={{ ...S.expandBtn, borderColor: isOpen ? (isBet ? "#00FF87" : "#444") : "#2b2f3a", color: isOpen ? (isBet ? "#00FF87" : "#444") : "#3d424f" }}
                           onClick={() => setNflExpanded(isOpen ? null : pick.id)}
                         >
                           {isOpen ? "▲" : "▼"}
@@ -545,7 +546,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
 
         {/* ── RECORD TAB ── */}
         {subTab === "record" && (
-          <div style={{ background: "#080808", border: "1px solid rgba(255,107,53,0.2)", borderRadius: 16, padding: "20px 18px" }}>
+          <div style={{ background: "#10131a", border: "1px solid rgba(255,107,53,0.2)", borderRadius: 16, padding: "20px 18px" }}>
             <div style={{ fontSize: 10, color: NFL_ORANGE, fontWeight: 700, letterSpacing: 2, marginBottom: 10 }}>NFL RECORD</div>
             <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 18, fontWeight: 700, marginBottom: 8, lineHeight: 1.2 }}>
               ATS record tracked<br/><span style={{ color: NFL_ORANGE }}>week by week.</span>
@@ -561,9 +562,9 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                 { label: "ATS %",      value: nflRecord?.atsPct != null ? `${nflRecord.atsPct}%` : null },
                 { label: "Units",      value: nflRecord?.units != null ? `${nflRecord.units >= 0 ? "+" : ""}${nflRecord.units}` : null },
               ].map(({ label, value }) => (
-                <div key={label} style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 10, padding: "14px 10px", textAlign: "center" }}>
-                  <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 18, fontWeight: 700, color: value != null ? "#fff" : "#222" }}>{value ?? "—"}</div>
-                  <div style={{ fontSize: 10, color: "#333", marginTop: 4, letterSpacing: 1 }}>{label.toUpperCase()}</div>
+                <div key={label} style={{ background: "linear-gradient(155deg, #1c202a, #14161c)", border: "1px solid #242832", borderRadius: 10, padding: "14px 10px", textAlign: "center" }}>
+                  <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 18, fontWeight: 700, color: value != null ? "#fff" : "#2b2f3a" }}>{value ?? "—"}</div>
+                  <div style={{ fontSize: 10, color: "#3d424f", marginTop: 4, letterSpacing: 1 }}>{label.toUpperCase()}</div>
                 </div>
               ))}
             </div>
