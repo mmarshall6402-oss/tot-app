@@ -15,8 +15,30 @@
 // values that could silently drift from the host's actual theme.
 
 import { useState, useEffect } from "react";
+import { impliedWinPct, oddsMovement } from "../lib/odds-display.js";
 
 const NFL_ORANGE = "#FF6B35";
+
+// NFL picks have no openHomeOdds/openAwayOdds (no CLV tracking yet), so the
+// movement arrow just never renders here — degrades gracefully, same component
+// shape as the one duplicated in app/page.js and app/app/page.js for MLB.
+function WinPctRow({ homeTeam, awayTeam, homeOdds, awayOdds, openHomeOdds, openAwayOdds }) {
+  const wp = impliedWinPct(homeOdds, awayOdds);
+  if (!wp) return null;
+  const move = oddsMovement(openHomeOdds, homeOdds, openAwayOdds, awayOdds);
+  const arrow = move?.direction === "up" ? "▲" : move?.direction === "down" ? "▼" : null;
+  const arrowColor = move?.direction === "up" ? "#00FF87" : move?.direction === "down" ? "#FF4D4D" : "#555";
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 6, fontSize: 11, fontFamily: "'JetBrains Mono',monospace" }}>
+      <span style={{ color: "#666" }}>{(awayTeam || "").split(" ").pop()} <b style={{ color: "#bbb" }}>{wp.away}%</b></span>
+      <span style={{ color: "#333" }}>·</span>
+      <span style={{ color: "#666" }}>{(homeTeam || "").split(" ").pop()} <b style={{ color: "#bbb" }}>{wp.home}%</b></span>
+      {arrow && (
+        <span style={{ color: arrowColor }}>{arrow} {move.delta}% since open</span>
+      )}
+    </div>
+  );
+}
 
 const fmtOdds = (o) => o == null ? "—" : (o > 0 ? `+${o}` : `${o}`);
 function fmtGameTime(iso) {
@@ -451,6 +473,9 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                           </>}
                           {pickOdds != null && <span style={{ color: "#888", fontFamily: "'JetBrains Mono',monospace" }}> · {fmtOdds(pickOdds)}</span>}
                         </div>
+                        {(!pick.marketType || pick.marketType === "moneyline") && (
+                          <WinPctRow homeTeam={pick.homeTeam} awayTeam={pick.awayTeam} homeOdds={pick.homeOdds} awayOdds={pick.awayOdds} />
+                        )}
                         <div style={{ marginTop: 7, display: "flex", alignItems: "center", gap: 7 }}>
                           <div style={{ flex: 1, height: 3, background: "#111", borderRadius: 2 }}>
                             <div style={{ height: "100%", borderRadius: 2, width: `${Math.min(100, edge * 6)}%`, background: isBet ? t.color : "#222", transition: "width 0.5s ease" }} />
