@@ -9,7 +9,7 @@ const getSupabase = () => createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-const APP_URL = "https://tot-app.vercel.app";
+const APP_URL = "https://thisthatpicks.com";
 
 function fmtOdds(o) {
   if (o == null) return "";

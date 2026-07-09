@@ -10,7 +10,7 @@ const getSupabase = () => createClient(
 const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || process.env.NEXT_PUBLIC_ADMIN_EMAIL || "")
   .split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
 
-const APP_URL = "https://tot-app.vercel.app";
+const APP_URL = "https://thisthatpicks.com";
 
 function fmtOdds(o) { return o == null ? "" : o > 0 ? ` (+${o})` : ` (${o})`; }
 function shortName(team) {

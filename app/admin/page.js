@@ -172,7 +172,7 @@ export default function AdminDash() {
     const odds = p.pick === p.homeTeam ? fmtOdds(p.homeOdds) : fmtOdds(p.awayOdds);
     const edge = p.filter?.trueEdgePct ? `+${p.filter.trueEdgePct}% edge` : p.edge ? `+${p.edge.toFixed(1)}% edge` : "";
     const preview = p.breakdown?.preview ? `\n${p.breakdown.preview.slice(0,120)}${p.breakdown.preview.length>120?"…":""}` : "";
-    return `${i+1}/${bets.length} — ${verdict}\n${shortTeam(p.awayTeam)} @ ${shortTeam(p.homeTeam)}\nTake ${shortTeam(p.pick)} ${odds} ${edge}${preview}\n\ntot-app.vercel.app | @ThisorThatPicks`;
+    return `${i+1}/${bets.length} — ${verdict}\n${shortTeam(p.awayTeam)} @ ${shortTeam(p.homeTeam)}\nTake ${shortTeam(p.pick)} ${odds} ${edge}${preview}\n\nthisthatpicks.com | @ThisorThatPicks`;
   }
 
   function copyText(key, text) {
