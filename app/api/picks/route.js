@@ -52,6 +52,10 @@ function buildPick(game, mlb, breakdown) {
   const awayPStr = awayPitcher ? `${awayPitcher.name} (${awayPitcher.wins}-${awayPitcher.losses}, ${awayPitcher.era} ERA, ${awayPitcher.whip} WHIP${ipStr(awayPitcher)})` : "N/A";
 
   const fmtRecord = (s) => s ? `${s.wins}-${s.losses}` : null;
+  // Model's own win probability for the picked side, as a 0-100 percentage —
+  // lets the client show "Our Model: 63%" and run the "Should I Bet Now?"
+  // fair-price check without recomputing modelProb from scratch.
+  const pickModelProb = pick === game.homeTeam ? modelProb : 1 - modelProb;
   return {
     id: game.id, homeTeam: game.homeTeam, awayTeam: game.awayTeam,
     homeRecord: fmtRecord(mlb?.homeStandings), awayRecord: fmtRecord(mlb?.awayStandings),
@@ -59,6 +63,7 @@ function buildPick(game, mlb, breakdown) {
     // may return Eastern times without proper UTC conversion.
     commenceTime: mlb?.commenceTime || game.commenceTime,
     homeOdds: game.homeOdds, awayOdds: game.awayOdds,
+    modelProb: Math.round(pickModelProb * 100),
     pick, edge: edgePct, isBet: filteredIsBet, tier,
     breakdown: { ...(breakdown || {}), pitcher_home: homePStr, pitcher_away: awayPStr },
     filter,
@@ -320,6 +325,7 @@ export async function GET(request) {
                 : { level: "Low",    label: "👀 Lean",         emoji: "👀" }
               : { level: "Low",    label: "👀 Lean",           emoji: "👀" };
 
+            const freshPickModelProb = freshPick === gameWithImplied.homeTeam ? modelProb : 1 - modelProb;
             return {
               ...pick,
               pick: freshPick,
@@ -329,6 +335,7 @@ export async function GET(request) {
               openAwayOdds: pick.awayOdds,
               homeRecord: fmtRec(mlb.homeStandings) ?? pick.homeRecord,
               awayRecord: fmtRec(mlb.awayStandings) ?? pick.awayRecord,
+              modelProb: Math.round(freshPickModelProb * 100),
               edge: edgePct,
               isBet: filteredIsBet,
               tier,

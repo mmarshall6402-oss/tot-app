@@ -186,11 +186,17 @@ function buildPick(game, mlb, breakdown, precomputedFilter) {
   const homePStr = hp ? `${hp.name} (${hp.wins}-${hp.losses}, ${hp.era} ERA, ${hp.whip} WHIP${ipStr(hp)})` : "TBD";
   const awayPStr = ap ? `${ap.name} (${ap.wins}-${ap.losses}, ${ap.era} ERA, ${ap.whip} WHIP${ipStr(ap)})` : "N/A";
 
+  // Model's own win probability for the picked side, as a 0-100 percentage —
+  // cached alongside the pick so /api/picks and /api/free-pick don't need to
+  // recompute it (see app/api/picks/route.js's live-recompute path, which
+  // does the same thing for the non-cached case).
+  const pickModelProb = pick === game.homeTeam ? modelProb : 1 - modelProb;
   return {
     id: game.id, homeTeam: game.homeTeam, awayTeam: game.awayTeam,
     commenceTime: mlb?.commenceTime || game.commenceTime,
     homeOdds: game.homeOdds, awayOdds: game.awayOdds,
     openHomeOdds: game.homeOdds, openAwayOdds: game.awayOdds,
+    modelProb: Math.round(pickModelProb * 100),
     pick, edge: edgePct, isBet: filteredIsBet, tier,
     breakdown: { ...(breakdown || {}), pitcher_home: homePStr, pitcher_away: awayPStr },
     filter,

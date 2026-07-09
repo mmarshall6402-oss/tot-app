@@ -6,7 +6,10 @@ import { createClient } from "@supabase/supabase-js";
 import NFLSection from "../../components/NFLSection.js";
 import ScheduleSection from "../../components/ScheduleSection.js";
 import TeamModal, { TeamMatchupLink } from "../../components/TeamModal.js";
+import DecisionCard from "../../components/DecisionCard.js";
 import { impliedWinPct, oddsMovement } from "../../lib/odds-display.js";
+import { translateReasons } from "../../lib/reason-labels.js";
+import { shouldBetNow } from "../../lib/fair-odds.js";
 
 // Single shared instance — sign-out and auth listeners must share the same client
 // so state changes propagate correctly. Calling createClient() on every request
@@ -170,7 +173,7 @@ export default function ToT() {
   const [chatLoading, setChatLoading] = useState(false);
   const chatEndRef = useRef(null);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState("picks");
+  const [activeTab, setActiveTab] = useState("home");
   const [sortBy, setSortBy] = useState("edge");
   const [expanded, setExpanded] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -342,7 +345,7 @@ export default function ToT() {
   // that return 403 (no subscription) and set picks to [].
   useEffect(() => {
     if (!user || !isPro) return;
-    if (activeTab === "picks") fetchPicks(selectedDate);
+    if (activeTab === "picks" || activeTab === "home") fetchPicks(selectedDate);
     if (activeTab === "parlay" && picksDate !== selectedDate) fetchPicks(selectedDate);
     if (activeTab === "steals") fetchSteals(selectedDate);
     if (activeTab === "tracker") fetchSaved();
@@ -737,7 +740,7 @@ export default function ToT() {
   // Which top-level sport pill should read as "active" — everything that isn't NFL
   // or Settings is an MLB-scoped tab, so it defaults to "mlb" rather than needing
   // every MLB tab id listed out here.
-  const currentSport = activeTab === "nfl" ? "nfl" : activeTab === "settings" ? "settings" : activeTab === "schedule" ? "schedule" : "mlb";
+  const currentSport = activeTab === "home" ? "home" : activeTab === "nfl" ? "nfl" : activeTab === "settings" ? "settings" : activeTab === "schedule" ? "schedule" : "mlb";
 
   const sorted = [...(picks || [])].sort((a, b) => {
     if (sortBy === "time") return new Date(a.commenceTime) - new Date(b.commenceTime);
@@ -1236,6 +1239,10 @@ export default function ToT() {
             ))}
 
             <div style={S.drawerLine} />
+            <div key="home" style={{ ...S.drawerItem, color: activeTab === "home" ? "#00FF87" : "#fff" }} onClick={() => { setActiveTab("home"); setDrawerOpen(false); }}>
+              🏠 Home
+            </div>
+            <div style={S.drawerLine} />
             {[
               { id: "nfl", icon: "🏈", label: "NFL", color: "#FF6B35" },
               { id: "schedule", icon: "📅", label: "Schedule", color: "#4DA6FF" },
@@ -1283,6 +1290,7 @@ export default function ToT() {
         </button>
         <div style={{ display: "flex", gap: 4, background: "linear-gradient(155deg, #1c202a, #14161c)", border: "1px solid #242832", borderRadius: 14, padding: 3 }}>
           {[
+            { sport: "home", icon: "🏠", label: "", tab: "home", color: "#00FF87" },
             { sport: "mlb", icon: "⚾", label: "MLB", tab: "picks", color: "#00FF87" },
             { sport: "nfl", icon: "🏈", label: "NFL", tab: "nfl", color: "#FF6B35" },
             { sport: "schedule", icon: "📅", label: "", tab: "schedule", color: "#4DA6FF" },
@@ -1290,7 +1298,7 @@ export default function ToT() {
           ].map(({ sport, icon, label, tab, color }) => {
             const active = currentSport === sport;
             return (
-              <button key={sport} onClick={() => setActiveTab(tab)} aria-label={sport === "settings" ? "Settings" : sport === "schedule" ? "Schedule" : label}
+              <button key={sport} onClick={() => setActiveTab(tab)} aria-label={sport === "settings" ? "Settings" : sport === "schedule" ? "Schedule" : sport === "home" ? "Home" : label}
                 style={{
                   display: "flex", alignItems: "center", gap: 5,
                   fontSize: 11, fontWeight: 700, padding: label ? "5px 12px" : "5px 9px", borderRadius: 10,
@@ -2008,6 +2016,38 @@ export default function ToT() {
                               </div>
                             </div>
                           )}
+                          {(() => {
+                            const reasons = translateReasons(f.confidenceReasons, "mlb").slice(0, 5);
+                            const pickOdds = pick.pick === pick.homeTeam ? pick.homeOdds : pick.awayOdds;
+                            const betNow = pick.modelProb != null ? shouldBetNow(pickOdds, pick.modelProb / 100) : null;
+                            return (
+                              <>
+                                {reasons.length > 0 && (
+                                  <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                                    <div style={{ fontSize: 9, color: "#888", letterSpacing: 1, marginBottom: 6 }}>WHY THIS SCORE</div>
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                      {reasons.map((r, i) => (
+                                        <div key={i} style={{ fontSize: 11, color: "#ccc", display: "flex", gap: 6 }}>
+                                          <span style={{ color: r.sign === "-" ? "#FF4D4D" : "#00FF87", flexShrink: 0 }}>{r.sign === "-" ? "✗" : "✓"}</span>
+                                          <span>{r.text}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                {betNow && (
+                                  <div style={{ marginTop: 10, background: "#181b22", borderRadius: 8, padding: "8px 10px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                    <div style={{ fontSize: 10, color: "#888" }}>
+                                      Current <b style={{ color: "#ccc" }}>{fmtOdds(betNow.currentOdds)}</b> · Fair <b style={{ color: "#ccc" }}>{fmtOdds(betNow.fairOdds)}</b>
+                                    </div>
+                                    <div style={{ fontSize: 11, fontWeight: 700, color: betNow.verdict === "bet" ? "#00FF87" : "#FFD600" }}>
+                                      {betNow.verdict === "bet" ? "✅ Bet Now" : "⏳ Wait"}
+                                    </div>
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
                         </div>
                       );
                     })()}
@@ -3062,6 +3102,41 @@ export default function ToT() {
             </div>
           );
         })()}
+
+        {activeTab === "home" && (
+          <div style={{ padding: "16px 20px 40px", display: "flex", flexDirection: "column", gap: 20 }}>
+            {freePick && !freePick._quietDay ? (
+              <DecisionCard pick={freePick} sport="mlb" S={S} savePick={savePick} saving={saving} />
+            ) : (
+              <div style={S.center}>
+                <div style={{ fontSize: 28, marginBottom: 8 }}>🌙</div>
+                <div style={{ color: "#777", fontSize: 13 }}>No standout bet today — check back tomorrow.</div>
+              </div>
+            )}
+
+            {isPro ? (
+              picks?.filter(p => p.id !== freePick?.id && p.isBet).length > 0 && (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#999", letterSpacing: 0.5, marginBottom: 10 }}>TOP 3 TODAY</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {picks
+                      .filter(p => p.id !== freePick?.id && p.isBet)
+                      .sort((a, b) => (b.edge || 0) - (a.edge || 0))
+                      .slice(0, 3)
+                      .map(p => (
+                        <DecisionCard key={p.id} pick={p} sport="mlb" S={S} savePick={savePick} saving={saving} compact />
+                      ))}
+                  </div>
+                </div>
+              )
+            ) : (
+              <div style={{ ...S.card, borderColor: "rgba(0,255,135,0.2)", textAlign: "center", padding: "20px 16px" }}>
+                <div style={{ fontSize: 13, color: "#999", marginBottom: 10 }}>Unlock today's full slate and every Decision Card</div>
+                <button style={{ ...S.saveBtn, background: "#00FF87", color: "#000", borderColor: "#00FF87" }} onClick={() => setUpgradeModal(true)}>⚡ Upgrade to Pro</button>
+              </div>
+            )}
+          </div>
+        )}
 
         {activeTab === "nfl" && (
           <NFLSection

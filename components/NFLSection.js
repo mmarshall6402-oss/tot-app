@@ -17,6 +17,14 @@
 import { useState, useEffect } from "react";
 import { impliedWinPct, oddsMovement } from "../lib/odds-display.js";
 import { TeamMatchupLink } from "./TeamModal.js";
+import { translateReasons } from "../lib/reason-labels.js";
+import { shouldBetNow } from "../lib/fair-odds.js";
+
+function pickOddsFor(pick) {
+  if (pick.marketType === "spread") return pick.pick === pick.homeTeam ? pick.homeSpreadOdds : pick.awaySpreadOdds;
+  if (pick.marketType === "total") return pick.pick === "Over" ? pick.overOdds : pick.underOdds;
+  return pick.pick === pick.homeTeam ? pick.homeOdds : pick.awayOdds;
+}
 
 const NFL_ORANGE = "#FF6B35";
 
@@ -534,6 +542,38 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                               {f.failures.map((fail, i) => <div key={i}>· {fail}</div>)}
                             </div>
                           )}
+                          {(() => {
+                            const reasons = translateReasons(f.confidenceReasons, "nfl").slice(0, 5);
+                            const pickOdds = pickOddsFor(pick);
+                            const betNow = pick.modelProb != null ? shouldBetNow(pickOdds, pick.modelProb / 100) : null;
+                            return (
+                              <>
+                                {reasons.length > 0 && (
+                                  <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                                    <div style={{ fontSize: 9, color: "#888", letterSpacing: 1, marginBottom: 6 }}>WHY THIS SCORE</div>
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                      {reasons.map((r, i) => (
+                                        <div key={i} style={{ fontSize: 11, color: "#ccc", display: "flex", gap: 6 }}>
+                                          <span style={{ color: r.sign === "-" ? "#FF4D4D" : "#00FF87", flexShrink: 0 }}>{r.sign === "-" ? "✗" : "✓"}</span>
+                                          <span>{r.text}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                {betNow && (
+                                  <div style={{ marginTop: 10, background: "#181b22", borderRadius: 8, padding: "8px 10px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                    <div style={{ fontSize: 10, color: "#888" }}>
+                                      Current <b style={{ color: "#ccc" }}>{fmtOdds(betNow.currentOdds)}</b> · Fair <b style={{ color: "#ccc" }}>{fmtOdds(betNow.fairOdds)}</b>
+                                    </div>
+                                    <div style={{ fontSize: 11, fontWeight: 700, color: betNow.verdict === "bet" ? "#00FF87" : "#FFD600" }}>
+                                      {betNow.verdict === "bet" ? "✅ Bet Now" : "⏳ Wait"}
+                                    </div>
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
                         </div>
                       </div>
                     )}
