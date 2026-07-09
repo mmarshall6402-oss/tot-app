@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { createClient } from "@supabase/supabase-js";
 import NFLSection from "../components/NFLSection.js";
+import ScheduleSection from "../components/ScheduleSection.js";
 import { impliedWinPct, oddsMovement } from "../lib/odds-display.js";
 
 // Single shared instance — sign-out and auth listeners must share the same client
@@ -630,7 +631,7 @@ export default function ToT() {
   // Which top-level sport pill should read as "active" — everything that isn't NFL
   // or Settings is an MLB-scoped tab, so it defaults to "mlb" rather than needing
   // every MLB tab id listed out here.
-  const currentSport = activeTab === "nfl" ? "nfl" : activeTab === "settings" ? "settings" : "mlb";
+  const currentSport = activeTab === "nfl" ? "nfl" : activeTab === "settings" ? "settings" : activeTab === "schedule" ? "schedule" : "mlb";
 
   const sorted = [...(picks || [])].sort((a, b) => {
     if (sortBy === "time") return new Date(a.commenceTime) - new Date(b.commenceTime);
@@ -1128,6 +1129,7 @@ export default function ToT() {
             <div style={S.drawerLine} />
             {[
               { id: "nfl", icon: "🏈", label: "NFL", color: "#FF6B35" },
+              { id: "schedule", icon: "📅", label: "Schedule", color: "#4DA6FF" },
               { id: "settings", icon: "⚙️", label: "Settings", color: "#888" },
             ].map(({ id, icon, label, color }) => (
               <div key={id} style={{ ...S.drawerItem, color: activeTab === id ? color : "#fff" }} onClick={() => { setActiveTab(id); setDrawerOpen(false); }}>
@@ -1174,11 +1176,12 @@ export default function ToT() {
           {[
             { sport: "mlb", icon: "⚾", label: "MLB", tab: "picks", color: "#00FF87" },
             { sport: "nfl", icon: "🏈", label: "NFL", tab: "nfl", color: "#FF6B35" },
+            { sport: "schedule", icon: "📅", label: "", tab: "schedule", color: "#4DA6FF" },
             { sport: "settings", icon: "⚙️", label: "", tab: "settings", color: "#888" },
           ].map(({ sport, icon, label, tab, color }) => {
             const active = currentSport === sport;
             return (
-              <button key={sport} onClick={() => setActiveTab(tab)} aria-label={sport === "settings" ? "Settings" : label}
+              <button key={sport} onClick={() => setActiveTab(tab)} aria-label={sport === "settings" ? "Settings" : sport === "schedule" ? "Schedule" : label}
                 style={{
                   display: "flex", alignItems: "center", gap: 5,
                   fontSize: 11, fontWeight: 700, padding: label ? "5px 12px" : "5px 9px", borderRadius: 10,
@@ -2657,6 +2660,10 @@ export default function ToT() {
           saving={saving}
           selectedDate={selectedDate}
         />
+      )}
+
+      {activeTab === "schedule" && (
+        <ScheduleSection S={S} getAuthHeaders={getAuthHeaders} />
       )}
 
       {activeTab === "settings" && (
