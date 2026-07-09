@@ -1339,6 +1339,33 @@ export default function ToT() {
       )}
 
       {navGroup(activeTab) === "games" && (
+      <div style={{ display: "flex", gap: 8, padding: "10px 20px 0" }}>
+        {[
+          { id: "mlb", icon: "⚾", label: "MLB", color: "#00FF87", tab: "picks" },
+          { id: "nfl", icon: "🏈", label: "NFL", color: "#FF6B35", tab: "nfl" },
+        ].map(({ id, icon, label, color, tab }) => {
+          const active = id === "nfl" ? activeTab === "nfl" : activeTab !== "nfl";
+          return (
+            <button
+              key={id}
+              onClick={() => setActiveTab(tab)}
+              style={{
+                flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                padding: "10px 12px", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer",
+                border: `1px solid ${active ? color : "#3d424f"}`,
+                background: active ? `${color}1f` : "#181b22",
+                color: active ? color : "#999",
+              }}
+            >
+              <span style={{ fontSize: 15 }}>{icon}</span>
+              {label}
+            </button>
+          );
+        })}
+      </div>
+      )}
+
+      {navGroup(activeTab) === "games" && activeTab !== "nfl" && (
       <div style={S.subNav}>
         <div style={{ display: "flex", gap: 6, overflowX: "auto" }}>
           {[
@@ -1347,7 +1374,6 @@ export default function ToT() {
             { id: "feed", label: "⚡ Feed" },
             { id: "steals", label: "Steals" },
             { id: "schedule", label: "📅 Schedule" },
-            { id: "nfl", label: "🏈 NFL" },
             { id: "chat", label: "💬 Ask AI" },
             ...(isBeta ? [
               { id: "props", label: "🎯 Props" },
