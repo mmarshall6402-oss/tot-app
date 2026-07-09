@@ -76,7 +76,7 @@ function WinPctRow({ homeTeam, awayTeam, homeOdds, awayOdds, openHomeOdds, openA
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 6, fontSize: 11, fontFamily: "'JetBrains Mono',monospace" }}>
       <span style={{ color: "#666" }}>{(awayTeam || "").split(" ").pop()} <b style={{ color: "#bbb" }}>{wp.away}%</b></span>
-      <span style={{ color: "#333" }}>·</span>
+      <span style={{ color: "#3d424f" }}>·</span>
       <span style={{ color: "#666" }}>{(homeTeam || "").split(" ").pop()} <b style={{ color: "#bbb" }}>{wp.home}%</b></span>
       {arrow && (
         <span style={{ color: arrowColor }}>{arrow} {move.delta}% since open</span>
@@ -112,7 +112,7 @@ function AccuracyPanel({ savedPicks }) {
 
   const tierColor = { High: "#00FF87", Medium: "#FFD600", Low: "#888" };
   const tierLabel = { High: "🔥 Value", Medium: "✅ Solid", Low: "👀 Lean" };
-  const rateColor = winPct === null ? "#333" : winPct >= 55 ? "#00FF87" : winPct >= 45 ? "#FFD600" : "#FF4D4D";
+  const rateColor = winPct === null ? "#3d424f" : winPct >= 55 ? "#00FF87" : winPct >= 45 ? "#FFD600" : "#FF4D4D";
 
   return (
     <div style={{ marginTop: 4 }}>
@@ -124,7 +124,7 @@ function AccuracyPanel({ savedPicks }) {
             {winPct !== null ? `${winPct}%` : "—"}
           </span>
         </div>
-        <div style={{ marginTop: 8, height: 3, background: "#111", borderRadius: 2 }}>
+        <div style={{ marginTop: 8, height: 3, background: "#181b22", borderRadius: 2 }}>
           <div style={{ height: "100%", borderRadius: 2, width: `${winPct || 0}%`, background: rateColor, transition: "width 0.6s ease" }} />
         </div>
         <div style={{ fontSize: 11, color: "#777", marginTop: 6 }}>{decisioned.length} settled pick{decisioned.length !== 1 ? "s" : ""}</div>
@@ -133,13 +133,13 @@ function AccuracyPanel({ savedPicks }) {
         {byTier.map(({ tier, total: t, pct }) => (
           <div key={tier} style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 11, color: tierColor[tier], width: 64, flexShrink: 0 }}>{tierLabel[tier]}</span>
-            <div style={{ flex: 1, height: 3, background: "#111", borderRadius: 2 }}>
+            <div style={{ flex: 1, height: 3, background: "#181b22", borderRadius: 2 }}>
               <div style={{ height: "100%", borderRadius: 2, width: `${pct || 0}%`, background: tierColor[tier], transition: "width 0.6s ease" }} />
             </div>
-            <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: pct !== null ? tierColor[tier] : "#333", width: 30, textAlign: "right", flexShrink: 0 }}>
+            <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: pct !== null ? tierColor[tier] : "#3d424f", width: 30, textAlign: "right", flexShrink: 0 }}>
               {pct !== null ? `${pct}%` : "—"}
             </span>
-            <span style={{ fontSize: 10, color: "#222", flexShrink: 0 }}>({t})</span>
+            <span style={{ fontSize: 10, color: "#2b2f3a", flexShrink: 0 }}>({t})</span>
           </div>
         ))}
       </div>
@@ -803,7 +803,7 @@ export default function ToT() {
   ];
 
   if (!user) return (
-    <div style={{ minHeight: "100vh", background: "#000", fontFamily: "'Space Grotesk',sans-serif", color: "#fff", overflowX: "hidden" }}>
+    <div style={{ minHeight: "100vh", background: "#0a0b0f", fontFamily: "'Space Grotesk',sans-serif", color: "#fff", overflowX: "hidden" }}>
       <style>{`
         ${css}
         @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
@@ -814,24 +814,24 @@ export default function ToT() {
         .l-fade2{animation:fadeUp .6s .15s ease both}
         .l-fade3{animation:fadeUp .6s .3s ease both}
         .l-float{animation:float 4s ease-in-out infinite}
-        .l-cta{background:#00FF87;color:#000;font-weight:800;font-size:15px;padding:14px 28px;border:none;border-radius:12px;cursor:pointer;transition:opacity .15s,transform .15s;display:inline-block;text-align:center}
-        .l-cta:hover{opacity:.9;transform:translateY(-1px)}
-        .l-ghost{background:transparent;color:#fff;font-weight:700;font-size:14px;padding:13px 24px;border:1px solid #333;border-radius:12px;cursor:pointer;transition:border-color .2s;display:inline-block;text-align:center}
+        .l-cta{background:#00FF87;color:#000;font-weight:800;font-size:15px;padding:14px 28px;border:none;border-radius:12px;cursor:pointer;transition:opacity .15s,transform .15s,box-shadow .15s;display:inline-block;text-align:center;box-shadow:0 4px 20px rgba(0,255,135,0.25)}
+        .l-cta:hover{opacity:.9;transform:translateY(-1px);box-shadow:0 6px 26px rgba(0,255,135,0.35)}
+        .l-ghost{background:transparent;color:#fff;font-weight:700;font-size:14px;padding:13px 24px;border:1px solid #3d424f;border-radius:12px;cursor:pointer;transition:border-color .2s;display:inline-block;text-align:center}
         .l-ghost:hover{border-color:#555}
         .l-glow{background:linear-gradient(90deg,transparent,rgba(0,255,135,.35),transparent);height:1px;width:100%}
-        .l-pick{background:#080808;border:1px solid #1a1a1a;border-radius:14px;padding:13px 15px}
+        .l-pick{background:linear-gradient(155deg,#1c202a,#14161c);border:1px solid #242832;border-radius:14px;padding:13px 15px;box-shadow:0 4px 18px rgba(0,0,0,0.35)}
         .l-blur{position:relative;overflow:hidden}
         .l-mask{position:absolute;inset:0;backdrop-filter:blur(5px);background:rgba(0,0,0,.4);border-radius:14px;display:flex;align-items:center;justify-content:center;z-index:2}
-        .l-lock{background:rgba(0,0,0,.8);border:1px solid #222;border-radius:8px;padding:5px 11px;font-size:10px;color:#555;font-weight:700;letter-spacing:1px}
-        .l-shim{background:linear-gradient(90deg,#111 25%,#1a1a1a 50%,#111 75%);background-size:400px 100%;animation:shimmer 1.4s infinite;border-radius:4px}
-        .l-feat{background:#060606;border:1px solid #111;border-radius:18px;padding:22px;flex:1;min-width:200px}
-        .l-stat{background:#080808;border:1px solid #1a1a1a;border-radius:16px;padding:20px;flex:1;min-width:130px}
+        .l-lock{background:rgba(0,0,0,.8);border:1px solid #2b2f3a;border-radius:8px;padding:5px 11px;font-size:10px;color:#555;font-weight:700;letter-spacing:1px}
+        .l-shim{background:linear-gradient(90deg,#181b22 25%,#242832 50%,#181b22 75%);background-size:400px 100%;animation:shimmer 1.4s infinite;border-radius:4px}
+        .l-feat{background:linear-gradient(155deg,#17191f,#101216);border:1px solid #242832;border-radius:18px;padding:22px;flex:1;min-width:200px;box-shadow:0 4px 18px rgba(0,0,0,0.3)}
+        .l-stat{background:linear-gradient(155deg,#1c202a,#14161c);border:1px solid #242832;border-radius:16px;padding:20px;flex:1;min-width:130px;box-shadow:0 4px 18px rgba(0,0,0,0.35)}
       `}</style>
 
       {!showAuth ? (
         <>
           {/* NAV */}
-          <nav style={{ position:"sticky",top:0,zIndex:100,background:"rgba(0,0,0,.88)",backdropFilter:"blur(20px)",borderBottom:"1px solid #0d0d0d",padding:"13px 20px",display:"flex",alignItems:"center",justifyContent:"space-between" }}>
+          <nav style={{ position:"sticky",top:0,zIndex:100,background:"rgba(10,11,15,.88)",backdropFilter:"blur(20px)",borderBottom:"1px solid #1c1f26",padding:"13px 20px",display:"flex",alignItems:"center",justifyContent:"space-between" }}>
             <div style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:17,fontWeight:700 }}>T<span style={{ color:"#00FF87" }}>|</span>T</div>
             <div style={{ display:"flex",gap:10,alignItems:"center" }}>
               <a href="https://twitter.com/ThisorThatPicks" target="_blank" rel="noopener noreferrer" style={{ fontSize:12,color:"#444",textDecoration:"none" }}>𝕏 @ThisorThatPicks</a>
@@ -856,7 +856,7 @@ export default function ToT() {
               <button className="l-ghost" onClick={() => heroEmailRef.current?.scrollIntoView({ behavior:"smooth" })}>Get daily pick by email</button>
             </div>
             {modelRecord?.total > 0 && (
-              <div style={{ display:"inline-flex",gap:28,background:"#080808",border:"1px solid #1a1a1a",borderRadius:14,padding:"13px 24px",flexWrap:"wrap",justifyContent:"center" }}>
+              <div style={{ display:"inline-flex",gap:28,background: "#10131a",border:"1px solid #242832",borderRadius:14,padding:"13px 24px",flexWrap:"wrap",justifyContent:"center" }}>
                 {[
                   { label:"Win Rate", value:`${landWinPct}%`, color:landRateColor },
                   { label:"Record",   value:`${modelRecord.wins}-${modelRecord.losses}`, color:"#fff" },
@@ -880,12 +880,12 @@ export default function ToT() {
               <h2 style={{ fontSize:"clamp(24px,5vw,36px)",fontWeight:800,letterSpacing:-1,lineHeight:1.2 }}>Every game. Every edge.<br/>Every morning.</h2>
               <p style={{ color:"#555",fontSize:13,marginTop:10,lineHeight:1.6 }}>Pro members see all picks, full AI breakdowns, and edge scores for every game on the board.</p>
             </div>
-            <div className="l-float" style={{ background:"#080808",border:"1px solid #1a1a1a",borderRadius:26,padding:"18px 15px",boxShadow:"0 40px 80px rgba(0,0,0,.6),0 0 0 1px #111" }}>
+            <div className="l-float" style={{ background: "#10131a",border:"1px solid #242832",borderRadius:26,padding:"18px 15px",boxShadow:"0 40px 80px rgba(0,0,0,.6),0 0 0 1px #111" }}>
               <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,padding:"0 3px" }}>
                 <div style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:14,fontWeight:700 }}>T<span style={{ color:"#00FF87" }}>|</span>T</div>
                 <div style={{ display:"flex",gap:8 }}>
                   {["⚾ Picks","💎 Steals","📊 Tracker"].map(t => (
-                    <div key={t} style={{ fontSize:10,color:t==="⚾ Picks"?"#00FF87":"#333",fontWeight:700 }}>{t}</div>
+                    <div key={t} style={{ fontSize:10,color:t==="⚾ Picks"?"#00FF87":"#3d424f",fontWeight:700 }}>{t}</div>
                   ))}
                 </div>
               </div>
@@ -901,7 +901,7 @@ export default function ToT() {
                   <div style={{ display:"flex",gap:7,marginBottom:7 }}>
                     {[{ side:"AWAY",team:freePick.awayTeam,odds:freePick.awayOdds,isPick:freePick.pick===freePick.awayTeam },
                       { side:"HOME",team:freePick.homeTeam,odds:freePick.homeOdds,isPick:freePick.pick===freePick.homeTeam }].map(({ side,team,odds,isPick }) => (
-                      <div key={side} style={{ flex:1,background:"#0d0d0d",border:"1px solid #1a1a1a",borderRadius:7,padding:"7px 9px",textAlign:side==="HOME"?"right":"left" }}>
+                      <div key={side} style={{ flex:1,background: "linear-gradient(155deg, #1c202a, #14161c)",border:"1px solid #242832",borderRadius:7,padding:"7px 9px",textAlign:side==="HOME"?"right":"left" }}>
                         <div style={{ fontSize:9,color:"#555",marginBottom:2 }}>{side}</div>
                         <div style={{ fontSize:12,fontWeight:700,color:isPick?"#00FF87":"#fff" }}>{team?.split(" ").pop()}</div>
                         <div style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:"#555",marginTop:1 }}>{odds!=null?fmtOddsL(odds):"—"}</div>
@@ -989,15 +989,15 @@ export default function ToT() {
                     </div>
                     <div style={{ flex:1 }}>
                       <div style={{ fontSize:10,color:"#444",fontWeight:700,letterSpacing:1,marginBottom:2 }}>VEGAS</div>
-                      <div style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:18,fontWeight:700,color:"#333" }}>{them}</div>
+                      <div style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:18,fontWeight:700,color:"#3d424f" }}>{them}</div>
                     </div>
                   </div>
-                  <div style={{ fontSize:11,color:"#2a2a2a",marginTop:6 }}>{sub}</div>
+                  <div style={{ fontSize:11,color:"#333947",marginTop:6 }}>{sub}</div>
                 </div>
               ))}
             </div>
-            <div style={{ textAlign:"center",background:"#060606",border:"1px solid #0d0d0d",borderRadius:12,padding:"14px 20px" }}>
-              <div style={{ fontSize:12,color:"#2a2a2a",lineHeight:1.6 }}>MLB carries extreme variance. Even 60% pickers lose stretches. This is a tool for finding edges, not a guarantee. Bet responsibly.</div>
+            <div style={{ textAlign:"center",background:"linear-gradient(155deg,#17191f,#101216)",border:"1px solid #242832",boxShadow:"0 4px 18px rgba(0,0,0,0.3)",borderRadius:12,padding:"14px 20px" }}>
+              <div style={{ fontSize:12,color:"#333947",lineHeight:1.6 }}>MLB carries extreme variance. Even 60% pickers lose stretches. This is a tool for finding edges, not a guarantee. Bet responsibly.</div>
             </div>
           </section>
 
@@ -1011,12 +1011,12 @@ export default function ToT() {
 
             <div style={{ display:"flex",gap:14,justifyContent:"center",flexWrap:"wrap",marginBottom:48 }}>
               {/* Free */}
-              <div style={{ background:"#060606",border:"1px solid #111",borderRadius:20,padding:"26px 24px",flex:"1 1 200px",maxWidth:260,textAlign:"left" }}>
+              <div style={{ background:"linear-gradient(155deg,#17191f,#101216)",border:"1px solid #242832",boxShadow:"0 4px 18px rgba(0,0,0,0.3)",borderRadius:20,padding:"26px 24px",flex:"1 1 200px",maxWidth:260,textAlign:"left" }}>
                 <div style={{ fontSize:12,color:"#555",fontWeight:700,marginBottom:8,letterSpacing:1 }}>FREE</div>
                 <div style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:34,fontWeight:700,marginBottom:3 }}>$0</div>
                 <div style={{ fontSize:12,color:"#444",marginBottom:22 }}>forever</div>
                 {["1 free pick daily","Email digest every morning","Model record public stats"].map(f => (
-                  <div key={f} style={{ display:"flex",gap:8,alignItems:"center",padding:"7px 0",borderBottom:"1px solid #0d0d0d",fontSize:12,color:"#666" }}><span style={{ color:"#333" }}>✓</span>{f}</div>
+                  <div key={f} style={{ display:"flex",gap:8,alignItems:"center",padding:"7px 0",borderBottom:"1px solid #1c1f26",fontSize:12,color:"#666" }}><span style={{ color:"#3d424f" }}>✓</span>{f}</div>
                 ))}
                 <button className="l-ghost" style={{ marginTop:18,width:"100%",fontSize:13,padding:"11px" }} onClick={() => { setShowAuth(true); setAuthMode("signup"); }}>Get started free</button>
               </div>
@@ -1032,12 +1032,12 @@ export default function ToT() {
                 <button className="l-cta" style={{ marginTop:18,width:"100%",fontSize:14 }} onClick={() => { setShowAuth(true); setAuthMode("signup"); }}>Start for $2/mo →</button>
               </div>
               {/* Annual */}
-              <div style={{ background:"#060606",border:"1px solid #111",borderRadius:20,padding:"26px 24px",flex:"1 1 200px",maxWidth:260,textAlign:"left" }}>
+              <div style={{ background:"linear-gradient(155deg,#17191f,#101216)",border:"1px solid #242832",boxShadow:"0 4px 18px rgba(0,0,0,0.3)",borderRadius:20,padding:"26px 24px",flex:"1 1 200px",maxWidth:260,textAlign:"left" }}>
                 <div style={{ fontSize:12,color:"#555",fontWeight:700,marginBottom:8,letterSpacing:1 }}>PRO ANNUAL</div>
                 <div style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:34,fontWeight:700,marginBottom:3 }}>$19.99</div>
                 <div style={{ fontSize:12,color:"#444",marginBottom:22 }}>$1.67/mo · 2 months free</div>
                 {["Everything in Pro Monthly","Best value for the season","Cancel anytime"].map(f => (
-                  <div key={f} style={{ display:"flex",gap:8,alignItems:"center",padding:"7px 0",borderBottom:"1px solid #0d0d0d",fontSize:12,color:"#666" }}><span style={{ color:"#333" }}>✓</span>{f}</div>
+                  <div key={f} style={{ display:"flex",gap:8,alignItems:"center",padding:"7px 0",borderBottom:"1px solid #1c1f26",fontSize:12,color:"#666" }}><span style={{ color:"#3d424f" }}>✓</span>{f}</div>
                 ))}
                 <button className="l-ghost" style={{ marginTop:18,width:"100%",fontSize:13,padding:"11px" }} onClick={() => { setShowAuth(true); setAuthMode("signup"); }}>Get annual →</button>
               </div>
@@ -1064,7 +1064,7 @@ export default function ToT() {
                   } catch { setSubStatus("err"); }
                 }} style={{ display:"flex",gap:10 }}>
                   <input type="email" required placeholder="your@email.com" value={subEmail} onChange={e => setSubEmail(e.target.value)}
-                    style={{ flex:1,background:"#0a0a0a",border:"1px solid #1a1a1a",borderRadius:12,padding:"13px 15px",color:"#fff",fontSize:14,outline:"none" }} />
+                    style={{ flex:1,background: "linear-gradient(160deg, #14161c, #0d0e12)",border:"1px solid #242832",borderRadius:12,padding:"13px 15px",color:"#fff",fontSize:14,outline:"none" }} />
                   <button type="submit" disabled={subStatus==="loading"} className="l-cta" style={{ flexShrink:0,fontSize:14,padding:"13px 18px" }}>
                     {subStatus==="loading" ? "…" : "Send me picks"}
                   </button>
@@ -1075,15 +1075,15 @@ export default function ToT() {
           </section>
 
           {/* FOOTER */}
-          <footer style={{ borderTop:"1px solid #0d0d0d",padding:"24px 20px",textAlign:"center" }}>
+          <footer style={{ borderTop:"1px solid #1c1f26",padding:"24px 20px",textAlign:"center" }}>
             <div style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:14,fontWeight:700,marginBottom:10 }}>T<span style={{ color:"#00FF87" }}>|</span>T</div>
-            <div style={{ display:"flex",gap:18,justifyContent:"center",flexWrap:"wrap",fontSize:12,color:"#333" }}>
+            <div style={{ display:"flex",gap:18,justifyContent:"center",flexWrap:"wrap",fontSize:12,color:"#3d424f" }}>
               <button style={{ background:"none",border:"none",color:"#555",cursor:"pointer",fontSize:12 }} onClick={() => { setShowAuth(true); setAuthMode("signin"); }}>Sign In</button>
-              <a href="https://twitter.com/ThisorThatPicks" target="_blank" rel="noopener noreferrer" style={{ color:"#333",textDecoration:"none" }}>𝕏 @ThisorThatPicks</a>
-              <a href="/privacy" style={{ color:"#333",textDecoration:"none" }}>Privacy</a>
-              <a href="/terms" style={{ color:"#333",textDecoration:"none" }}>Terms</a>
+              <a href="https://twitter.com/ThisorThatPicks" target="_blank" rel="noopener noreferrer" style={{ color:"#3d424f",textDecoration:"none" }}>𝕏 @ThisorThatPicks</a>
+              <a href="/privacy" style={{ color:"#3d424f",textDecoration:"none" }}>Privacy</a>
+              <a href="/terms" style={{ color:"#3d424f",textDecoration:"none" }}>Terms</a>
             </div>
-            <div style={{ fontSize:11,color:"#1a1a1a",marginTop:12 }}>For entertainment purposes. Bet responsibly.</div>
+            <div style={{ fontSize:11,color:"#242832",marginTop:12 }}>For entertainment purposes. Bet responsibly.</div>
           </footer>
         </>
       ) : (
@@ -1112,10 +1112,10 @@ export default function ToT() {
                 {authMode === "signin" ? "Sign up" : "Sign in"}
               </span>
             </div>
-            <div style={{ fontSize:10,color:"#222",textAlign:"center",lineHeight:1.7,marginTop:4 }}>
+            <div style={{ fontSize:10,color:"#2b2f3a",textAlign:"center",lineHeight:1.7,marginTop:4 }}>
               For entertainment only · Not gambling advice · 21+{" · "}
-              <a href="/terms" style={{ color:"#222" }}>Terms</a>{" · "}
-              <a href="/privacy" style={{ color:"#222" }}>Privacy</a>
+              <a href="/terms" style={{ color:"#2b2f3a" }}>Terms</a>{" · "}
+              <a href="/privacy" style={{ color:"#2b2f3a" }}>Privacy</a>
             </div>
           </div>
         </div>
@@ -1124,7 +1124,7 @@ export default function ToT() {
   );
 
   if (isPro === null) return (
-    <div style={{ minHeight: "100vh", background: "#000", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12 }}>
+    <div style={{ minHeight: "100vh", background: "#0a0b0f", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12 }}>
       <style>{css}</style>
       <div style={S.spinner} />
       {activatingPro && <div style={{ color: "#00FF87", fontSize: 13, fontWeight: 600 }}>Activating your account…</div>}
@@ -1139,23 +1139,23 @@ export default function ToT() {
       {showInstallPrompt && (
         <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
           onClick={() => setShowInstallPrompt(false)}>
-          <div style={{ width: "100%", maxWidth: 500, background: "#0a0a0a", borderRadius: "24px 24px 0 0", border: "1px solid #1a1a1a", borderBottom: "none", padding: "0 0 max(24px, env(safe-area-inset-bottom)) 0", animation: "slideUp 0.3s cubic-bezier(0.32,0.72,0,1)" }}
+          <div style={{ width: "100%", maxWidth: 500, background: "linear-gradient(160deg, #14161c, #0d0e12)", borderRadius: "24px 24px 0 0", border: "1px solid #242832", borderBottom: "none", padding: "0 0 max(24px, env(safe-area-inset-bottom)) 0", animation: "slideUp 0.3s cubic-bezier(0.32,0.72,0,1)" }}
             onClick={e => e.stopPropagation()}>
             {/* Drag handle */}
             <div style={{ display: "flex", justifyContent: "center", padding: "12px 0 4px" }}>
-              <div style={{ width: 36, height: 4, borderRadius: 2, background: "#222" }} />
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: "#2b2f3a" }} />
             </div>
             <div style={{ padding: "16px 24px 24px" }}>
               {/* App identity row */}
               <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 24 }}>
-                <div style={{ width: 56, height: 56, background: "#000", borderRadius: 14, border: "1px solid #1a1a1a", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'JetBrains Mono',monospace", fontSize: 18, fontWeight: 700, color: "#fff", flexShrink: 0, letterSpacing: -1 }}>
+                <div style={{ width: 56, height: 56, background: "#0a0b0f", borderRadius: 14, border: "1px solid #242832", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'JetBrains Mono',monospace", fontSize: 18, fontWeight: 700, color: "#fff", flexShrink: 0, letterSpacing: -1 }}>
                   T<span style={{ color: "#00FF87" }}>|</span>T
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: 17, color: "#fff", letterSpacing: -0.3 }}>ToT Picks</div>
                   <div style={{ fontSize: 12, color: "#777", marginTop: 2, fontFamily: "'JetBrains Mono',monospace" }}>thisthatpicks.com</div>
                 </div>
-                <button onClick={() => setShowInstallPrompt(false)} style={{ background: "#1a1a1a", border: "none", borderRadius: "50%", width: 28, height: 28, color: "#999", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>✕</button>
+                <button onClick={() => setShowInstallPrompt(false)} style={{ background: "#242832", border: "none", borderRadius: "50%", width: 28, height: 28, color: "#999", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>✕</button>
               </div>
 
               {installPlatform === "android" ? (
@@ -1179,14 +1179,14 @@ export default function ToT() {
                 </>
               ) : (
                 <>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 0, marginBottom: 20, background: "#0d0d0d", borderRadius: 14, border: "1px solid #141414", overflow: "hidden" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 0, marginBottom: 20, background: "linear-gradient(155deg, #1c202a, #14161c)", borderRadius: 14, border: "1px solid #1c1f26", overflow: "hidden" }}>
                     {[
                       { step: "1", label: "Tap the", bold: "Share", after: " button in Safari", icon: "↑" },
                       { step: "2", label: "Select", bold: "Add to Home Screen", after: "", icon: "+" },
                       { step: "3", label: "Tap", bold: "Add", after: " to confirm", icon: "✓" },
                     ].map(({ step, label, bold, after, icon }, i) => (
-                      <div key={step} style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", borderTop: i > 0 ? "1px solid #141414" : "none" }}>
-                        <div style={{ width: 32, height: 32, borderRadius: 8, background: "#141414", border: "1px solid #1e1e1e", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: "#00FF87", flexShrink: 0, fontWeight: 700 }}>{icon}</div>
+                      <div key={step} style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", borderTop: i > 0 ? "1px solid #1c1f26" : "none" }}>
+                        <div style={{ width: 32, height: 32, borderRadius: 8, background: "#1b1e26", border: "1px solid #1e1e1e", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: "#00FF87", flexShrink: 0, fontWeight: 700 }}>{icon}</div>
                         <div style={{ fontSize: 14, color: "#666", lineHeight: 1.4 }}>
                           {label} <span style={{ color: "#fff", fontWeight: 600 }}>{bold}</span>{after}
                         </div>
@@ -1199,7 +1199,7 @@ export default function ToT() {
                   </button>
                 </>
               )}
-              <div style={{ textAlign: "center", fontSize: 13, color: "#2a2a2a", cursor: "pointer", padding: "4px 0" }}
+              <div style={{ textAlign: "center", fontSize: 13, color: "#333947", cursor: "pointer", padding: "4px 0" }}
                 onClick={() => { localStorage.setItem("tot-pwa-dismissed", String(Date.now())); setShowInstallPrompt(false); }}>
                 Don't show again
               </div>
@@ -1278,7 +1278,7 @@ export default function ToT() {
             <line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
         </button>
-        <div style={{ display: "flex", gap: 4, background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 14, padding: 3 }}>
+        <div style={{ display: "flex", gap: 4, background: "linear-gradient(155deg, #1c202a, #14161c)", border: "1px solid #242832", borderRadius: 14, padding: 3 }}>
           {[
             { sport: "mlb", icon: "⚾", label: "MLB", tab: "picks", color: "#00FF87" },
             { sport: "nfl", icon: "🏈", label: "NFL", tab: "nfl", color: "#FF6B35" },
@@ -1364,7 +1364,7 @@ export default function ToT() {
         )}
         <div style={{ display: "flex", gap: 5, marginTop: 10 }}>
           {carouselSlides.map((_, i) => (
-            <div key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: carouselIdx % carouselSlides.length === i ? "#00FF87" : "#1a1a1a", cursor: "pointer" }}
+            <div key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: carouselIdx % carouselSlides.length === i ? "#00FF87" : "#242832", cursor: "pointer" }}
               onClick={() => setCarouselIdx(i)} />
           ))}
         </div>
@@ -1378,9 +1378,9 @@ export default function ToT() {
               ref={date === todayStr ? todayBtnRef : null}
               style={{
                 ...S.dateBtn,
-                borderColor: selectedDate === date ? "#00FF87" : "#333",
+                borderColor: selectedDate === date ? "#00FF87" : "#3d424f",
                 color: selectedDate === date ? "#00FF87" : "#999",
-                background: selectedDate === date ? "rgba(0,255,135,0.08)" : "#111",
+                background: selectedDate === date ? "rgba(0,255,135,0.08)" : "#181b22",
               }}
               onClick={() => setSelectedDate(date)}
             >
@@ -1408,7 +1408,7 @@ export default function ToT() {
           ].map(({ id, label }) => (
             <button
               key={id}
-              style={{ ...S.tabBtn, borderColor: activeTab === id ? "#00FF87" : "#333", color: activeTab === id ? "#00FF87" : "#999", background: activeTab === id ? "rgba(0,255,135,0.08)" : "#111" }}
+              style={{ ...S.tabBtn, borderColor: activeTab === id ? "#00FF87" : "#3d424f", color: activeTab === id ? "#00FF87" : "#999", background: activeTab === id ? "rgba(0,255,135,0.08)" : "#181b22" }}
               onClick={() => {
                 if (!isPro && ["steals", "parlay", "tracker", "live", "feed"].includes(id)) { setUpgradeModal(true); return; }
                 setActiveTab(id);
@@ -1423,7 +1423,7 @@ export default function ToT() {
             {["edge", "time"].map(s2 => (
               <button
                 key={s2}
-                style={{ ...S.sortBtn, background: sortBy === s2 ? "#00FF87" : "#111", color: sortBy === s2 ? "#000" : "#999", border: `1px solid ${sortBy === s2 ? "#00FF87" : "#333"}` }}
+                style={{ ...S.sortBtn, background: sortBy === s2 ? "#00FF87" : "#181b22", color: sortBy === s2 ? "#000" : "#999", border: `1px solid ${sortBy === s2 ? "#00FF87" : "#3d424f"}` }}
                 onClick={() => setSortBy(s2)}
               >
                 {s2 === "edge" ? "📈" : "🕐"}
@@ -1436,14 +1436,14 @@ export default function ToT() {
             >↺</button>
             {isAdmin && (
               <button
-                style={{ ...S.sortBtn, fontSize: 11, background: generating ? "rgba(0,255,135,0.1)" : "#111", color: generating ? "#00FF87" : "#555", borderColor: generating ? "#00FF87" : "#333" }}
+                style={{ ...S.sortBtn, fontSize: 11, background: generating ? "rgba(0,255,135,0.1)" : "#181b22", color: generating ? "#00FF87" : "#555", borderColor: generating ? "#00FF87" : "#3d424f" }}
                 onClick={generatePicks}
                 disabled={generating}
                 title="Force-generate picks for today + tomorrow"
               >{generating ? "…" : "⚡ Gen"}</button>
             )}
             <button
-              style={{ ...S.sortBtn, fontSize: 14, background: teamSearchOpen ? "rgba(0,255,135,0.1)" : "#111", borderColor: teamSearchOpen ? "#00FF87" : "#2a2a2a", color: teamSearchOpen ? "#00FF87" : "#999" }}
+              style={{ ...S.sortBtn, fontSize: 14, background: teamSearchOpen ? "rgba(0,255,135,0.1)" : "#181b22", borderColor: teamSearchOpen ? "#00FF87" : "#333947", color: teamSearchOpen ? "#00FF87" : "#999" }}
               onClick={() => { if (teamSearchOpen) { clearTeamSearch(); } else setTeamSearchOpen(true); }}
               title="Search by team"
             >🔍</button>
@@ -1453,8 +1453,8 @@ export default function ToT() {
       )}
 
       {activeTab === "picks" && teamSearchOpen && (
-        <div style={{ padding: "10px 20px", borderBottom: "1px solid #1a1a1a", position: "relative" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#0d0d0d", border: "1px solid #2a2a2a", borderRadius: 10, padding: "8px 12px" }}>
+        <div style={{ padding: "10px 20px", borderBottom: "1px solid #242832", position: "relative" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "linear-gradient(155deg, #1c202a, #14161c)", border: "1px solid #333947", borderRadius: 10, padding: "8px 12px" }}>
             <span style={{ fontSize: 14, flexShrink: 0 }}>🔍</span>
             <input
               autoFocus
@@ -1470,12 +1470,12 @@ export default function ToT() {
             )}
           </div>
           {teamSuggestions.length > 0 && !teamViewLoading && !teamView && (
-            <div style={{ position: "absolute", left: 20, right: 20, top: "calc(100% - 10px)", background: "#111", border: "1px solid #2a2a2a", borderRadius: 10, zIndex: 50, overflow: "hidden", boxShadow: "0 8px 24px rgba(0,0,0,0.6)" }}>
+            <div style={{ position: "absolute", left: 20, right: 20, top: "calc(100% - 10px)", background: "#181b22", border: "1px solid #333947", borderRadius: 10, zIndex: 50, overflow: "hidden", boxShadow: "0 8px 24px rgba(0,0,0,0.6)" }}>
               {teamSuggestions.map(t => (
                 <button
                   key={t}
                   onClick={() => fetchTeamSchedule(t)}
-                  style={{ width: "100%", padding: "11px 14px", background: "none", border: "none", color: "#ccc", fontSize: 14, textAlign: "left", cursor: "pointer", borderBottom: "1px solid #1a1a1a", display: "flex", alignItems: "center", gap: 10 }}
+                  style={{ width: "100%", padding: "11px 14px", background: "none", border: "none", color: "#ccc", fontSize: 14, textAlign: "left", cursor: "pointer", borderBottom: "1px solid #242832", display: "flex", alignItems: "center", gap: 10 }}
                 >
                   <span style={{ fontSize: 12 }}>⚾</span>
                   {t}
@@ -1508,8 +1508,8 @@ export default function ToT() {
           const verdictLabel = v => ({ CLEAN: "🔥 CLEAN", BET: "✅ BET", PASS: "👀 PASS", TRAP: "⚠️ TRAP" })[v] || v || "—";
 
           return (
-            <div style={{ background: "#0a0a0a", border: "1px solid #1a1a1a", borderRadius: 14, overflow: "hidden", marginBottom: 4 }}>
-              <div style={{ padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: games.length > 0 ? "1px solid #1a1a1a" : "none" }}>
+            <div style={{ background: "linear-gradient(160deg, #14161c, #0d0e12)", border: "1px solid #242832", borderRadius: 14, overflow: "hidden", marginBottom: 4 }}>
+              <div style={{ padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: games.length > 0 ? "1px solid #242832" : "none" }}>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700 }}>{team}</div>
                   {teamRecord && <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>{teamRecord} · {games.length} game{games.length !== 1 ? "s" : ""} this week</div>}
@@ -1547,7 +1547,7 @@ export default function ToT() {
                   >
                     <div style={{ width: 48, flexShrink: 0 }}>
                       <div style={{ fontSize: 10, fontWeight: 700, color: isToday ? "#00FF87" : isFuture ? "#777" : "#444", letterSpacing: 0.5 }}>{dateLabel}</div>
-                      {gameTime && !scoreStr && <div style={{ fontSize: 10, color: "#333", marginTop: 1 }}>{gameTime}</div>}
+                      {gameTime && !scoreStr && <div style={{ fontSize: 10, color: "#3d424f", marginTop: 1 }}>{gameTime}</div>}
                       {scoreStr && <div style={{ fontSize: 10, color: liveStatus === "Final" ? "#555" : "#FFD600", marginTop: 1 }}>{liveStatus === "Final" ? "Final" : "LIVE"}</div>}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -1563,7 +1563,7 @@ export default function ToT() {
                     {teamOdds != null && (
                       <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: "#666", flexShrink: 0, minWidth: 36, textAlign: "right" }}>{fmtOdds(teamOdds)}</div>
                     )}
-                    <span style={{ color: "#333", fontSize: 12, flexShrink: 0 }}>›</span>
+                    <span style={{ color: "#3d424f", fontSize: 12, flexShrink: 0 }}>›</span>
                   </button>
                 );
               })}
@@ -1572,7 +1572,7 @@ export default function ToT() {
         })()}
 
         {activeTab === "picks" && selectedDate === todayStr && modelStreak?.last7 && (modelStreak.last7.wins + modelStreak.last7.losses) > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#080808", border: "1px solid #1a1a1a", borderRadius: 10, padding: "9px 13px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#10131a", border: "1px solid #242832", borderRadius: 10, padding: "9px 13px" }}>
             <span style={{ fontSize: 11, color: "#555", letterSpacing: 1 }}>LAST 7 DAYS</span>
             <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13, fontWeight: 700, color: modelStreak.last7.wins > modelStreak.last7.losses ? "#00FF87" : modelStreak.last7.wins < modelStreak.last7.losses ? "#FF4D4D" : "#888" }}>
               {modelStreak.last7.wins}–{modelStreak.last7.losses}
@@ -1632,7 +1632,7 @@ export default function ToT() {
               {modelRecord.wins}-{modelRecord.losses}
             </span>
             <span style={{ fontSize: 11, color: "#888" }}>({modelRecord.pct}%)</span>
-            <span style={{ fontSize: 10, color: "#222" }}>all-time</span>
+            <span style={{ fontSize: 10, color: "#2b2f3a" }}>all-time</span>
           </div>
         )}
 
@@ -1643,7 +1643,7 @@ export default function ToT() {
           const quietDay = isPro && nBet === 0 && picks.filter(p => p.filter != null).length > 0;
           return (
             <>
-              <div style={{ display: "flex", gap: 12, padding: "6px 0", borderBottom: "1px solid #0d0d0d", marginBottom: 4 }}>
+              <div style={{ display: "flex", gap: 12, padding: "6px 0", borderBottom: "1px solid #1c1f26", marginBottom: 4 }}>
                 <span style={{ fontSize: 11, color: "#777" }}>{picks.filter(p => p.filter != null).length} games</span>
                 {nBet > 0 && <span style={{ fontSize: 11, color: "#00FF87" }}>{nBet} BET</span>}
                 {nClean > 0 && <span style={{ fontSize: 11, color: "#00FF87", fontWeight: 700 }}>⚡ {nClean} CLEAN</span>}
@@ -1700,7 +1700,7 @@ export default function ToT() {
                 </div>
               );
             })() : freePick?._quietDay ? (
-              <div style={{ ...S.card, textAlign: "center", padding: "28px 16px", borderColor: "#1a1a1a" }}>
+              <div style={{ ...S.card, textAlign: "center", padding: "28px 16px", borderColor: "#242832" }}>
                 <div style={{ fontSize: 24, marginBottom: 8 }}>😴</div>
                 <div style={{ fontWeight: 700, fontSize: 15 }}>Quiet day</div>
                 <div style={{ fontSize: 13, color: "#555", marginTop: 5, lineHeight: 1.5 }}>
@@ -1721,7 +1721,7 @@ export default function ToT() {
               <div key={i} style={{ ...S.card, position: "relative", overflow: "hidden", cursor: "pointer" }}
                 onClick={() => setUpgradeModal(true)}>
                 <div style={{ position: "absolute", inset: 0, backdropFilter: "blur(5px)", background: "rgba(0,0,0,0.5)", zIndex: 2, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <div style={{ background: "rgba(0,0,0,0.9)", border: "1px solid #222", borderRadius: 10, padding: "8px 18px", textAlign: "center" }}>
+                  <div style={{ background: "rgba(0,0,0,0.9)", border: "1px solid #2b2f3a", borderRadius: 10, padding: "8px 18px", textAlign: "center" }}>
                     <div style={{ fontSize: 12, fontWeight: 800, color: "#00FF87", letterSpacing: 1 }}>🔒 PRO ONLY</div>
                     <div style={{ fontSize: 10, color: "#555", marginTop: 2 }}>Tap to upgrade</div>
                   </div>
@@ -1791,10 +1791,10 @@ export default function ToT() {
             }
 
             const betColor  = "#00FF87";
-            const passColor = "#333";
+            const passColor = "#3d424f";
             const isScheduled = pick.homeOdds == null && !pick.filter && pick.tier?.emoji === "📅";
             const resultBorderColor = pickResult === "win" ? "#00FF87" : pickResult === "loss" ? "#FF4D4D" : null;
-            const cardBorder = resultBorderColor || (isOpen ? (isBet ? betColor : "#2a2a2a") : (isBet ? "rgba(0,255,135,0.25)" : isScheduled ? "rgba(79,195,247,0.15)" : "#1a1a1a"));
+            const cardBorder = resultBorderColor || (isOpen ? (isBet ? betColor : "#333947") : (isBet ? "rgba(0,255,135,0.25)" : isScheduled ? "rgba(79,195,247,0.15)" : "#242832"));
 
             return (
               <div key={pick.id} style={{ ...S.card, borderColor: cardBorder }}>
@@ -1812,7 +1812,7 @@ export default function ToT() {
                             📅 SCHEDULED
                           </span>
                         ) : (
-                          <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, background: "rgba(60,60,60,0.4)", color: "#555", border: "1px solid #222" }}>
+                          <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, background: "rgba(60,60,60,0.4)", color: "#555", border: "1px solid #2b2f3a" }}>
                             📋 NO LINE
                           </span>
                         )
@@ -1825,12 +1825,12 @@ export default function ToT() {
                           fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5,
                           background: isBet ? "rgba(0,255,135,0.08)" : "rgba(50,50,50,0.5)",
                           color: isBet ? betColor : passColor,
-                          border: `1px solid ${isBet ? "rgba(0,255,135,0.2)" : "#222"}`,
+                          border: `1px solid ${isBet ? "rgba(0,255,135,0.2)" : "#2b2f3a"}`,
                         }}>
                           {isBet ? "BET" : "PASS"}
                         </span>
                       )}
-                      {pick.filter && <span style={{ fontSize: 11, color: isBet ? "#555" : "#333", fontFamily: "'JetBrains Mono',monospace" }}>
+                      {pick.filter && <span style={{ fontSize: 11, color: isBet ? "#555" : "#3d424f", fontFamily: "'JetBrains Mono',monospace" }}>
                         {edge.toFixed(1)}% edge
                       </span>}
                       {isBet && (
@@ -1848,10 +1848,10 @@ export default function ToT() {
                     </div>
                     <WinPctRow homeTeam={pick.homeTeam} awayTeam={pick.awayTeam} homeOdds={pick.homeOdds} awayOdds={pick.awayOdds} openHomeOdds={pick.openHomeOdds} openAwayOdds={pick.openAwayOdds} />
                     <div style={{ marginTop: 7, display: "flex", alignItems: "center", gap: 7 }}>
-                      <div style={{ flex: 1, height: 3, background: "#111", borderRadius: 2 }}>
-                        <div style={{ height: "100%", borderRadius: 2, width: `${Math.min(100, edge * 6)}%`, background: isBet ? t.color : "#222", transition: "width 0.5s ease" }} />
+                      <div style={{ flex: 1, height: 3, background: "#181b22", borderRadius: 2 }}>
+                        <div style={{ height: "100%", borderRadius: 2, width: `${Math.min(100, edge * 6)}%`, background: isBet ? t.color : "#2b2f3a", transition: "width 0.5s ease" }} />
                       </div>
-                      {pick.filter && <span style={{ fontSize: 10, color: isBet ? t.color : "#333", fontFamily: "'JetBrains Mono',monospace", flexShrink: 0 }}>{edge.toFixed(1)}%</span>}
+                      {pick.filter && <span style={{ fontSize: 10, color: isBet ? t.color : "#3d424f", fontFamily: "'JetBrains Mono',monospace", flexShrink: 0 }}>{edge.toFixed(1)}%</span>}
                     </div>
                     {ls?.status === "Live" && (
                       <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
@@ -1890,7 +1890,7 @@ export default function ToT() {
                       const inParlay = parlayLegs.has(pick.id);
                       return (
                         <button
-                          style={{ ...S.saveBtn, background: inParlay ? "rgba(255,214,0,0.12)" : "transparent", color: inParlay ? "#FFD600" : "#333", borderColor: inParlay ? "#FFD600" : "#222" }}
+                          style={{ ...S.saveBtn, background: inParlay ? "rgba(255,214,0,0.12)" : "transparent", color: inParlay ? "#FFD600" : "#3d424f", borderColor: inParlay ? "#FFD600" : "#2b2f3a" }}
                           onClick={() => setParlayLegs(prev => { const n = new Map(prev); inParlay ? n.delete(pick.id) : n.set(pick.id, { game: pick, teamPick: pick.pick }); return n; })}
                         >
                           {inParlay ? "✓ Parlay" : "+ Parlay"}
@@ -1898,7 +1898,7 @@ export default function ToT() {
                       );
                     })()}
                     <button
-                      style={{ ...S.expandBtn, borderColor: isOpen ? (isBet ? betColor : "#444") : "#222", color: isOpen ? (isBet ? betColor : "#444") : "#333" }}
+                      style={{ ...S.expandBtn, borderColor: isOpen ? (isBet ? betColor : "#444") : "#2b2f3a", color: isOpen ? (isBet ? betColor : "#444") : "#3d424f" }}
                       onClick={() => setExpanded(isOpen ? null : pick.id)}
                     >
                       {isOpen ? "▲" : "▼"}
@@ -2031,7 +2031,7 @@ export default function ToT() {
                       </div>
                     )}
                     {b.honest_lean && (
-                      <div style={{ ...S.expSection, background: "#0a0a0a", borderRadius: 10, padding: 12, border: "1px solid #1a1a1a" }}>
+                      <div style={{ ...S.expSection, background: "linear-gradient(160deg, #14161c, #0d0e12)", borderRadius: 10, padding: 12, border: "1px solid #242832" }}>
                         <div style={S.expLabel}>HONEST LEAN</div>
                         <div style={{ ...S.expText, color: "#fff", fontWeight: 500 }}>{b.honest_lean}</div>
                       </div>
@@ -2054,7 +2054,7 @@ export default function ToT() {
                     </div>
                     {/* Share button */}
                     <button
-                      style={{ marginTop: 12, width: "100%", background: "transparent", border: "1px solid #1a1a1a", borderRadius: 10, padding: "9px 0", color: "#777", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                      style={{ marginTop: 12, width: "100%", background: "transparent", border: "1px solid #242832", borderRadius: 10, padding: "9px 0", color: "#777", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
                       onClick={() => {
                         const odds = pick.pick === pick.homeTeam ? pick.homeOdds : pick.awayOdds;
                         const fmtO = o => o == null ? "" : o > 0 ? ` (+${o})` : ` (${o})`;
@@ -2105,7 +2105,7 @@ export default function ToT() {
                 </div>
                 <button
                   onClick={copySteals}
-                  style={{ fontSize: 11, color: copied ? "#00FF87" : "#333", background: "transparent", border: "1px solid #1a1a1a", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontFamily: "'JetBrains Mono',monospace" }}
+                  style={{ fontSize: 11, color: copied ? "#00FF87" : "#3d424f", background: "transparent", border: "1px solid #242832", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontFamily: "'JetBrains Mono',monospace" }}
                 >
                   {copied ? "✓ Copied" : "Copy"}
                 </button>
@@ -2174,7 +2174,7 @@ export default function ToT() {
                       )}
                     </div>
                     {parseFloat(kellyPct) > 0 && (
-                      <div style={{ marginTop: 10, background: "#050505", border: "1px solid #1a1a1a", borderRadius: 8, padding: "8px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <div style={{ marginTop: 10, background: "#050505", border: "1px solid #242832", borderRadius: 8, padding: "8px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                         <div>
                           <div style={{ fontSize: 9, color: "#777", letterSpacing: 1 }}>SUGGESTED STAKE</div>
                           <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 14, fontWeight: 700, color: "#00FF87" }}>{kellyPct}% of bankroll</div>
@@ -2211,7 +2211,7 @@ export default function ToT() {
                       : "—";
                     const payout10 = ((comboDec - 1) * 10).toFixed(0);
                     return (
-                      <div key={card.label} style={{ background: "#080808", border: `1px solid ${card.color}22`, borderRadius: 12, padding: "12px 14px", marginBottom: 8 }}>
+                      <div key={card.label} style={{ background: "#10131a", border: `1px solid ${card.color}22`, borderRadius: 12, padding: "12px 14px", marginBottom: 8 }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                           <span style={{ fontSize: 11, fontWeight: 800, color: card.color, letterSpacing: 1 }}>{card.label} — {card.legs.length}-LEG</span>
                           <div style={{ textAlign: "right" }}>
@@ -2245,11 +2245,11 @@ export default function ToT() {
             {picks !== null && (
               <>
                 {/* Header: odds + stake */}
-                <div style={{ background: "#080808", border: "1px solid rgba(255,214,0,0.2)", borderRadius: 14, padding: 16, marginBottom: 10 }}>
+                <div style={{ background: "#10131a", border: "1px solid rgba(255,214,0,0.2)", borderRadius: 14, padding: 16, marginBottom: 10 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
                     <div>
                       <div style={{ fontSize: 10, fontWeight: 700, color: "#999", letterSpacing: 1.5, marginBottom: 4 }}>COMBINED ODDS</div>
-                      <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 28, fontWeight: 700, color: parlayLegsList.length >= 2 ? "#FFD600" : "#333" }}>{parlayAmerican}</div>
+                      <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 28, fontWeight: 700, color: parlayLegsList.length >= 2 ? "#FFD600" : "#3d424f" }}>{parlayAmerican}</div>
                       <div style={{ fontSize: 11, color: "#777", marginTop: 2 }}>{parlayLegsList.length} leg{parlayLegsList.length !== 1 ? "s" : ""} selected</div>
                     </div>
                     <div style={{ textAlign: "right" }}>
@@ -2262,7 +2262,7 @@ export default function ToT() {
                           step="any"
                           value={parlayStake}
                           onChange={e => setParlayStake(Math.max(1, parseFloat(e.target.value) || 1))}
-                          style={{ width: 70, background: "#111", border: "1px solid #222", borderRadius: 6, color: "#fff", fontSize: 15, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, padding: "4px 8px", textAlign: "right" }}
+                          style={{ width: 70, background: "#181b22", border: "1px solid #2b2f3a", borderRadius: 6, color: "#fff", fontSize: 15, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, padding: "4px 8px", textAlign: "right" }}
                         />
                       </div>
                       {parlayLegsList.length >= 2 && (
@@ -2285,7 +2285,7 @@ export default function ToT() {
                           <div style={{ fontSize: 13, fontWeight: 700, color: "#FFD600" }}>{teamPick}{o != null ? ` ${fmtOdds(o)}` : ""}</div>
                         </div>
                         <button
-                          style={{ fontSize: 11, color: "#FF4D4D", background: "transparent", border: "1px solid #1a1a1a", borderRadius: 6, padding: "4px 10px", cursor: "pointer", flexShrink: 0 }}
+                          style={{ fontSize: 11, color: "#FF4D4D", background: "transparent", border: "1px solid #242832", borderRadius: 6, padding: "4px 10px", cursor: "pointer", flexShrink: 0 }}
                           onClick={() => setParlayLegs(prev => { const n = new Map(prev); n.delete(game.id); return n; })}
                         >✕</button>
                       </div>
@@ -2293,7 +2293,7 @@ export default function ToT() {
                   })}
                   {parlayLegsList.length >= 2 && (
                     <button
-                      style={{ width: "100%", marginTop: 10, padding: "8px 0", background: "transparent", border: "1px solid #1a1a1a", borderRadius: 8, color: "#777", fontSize: 11, cursor: "pointer" }}
+                      style={{ width: "100%", marginTop: 10, padding: "8px 0", background: "transparent", border: "1px solid #242832", borderRadius: 8, color: "#777", fontSize: 11, cursor: "pointer" }}
                       onClick={() => setParlayLegs(new Map())}
                     >Clear all</button>
                   )}
@@ -2313,23 +2313,23 @@ export default function ToT() {
                     return n;
                   });
                   return (
-                    <div key={game.id} style={{ ...S.card, borderColor: leg ? "rgba(255,214,0,0.25)" : "#1a1a1a", marginBottom: 8 }}>
+                    <div key={game.id} style={{ ...S.card, borderColor: leg ? "rgba(255,214,0,0.25)" : "#242832", marginBottom: 8 }}>
                       <div style={{ fontSize: 11, color: "#999", marginBottom: 8 }}>
                         {fmtGameTime(game.commenceTime)}
                         {game.isBet && <span style={{ color: "#00FF87", fontWeight: 700, marginLeft: 6 }}>BET ↑</span>}
                       </div>
                       <div style={{ display: "flex", gap: 8 }}>
                         <button
-                          style={{ flex: 1, padding: "10px 8px", borderRadius: 10, border: `1px solid ${awaySel ? "#FFD600" : "#1a1a1a"}`, background: awaySel ? "rgba(255,214,0,0.1)" : "transparent", cursor: "pointer", textAlign: "left" }}
+                          style={{ flex: 1, padding: "10px 8px", borderRadius: 10, border: `1px solid ${awaySel ? "#FFD600" : "#242832"}`, background: awaySel ? "rgba(255,214,0,0.1)" : "transparent", cursor: "pointer", textAlign: "left" }}
                           onClick={() => selectSide(game.awayTeam)}
                         >
                           <div style={{ fontSize: 10, color: "#999", marginBottom: 3 }}>AWAY</div>
                           <div style={{ fontSize: 13, fontWeight: 700, color: awaySel ? "#FFD600" : "#fff" }}>{game.awayTeam.split(" ").pop()}</div>
                           {game.awayOdds != null && <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: awaySel ? "#FFD600" : "#555", marginTop: 2 }}>{fmtOdds(game.awayOdds)}</div>}
                         </button>
-                        <div style={{ display: "flex", alignItems: "center", fontSize: 11, color: "#222", flexShrink: 0 }}>@</div>
+                        <div style={{ display: "flex", alignItems: "center", fontSize: 11, color: "#2b2f3a", flexShrink: 0 }}>@</div>
                         <button
-                          style={{ flex: 1, padding: "10px 8px", borderRadius: 10, border: `1px solid ${homeSel ? "#FFD600" : "#1a1a1a"}`, background: homeSel ? "rgba(255,214,0,0.1)" : "transparent", cursor: "pointer", textAlign: "right" }}
+                          style={{ flex: 1, padding: "10px 8px", borderRadius: 10, border: `1px solid ${homeSel ? "#FFD600" : "#242832"}`, background: homeSel ? "rgba(255,214,0,0.1)" : "transparent", cursor: "pointer", textAlign: "right" }}
                           onClick={() => selectSide(game.homeTeam)}
                         >
                           <div style={{ fontSize: 10, color: "#999", marginBottom: 3 }}>HOME</div>
@@ -2348,7 +2348,7 @@ export default function ToT() {
         {activeTab === "tracker" && (
           <>
             {/* ROI header */}
-            <div style={{ background: "#080808", border: "1px solid #1a1a1a", borderRadius: 14, padding: "16px 16px 12px", marginBottom: 8 }}>
+            <div style={{ background: "#10131a", border: "1px solid #242832", borderRadius: 14, padding: "16px 16px 12px", marginBottom: 8 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
                 <div>
                   <div style={{ fontSize: 10, color: "#777", letterSpacing: 1, marginBottom: 4 }}>PROFIT / LOSS</div>
@@ -2365,7 +2365,7 @@ export default function ToT() {
                       type="number"
                       value={unitSize}
                       onChange={e => setUnitSize(Math.max(1, parseInt(e.target.value) || 10))}
-                      style={{ width: 60, background: "#111", border: "1px solid #222", borderRadius: 6, color: "#fff", fontSize: 14, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, padding: "4px 8px", textAlign: "right" }}
+                      style={{ width: 60, background: "#181b22", border: "1px solid #2b2f3a", borderRadius: 6, color: "#fff", fontSize: 14, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, padding: "4px 8px", textAlign: "right" }}
                     />
                   </div>
                 </div>
@@ -2375,7 +2375,7 @@ export default function ToT() {
                 <div style={S.statCard}><div style={{ ...S.statVal, color: "#FF4D4D", fontSize: 18 }}>{losses}</div><div style={S.statLabel}>Losses</div></div>
                 <div style={S.statCard}><div style={{ ...S.statVal, fontSize: 18 }}>{decisioned > 0 ? winPct : "—"}%</div><div style={S.statLabel}>Win Rate</div></div>
                 <div style={S.statCard}>
-                  <div style={{ ...S.statVal, fontSize: 18, color: streakType === "win" ? "#00FF87" : streakType === "loss" ? "#FF4D4D" : "#333" }}>
+                  <div style={{ ...S.statVal, fontSize: 18, color: streakType === "win" ? "#00FF87" : streakType === "loss" ? "#FF4D4D" : "#3d424f" }}>
                     {streakLen > 0 ? `${streakType === "win" ? "W" : "L"}${streakLen}` : "—"}
                   </div>
                   <div style={S.statLabel}>Streak</div>
@@ -2401,7 +2401,7 @@ export default function ToT() {
                               {...provided.draggableProps}
                               style={{
                                 ...S.card,
-                                borderColor: snapshot.isDragging ? "#00FF87" : p.result === "win" ? "rgba(0,255,135,0.2)" : p.result === "loss" ? "rgba(255,77,77,0.2)" : "#1a1a1a",
+                                borderColor: snapshot.isDragging ? "#00FF87" : p.result === "win" ? "rgba(0,255,135,0.2)" : p.result === "loss" ? "rgba(255,77,77,0.2)" : "#242832",
                                 marginBottom: 8,
                                 ...provided.draggableProps.style,
                               }}
@@ -2476,11 +2476,11 @@ export default function ToT() {
                                 };
 
                                 if (p.result === "push") {
-                                  return <div style={{ marginTop: 10, fontSize: 12, color: "#888", lineHeight: 1.6, borderTop: "1px solid #1a1a1a", paddingTop: 10 }}>This game was postponed, cancelled, or ended in a tie — the pick didn't settle and your stake is returned.</div>;
+                                  return <div style={{ marginTop: 10, fontSize: 12, color: "#888", lineHeight: 1.6, borderTop: "1px solid #242832", paddingTop: 10 }}>This game was postponed, cancelled, or ended in a tie — the pick didn't settle and your stake is returned.</div>;
                                 }
 
                                 return (
-                                  <div style={{ marginTop: 10, borderTop: "1px solid #1a1a1a", paddingTop: 10 }}>
+                                  <div style={{ marginTop: 10, borderTop: "1px solid #242832", paddingTop: 10 }}>
                                     {(!recap || recap === "loading") && <div style={{ fontSize: 12, color: "#444" }}>Loading game details...</div>}
                                     {recap === "error" && <div style={{ fontSize: 12, color: "#555" }}>Game details unavailable.</div>}
                                     {recap && recap !== "loading" && recap !== "error" && (
@@ -2523,7 +2523,7 @@ export default function ToT() {
           return (
             <div>
               {/* Header stats */}
-              <div style={{ background: "#080808", border: "1px solid #1a1a1a", borderRadius: 14, padding: "14px 16px", marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ background: "#10131a", border: "1px solid #242832", borderRadius: 14, padding: "14px 16px", marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
                   <div style={{ fontSize: 10, color: "#888", letterSpacing: 1.5, marginBottom: 4 }}>ALL-TIME MODEL RECORD</div>
                   <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 22, fontWeight: 700 }}>
@@ -2535,7 +2535,7 @@ export default function ToT() {
                 </div>
                 <div style={{ textAlign: "right" }}>
                   <div style={{ fontSize: 11, color: "#777", marginBottom: 4 }}>{Object.keys(calRecord || {}).length} days tracked</div>
-                  <button onClick={() => { setCalRecord(null); fetchCalRecord(); }} style={{ background: "none", border: "1px solid #333", borderRadius: 6, color: "#888", fontSize: 10, cursor: "pointer", padding: "3px 8px" }}>↻ Refresh</button>
+                  <button onClick={() => { setCalRecord(null); fetchCalRecord(); }} style={{ background: "none", border: "1px solid #3d424f", borderRadius: 6, color: "#888", fontSize: 10, cursor: "pointer", padding: "3px 8px" }}>↻ Refresh</button>
                 </div>
               </div>
 
@@ -2566,11 +2566,11 @@ export default function ToT() {
                     : rec.wins > rec.losses ? "rgba(0,255,135,0.15)"
                     : rec.losses > rec.wins ? "rgba(255,77,77,0.15)"
                     : "rgba(255,214,0,0.15)";
-                  const borderColor = !hasData ? (isToday ? "#00FF87" : "#1a1a1a")
+                  const borderColor = !hasData ? (isToday ? "#00FF87" : "#242832")
                     : rec.wins > rec.losses ? "rgba(0,255,135,0.4)"
                     : rec.losses > rec.wins ? "rgba(255,77,77,0.4)"
                     : "rgba(255,214,0,0.4)";
-                  const textColor = !hasData ? (isFuture ? "#222" : isToday ? "#00FF87" : "#444")
+                  const textColor = !hasData ? (isFuture ? "#2b2f3a" : isToday ? "#00FF87" : "#444")
                     : rec.wins > rec.losses ? "#00FF87"
                     : rec.losses > rec.wins ? "#FF4D4D"
                     : "#FFD600";
@@ -2625,7 +2625,7 @@ export default function ToT() {
                 return (
                   <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 16 }}>
                     {/* Overall bias */}
-                    <div style={{ background: "#080808", border: "1px solid #1a1a1a", borderRadius: 12, padding: "12px 14px" }}>
+                    <div style={{ background: "#10131a", border: "1px solid #242832", borderRadius: 12, padding: "12px 14px" }}>
                       <div style={{ fontSize: 10, color: "#555", letterSpacing: 1.5, fontWeight: 700, marginBottom: 8 }}>OVERALL BIAS</div>
                       <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
                         <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 22, fontWeight: 700, color: biasColor }}>
@@ -2633,11 +2633,11 @@ export default function ToT() {
                         </span>
                         <span style={{ fontSize: 12, color: "#555" }}>{biasLabel}</span>
                       </div>
-                      <div style={{ fontSize: 11, color: "#333", marginTop: 4 }}>{total} resolved bets · delta = actual − predicted</div>
+                      <div style={{ fontSize: 11, color: "#3d424f", marginTop: 4 }}>{total} resolved bets · delta = actual − predicted</div>
                     </div>
 
                     {/* Probability calibration */}
-                    <div style={{ background: "#080808", border: "1px solid #1a1a1a", borderRadius: 12, padding: "12px 14px" }}>
+                    <div style={{ background: "#10131a", border: "1px solid #242832", borderRadius: 12, padding: "12px 14px" }}>
                       <div style={{ fontSize: 10, color: "#555", letterSpacing: 1.5, fontWeight: 700, marginBottom: 10 }}>PROBABILITY CALIBRATION</div>
                       <div style={{ overflowX: "auto" }}>
                         <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -2662,19 +2662,19 @@ export default function ToT() {
                                   <TD color={b.actual != null ? (b.actual >= (b.predicted || 0) ? "#00FF87" : "#FF4D4D") : "#555"}>{b.actual != null ? `${b.actual}%` : "—"}</TD>
                                   <TD color={dc}>{delta != null ? `${delta > 0 ? "+" : ""}${delta}pp` : "—"}</TD>
                                   <TD color={b.avgClv != null ? (b.avgClv >= 0 ? "#00FF87" : "#FF4D4D") : "#555"}>{b.avgClv != null ? `${b.avgClv > 0 ? "+" : ""}${b.avgClv}pp` : "—"}</TD>
-                                  <TD color={b.n > 0 ? "#666" : "#333"}>{b.n}</TD>
+                                  <TD color={b.n > 0 ? "#666" : "#3d424f"}>{b.n}</TD>
                                 </tr>
                               );
                             })}
                           </tbody>
                         </table>
                       </div>
-                      <div style={{ fontSize: 10, color: "#333", marginTop: 8 }}>* n &lt; 20 — too small to interpret</div>
+                      <div style={{ fontSize: 10, color: "#3d424f", marginTop: 8 }}>* n &lt; 20 — too small to interpret</div>
                     </div>
 
                     {/* Confidence calibration */}
                     {confBuckets.some(b => b.n > 0) && (
-                      <div style={{ background: "#080808", border: "1px solid #1a1a1a", borderRadius: 12, padding: "12px 14px" }}>
+                      <div style={{ background: "#10131a", border: "1px solid #242832", borderRadius: 12, padding: "12px 14px" }}>
                         <div style={{ fontSize: 10, color: "#555", letterSpacing: 1.5, fontWeight: 700, marginBottom: 10 }}>CONFIDENCE CALIBRATION</div>
                         <div style={{ overflowX: "auto" }}>
                           <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -2710,7 +2710,7 @@ export default function ToT() {
                     {(verdictBuckets.some(b => b.n > 0) || varianceBuckets.length > 0) && (
                       <div style={{ display: "flex", gap: 10 }}>
                         {verdictBuckets.some(b => b.n > 0) && (
-                          <div style={{ flex: 1, background: "#080808", border: "1px solid #1a1a1a", borderRadius: 12, padding: "12px 14px" }}>
+                          <div style={{ flex: 1, background: "#10131a", border: "1px solid #242832", borderRadius: 12, padding: "12px 14px" }}>
                             <div style={{ fontSize: 10, color: "#555", letterSpacing: 1.5, fontWeight: 700, marginBottom: 10 }}>VERDICT</div>
                             {verdictBuckets.filter(b => b.n > 0).map(b => {
                               const pct = b.actual;
@@ -2721,17 +2721,17 @@ export default function ToT() {
                                     <span style={{ fontSize: 11, color: b.label === "CLEAN" ? "#00FF87" : "#FFD600", fontWeight: 700 }}>{b.label}</span>
                                     <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: pctColor }}>{pct != null ? `${pct}%` : "—"}</span>
                                   </div>
-                                  <div style={{ height: 3, background: "#111", borderRadius: 2 }}>
+                                  <div style={{ height: 3, background: "#181b22", borderRadius: 2 }}>
                                     <div style={{ height: "100%", borderRadius: 2, width: `${pct || 0}%`, background: pctColor }} />
                                   </div>
-                                  <div style={{ fontSize: 10, color: "#333", marginTop: 2 }}>{b.n} bets · {b.wins}W{b.avgClv != null ? ` · CLV ${b.avgClv > 0 ? "+" : ""}${b.avgClv}pp` : ""}</div>
+                                  <div style={{ fontSize: 10, color: "#3d424f", marginTop: 2 }}>{b.n} bets · {b.wins}W{b.avgClv != null ? ` · CLV ${b.avgClv > 0 ? "+" : ""}${b.avgClv}pp` : ""}</div>
                                 </div>
                               );
                             })}
                           </div>
                         )}
                         {varianceBuckets.length > 0 && (
-                          <div style={{ flex: 1, background: "#080808", border: "1px solid #1a1a1a", borderRadius: 12, padding: "12px 14px" }}>
+                          <div style={{ flex: 1, background: "#10131a", border: "1px solid #242832", borderRadius: 12, padding: "12px 14px" }}>
                             <div style={{ fontSize: 10, color: "#555", letterSpacing: 1.5, fontWeight: 700, marginBottom: 10 }}>VARIANCE</div>
                             {varianceBuckets.map(b => {
                               const pct = b.actual;
@@ -2742,10 +2742,10 @@ export default function ToT() {
                                     <span style={{ fontSize: 11, color: "#aaa", fontWeight: 700 }}>{b.label} VAR</span>
                                     <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: pctColor }}>{pct != null ? `${pct}%` : "—"}</span>
                                   </div>
-                                  <div style={{ height: 3, background: "#111", borderRadius: 2 }}>
+                                  <div style={{ height: 3, background: "#181b22", borderRadius: 2 }}>
                                     <div style={{ height: "100%", borderRadius: 2, width: `${pct || 0}%`, background: pctColor }} />
                                   </div>
-                                  <div style={{ fontSize: 10, color: "#333", marginTop: 2 }}>{b.n} bets</div>
+                                  <div style={{ fontSize: 10, color: "#3d424f", marginTop: 2 }}>{b.n} bets</div>
                                 </div>
                               );
                             })}
@@ -2780,7 +2780,7 @@ export default function ToT() {
                   <div style={{ fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 2, marginBottom: 8 }}>MOST TRACKED TODAY</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     {feedTopPicks.map((g, i) => (
-                      <div key={i} style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+                      <div key={i} style={{ background: "linear-gradient(155deg, #1c202a, #14161c)", border: "1px solid #242832", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
                         <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 16, fontWeight: 700, color: "#555", minWidth: 20 }}>{i + 1}</div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 12, fontWeight: 700, color: "#ccc" }}>{g.away} @ {g.home}</div>
@@ -2797,7 +2797,7 @@ export default function ToT() {
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 2 }}>LIVE ACTIVITY</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  {feedLoading && <div style={{ width: 12, height: 12, border: "2px solid #222", borderTopColor: "#00FF87", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />}
+                  {feedLoading && <div style={{ width: 12, height: 12, border: "2px solid #2b2f3a", borderTopColor: "#00FF87", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />}
                   <button onClick={fetchFeed} style={{ background: "none", border: "none", color: "#555", fontSize: 12, cursor: "pointer", padding: 0 }}>↺</button>
                 </div>
               </div>
@@ -2818,7 +2818,7 @@ export default function ToT() {
                   const icon  = isHit ? "✅" : isMiss ? "❌" : "⚾";
 
                   return (
-                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "1px solid #0d0d0d" }}>
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "1px solid #1c1f26" }}>
                       <span style={{ fontSize: 16, flexShrink: 0 }}>{icon}</span>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 12, color: "#ccc", lineHeight: 1.4 }}>
@@ -2828,18 +2828,18 @@ export default function ToT() {
                           {isMiss && <>missed on <span style={{ color: "#FF4D4D", fontWeight: 700 }}>{e.pick}</span></>}
                         </div>
                         {(e.awayTeam || e.homeTeam) && (
-                          <div style={{ fontSize: 10, color: "#333", marginTop: 2 }}>
+                          <div style={{ fontSize: 10, color: "#3d424f", marginTop: 2 }}>
                             {e.awayTeam?.split(" ").pop()} @ {e.homeTeam?.split(" ").pop()}
                           </div>
                         )}
                       </div>
-                      <div style={{ fontSize: 10, color: "#333", flexShrink: 0 }}>{fmtAgo(e.ago)}</div>
+                      <div style={{ fontSize: 10, color: "#3d424f", flexShrink: 0 }}>{fmtAgo(e.ago)}</div>
                     </div>
                   );
                 })}
               </div>
 
-              <div style={{ fontSize: 10, color: "#222", textAlign: "center", marginTop: 16 }}>
+              <div style={{ fontSize: 10, color: "#2b2f3a", textAlign: "center", marginTop: 16 }}>
                 All activity is anonymized. Updates every 30s.
               </div>
             </div>
@@ -2872,7 +2872,7 @@ export default function ToT() {
             const inningLabel = live.inning ? `${live.inningHalf === "top" ? "▲" : "▼"}${live.inning}` : "";
 
             return (
-              <div style={{ background: "#0d0d0d", border: `1px solid ${isLive ? "rgba(255,214,0,0.25)" : isFin ? "#1a1a1a" : "#1a1a1a"}`, borderRadius: 14, padding: 16 }}>
+              <div style={{ background: "linear-gradient(155deg, #1c202a, #14161c)", border: `1px solid ${isLive ? "rgba(255,214,0,0.25)" : isFin ? "#242832" : "#242832"}`, borderRadius: 14, padding: 16 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     {isLive && <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#FFD600", display: "inline-block", animation: "pulse 1.5s ease-in-out infinite" }} />}
@@ -2894,12 +2894,12 @@ export default function ToT() {
                     <div style={{ textAlign: "center", minWidth: 64 }}>
                       <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 22, fontWeight: 700, letterSpacing: 2 }}>
                         <span style={{ color: (live.awayScore ?? 0) > (live.homeScore ?? 0) ? "#fff" : "#555" }}>{as}</span>
-                        <span style={{ color: "#333", margin: "0 4px" }}>·</span>
+                        <span style={{ color: "#3d424f", margin: "0 4px" }}>·</span>
                         <span style={{ color: (live.homeScore ?? 0) > (live.awayScore ?? 0) ? "#fff" : "#555" }}>{hs}</span>
                       </div>
                     </div>
                   ) : (
-                    <div style={{ textAlign: "center", minWidth: 48, fontSize: 10, color: "#333" }}>@</div>
+                    <div style={{ textAlign: "center", minWidth: 48, fontSize: 10, color: "#3d424f" }}>@</div>
                   )}
                   <div style={{ flex: 1, textAlign: "right" }}>
                     <div style={{ fontSize: 13, fontWeight: modelPick === g.homeTeam ? 700 : 400, color: modelPick === g.homeTeam ? "#fff" : "#888" }}>{g.homeTeam.split(" ").pop()}</div>
@@ -2907,7 +2907,7 @@ export default function ToT() {
                   </div>
                 </div>
 
-                <div style={{ borderTop: "1px solid #1a1a1a", marginTop: 10, paddingTop: 10, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ borderTop: "1px solid #242832", marginTop: 10, paddingTop: 10, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <div style={{ fontSize: 12 }}>
                     <span style={{ color: "#555" }}>Model: </span>
                     <span style={{ color: "#00FF87", fontWeight: 700 }}>{modelPick.split(" ").pop()}</span>
@@ -2935,7 +2935,7 @@ export default function ToT() {
             <div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                 <div style={{ fontSize: 10, color: "#555", letterSpacing: 1 }}>AUTO-REFRESHES EVERY 60s</div>
-                {liveLoading && <div style={{ width: 14, height: 14, border: "2px solid #222", borderTopColor: "#FFD600", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />}
+                {liveLoading && <div style={{ width: 14, height: 14, border: "2px solid #2b2f3a", borderTopColor: "#FFD600", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />}
                 <button onClick={fetchLive} style={{ background: "none", border: "none", color: "#555", fontSize: 12, cursor: "pointer", padding: 0 }}>↺ Refresh</button>
               </div>
 
@@ -3015,7 +3015,7 @@ export default function ToT() {
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                       {suggestions.map(s => (
                         <button key={s} onClick={() => sendChat(s)}
-                          style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 20, padding: "7px 13px", color: "#888", fontSize: 12, cursor: "pointer" }}>
+                          style={{ background: "linear-gradient(155deg, #1c202a, #14161c)", border: "1px solid #242832", borderRadius: 20, padding: "7px 13px", color: "#888", fontSize: 12, cursor: "pointer" }}>
                           {s}
                         </button>
                       ))}
@@ -3026,8 +3026,8 @@ export default function ToT() {
                   <div key={i} style={{ marginBottom: 12, display: "flex", flexDirection: "column", alignItems: m.role === "user" ? "flex-end" : "flex-start" }}>
                     <div style={{
                       maxWidth: "85%", padding: "10px 14px", borderRadius: m.role === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
-                      background: m.role === "user" ? "rgba(0,255,135,0.12)" : "#0d0d0d",
-                      border: `1px solid ${m.role === "user" ? "rgba(0,255,135,0.2)" : "#1a1a1a"}`,
+                      background: m.role === "user" ? "rgba(0,255,135,0.12)" : "#1c1f26",
+                      border: `1px solid ${m.role === "user" ? "rgba(0,255,135,0.2)" : "#242832"}`,
                       fontSize: 13, color: m.role === "user" ? "#e0e0e0" : "#ccc", lineHeight: 1.6, whiteSpace: "pre-wrap",
                     }}>
                       {m.content}
@@ -3036,7 +3036,7 @@ export default function ToT() {
                 ))}
                 {chatLoading && (
                   <div style={{ display: "flex", gap: 4, padding: "8px 4px" }}>
-                    {[0,1,2].map(i => <div key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: "#333", animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite` }} />)}
+                    {[0,1,2].map(i => <div key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: "#3d424f", animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite` }} />)}
                   </div>
                 )}
                 <div ref={chatEndRef} />
@@ -3048,10 +3048,10 @@ export default function ToT() {
                   onChange={e => setChatInput(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), sendChat(chatInput))}
                   placeholder="Ask about today's games..."
-                  style={{ flex: 1, background: "#0a0a0a", border: "1px solid #1a1a1a", borderRadius: 20, padding: "10px 16px", color: "#fff", fontSize: 13, outline: "none" }}
+                  style={{ flex: 1, background: "linear-gradient(160deg, #14161c, #0d0e12)", border: "1px solid #242832", borderRadius: 20, padding: "10px 16px", color: "#fff", fontSize: 13, outline: "none" }}
                 />
                 <button onClick={() => sendChat(chatInput)} disabled={chatLoading || !chatInput.trim()}
-                  style={{ background: chatInput.trim() ? "#00FF87" : "#1a1a1a", border: "none", borderRadius: 20, padding: "10px 18px", color: chatInput.trim() ? "#000" : "#444", fontSize: 13, fontWeight: 700, cursor: chatInput.trim() ? "pointer" : "default", transition: "all 0.15s" }}>
+                  style={{ background: chatInput.trim() ? "#00FF87" : "#242832", border: "none", borderRadius: 20, padding: "10px 18px", color: chatInput.trim() ? "#000" : "#444", fontSize: 13, fontWeight: 700, cursor: chatInput.trim() ? "pointer" : "default", transition: "all 0.15s" }}>
                   Send
                 </button>
               </div>
@@ -3078,20 +3078,20 @@ export default function ToT() {
 
         {activeTab === "settings" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <div style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 14, padding: "16px 18px" }}>
+            <div style={{ background: "linear-gradient(155deg, #1c202a, #14161c)", border: "1px solid #242832", borderRadius: 14, padding: "16px 18px" }}>
               <div style={{ fontSize: 10, color: "#555", letterSpacing: 1.5, fontWeight: 700, marginBottom: 10 }}>ACCOUNT</div>
               <div style={{ fontSize: 14, color: "#fff", marginBottom: 6 }}>{user?.email}</div>
               <span style={{
                 display: "inline-block", fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 20, letterSpacing: 0.5,
                 background: isPro ? "rgba(0,255,135,0.1)" : "rgba(136,136,136,0.1)",
                 color: isPro ? "#00FF87" : "#888",
-                border: `1px solid ${isPro ? "rgba(0,255,135,0.3)" : "#333"}`,
+                border: `1px solid ${isPro ? "rgba(0,255,135,0.3)" : "#3d424f"}`,
               }}>
                 {isPro ? "⚡ PRO" : "FREE"}
               </span>
             </div>
 
-            <div style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 14, padding: "16px 18px" }}>
+            <div style={{ background: "linear-gradient(155deg, #1c202a, #14161c)", border: "1px solid #242832", borderRadius: 14, padding: "16px 18px" }}>
               <div style={{ fontSize: 10, color: "#555", letterSpacing: 1.5, fontWeight: 700, marginBottom: 10 }}>PREFERENCES</div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <div>
@@ -3104,13 +3104,13 @@ export default function ToT() {
                     type="number"
                     value={unitSize}
                     onChange={e => setUnitSize(Math.max(1, parseInt(e.target.value) || 10))}
-                    style={{ width: 64, background: "#111", border: "1px solid #222", borderRadius: 6, color: "#fff", fontSize: 14, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, padding: "6px 8px", textAlign: "right" }}
+                    style={{ width: 64, background: "#181b22", border: "1px solid #2b2f3a", borderRadius: 6, color: "#fff", fontSize: 14, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, padding: "6px 8px", textAlign: "right" }}
                   />
                 </div>
               </div>
             </div>
 
-            <div style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 14, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ background: "linear-gradient(155deg, #1c202a, #14161c)", border: "1px solid #242832", borderRadius: 14, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
               <div style={{ fontSize: 10, color: "#555", letterSpacing: 1.5, fontWeight: 700, marginBottom: 2 }}>BILLING</div>
               {isPro ? (
                 <>
@@ -3129,7 +3129,7 @@ export default function ToT() {
               Sign Out
             </button>
 
-            <div style={{ background: "#0d0d0d", border: "1px solid rgba(255,77,77,0.2)", borderRadius: 14, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ background: "linear-gradient(155deg, #1c202a, #14161c)", border: "1px solid rgba(255,77,77,0.2)", borderRadius: 14, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
               <div style={{ fontSize: 10, color: "#FF4D4D", letterSpacing: 1.5, fontWeight: 700, marginBottom: 2 }}>DANGER ZONE</div>
               <button
                 style={{ ...S.saveBtn, textAlign: "left", padding: "10px 12px", color: "#FF4D4D", borderColor: "rgba(255,77,77,0.3)" }}
@@ -3146,10 +3146,10 @@ export default function ToT() {
       {upgradeModal && (
         <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
           onClick={() => setUpgradeModal(false)}>
-          <div style={{ width: "100%", maxWidth: 500, background: "#0a0a0a", borderRadius: "24px 24px 0 0", border: "1px solid #1a1a1a", borderBottom: "none", padding: "0 0 max(24px, env(safe-area-inset-bottom)) 0", animation: "slideUp 0.3s cubic-bezier(0.32,0.72,0,1)" }}
+          <div style={{ width: "100%", maxWidth: 500, background: "linear-gradient(160deg, #14161c, #0d0e12)", borderRadius: "24px 24px 0 0", border: "1px solid #242832", borderBottom: "none", padding: "0 0 max(24px, env(safe-area-inset-bottom)) 0", animation: "slideUp 0.3s cubic-bezier(0.32,0.72,0,1)" }}
             onClick={e => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "center", padding: "12px 0 4px" }}>
-              <div style={{ width: 36, height: 4, borderRadius: 2, background: "#222" }} />
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: "#2b2f3a" }} />
             </div>
             <div style={{ padding: "16px 24px 8px" }}>
               <div style={{ textAlign: "center", marginBottom: 20 }}>
@@ -3160,7 +3160,7 @@ export default function ToT() {
               </div>
               <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
                 <button onClick={() => startCheckout("monthly")} disabled={!!checkingOut}
-                  style={{ flex: 1, background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 14, padding: "16px 12px", cursor: "pointer", textAlign: "center" }}>
+                  style={{ flex: 1, background: "linear-gradient(155deg, #1c202a, #14161c)", border: "1px solid #242832", borderRadius: 14, padding: "16px 12px", cursor: "pointer", textAlign: "center" }}>
                   <div style={{ fontSize: 10, color: "#999", letterSpacing: 1, marginBottom: 4 }}>MONTHLY</div>
                   <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 26, fontWeight: 700, color: "#fff" }}>$2</div>
                   <div style={{ fontSize: 12, color: "#888", marginTop: 3 }}>per month</div>
@@ -3175,7 +3175,7 @@ export default function ToT() {
                   {checkingOut === "annual" && <div style={{ color: "#00FF87", fontSize: 11, marginTop: 4 }}>Redirecting…</div>}
                 </button>
               </div>
-              <div style={{ fontSize: 11, color: "#333", textAlign: "center", marginBottom: 14 }}>Cancel anytime · Secure payment via Stripe</div>
+              <div style={{ fontSize: 11, color: "#3d424f", textAlign: "center", marginBottom: 14 }}>Cancel anytime · Secure payment via Stripe</div>
               <div style={{ borderTop: "1px solid #111", paddingTop: 14, marginBottom: 12 }}>
                 <div style={{ fontSize: 12, color: "#555", textAlign: "center", marginBottom: 10 }}>Have an access code?</div>
                 {codeStatus === "ok" ? (
@@ -3222,7 +3222,7 @@ export default function ToT() {
       {toastQueue.length > 0 && (() => {
         const t = toastQueue[0];
         return (
-          <div style={{ position: "fixed", bottom: 90, left: "50%", transform: "translateX(-50%)", zIndex: 9998, width: "calc(100% - 40px)", maxWidth: 420, background: "#111", border: `1px solid ${t.color}44`, borderRadius: 14, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.7)", animation: "fadeUp 0.3s ease" }}>
+          <div style={{ position: "fixed", bottom: 90, left: "50%", transform: "translateX(-50%)", zIndex: 9998, width: "calc(100% - 40px)", maxWidth: 420, background: "#181b22", border: `1px solid ${t.color}44`, borderRadius: 14, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.7)", animation: "fadeUp 0.3s ease" }}>
             <span style={{ fontSize: 22, flexShrink: 0 }}>{t.icon}</span>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 2 }}>{t.message}</div>
@@ -3236,10 +3236,10 @@ export default function ToT() {
       {showCancelModal && (
         <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.82)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
           onClick={() => setShowCancelModal(false)}>
-          <div style={{ width: "100%", maxWidth: 500, background: "#0a0a0a", borderRadius: "24px 24px 0 0", border: "1px solid #1a1a1a", borderBottom: "none", padding: "0 0 max(28px, env(safe-area-inset-bottom)) 0", animation: "slideUp 0.3s cubic-bezier(0.32,0.72,0,1)" }}
+          <div style={{ width: "100%", maxWidth: 500, background: "linear-gradient(160deg, #14161c, #0d0e12)", borderRadius: "24px 24px 0 0", border: "1px solid #242832", borderBottom: "none", padding: "0 0 max(28px, env(safe-area-inset-bottom)) 0", animation: "slideUp 0.3s cubic-bezier(0.32,0.72,0,1)" }}
             onClick={e => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "center", padding: "12px 0 4px" }}>
-              <div style={{ width: 36, height: 4, borderRadius: 2, background: "#222" }} />
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: "#2b2f3a" }} />
             </div>
             <div style={{ padding: "16px 24px 8px" }}>
               <div style={{ textAlign: "center", marginBottom: 20 }}>
@@ -3250,31 +3250,31 @@ export default function ToT() {
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
                 {decisioned > 0 && (
-                  <div style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 12, padding: "14px 12px", textAlign: "center" }}>
+                  <div style={{ background: "linear-gradient(155deg, #1c202a, #14161c)", border: "1px solid #242832", borderRadius: 12, padding: "14px 12px", textAlign: "center" }}>
                     <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 22, fontWeight: 700, color: winPct >= 55 ? "#00FF87" : winPct >= 50 ? "#FFD600" : "#FF4D4D" }}>{winPct}%</div>
                     <div style={{ fontSize: 10, color: "#444", marginTop: 3, letterSpacing: 1 }}>YOUR WIN RATE</div>
-                    <div style={{ fontSize: 11, color: "#333", marginTop: 2 }}>{decisioned} settled picks</div>
+                    <div style={{ fontSize: 11, color: "#3d424f", marginTop: 2 }}>{decisioned} settled picks</div>
                   </div>
                 )}
                 {pnl !== 0 && (
-                  <div style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 12, padding: "14px 12px", textAlign: "center" }}>
+                  <div style={{ background: "linear-gradient(155deg, #1c202a, #14161c)", border: "1px solid #242832", borderRadius: 12, padding: "14px 12px", textAlign: "center" }}>
                     <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 22, fontWeight: 700, color: pnl >= 0 ? "#00FF87" : "#FF4D4D" }}>{pnl >= 0 ? "+" : ""}${Math.abs(pnl).toFixed(0)}</div>
                     <div style={{ fontSize: 10, color: "#444", marginTop: 3, letterSpacing: 1 }}>YOUR P&L</div>
-                    <div style={{ fontSize: 11, color: "#333", marginTop: 2 }}>at ${unitSize}/unit</div>
+                    <div style={{ fontSize: 11, color: "#3d424f", marginTop: 2 }}>at ${unitSize}/unit</div>
                   </div>
                 )}
                 {modelRecord?.pct != null && (
-                  <div style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 12, padding: "14px 12px", textAlign: "center" }}>
+                  <div style={{ background: "linear-gradient(155deg, #1c202a, #14161c)", border: "1px solid #242832", borderRadius: 12, padding: "14px 12px", textAlign: "center" }}>
                     <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 22, fontWeight: 700, color: modelRecord.pct >= 55 ? "#00FF87" : "#FFD600" }}>{modelRecord.pct}%</div>
                     <div style={{ fontSize: 10, color: "#444", marginTop: 3, letterSpacing: 1 }}>MODEL WIN RATE</div>
-                    <div style={{ fontSize: 11, color: "#333", marginTop: 2 }}>{modelRecord.wins}–{modelRecord.losses} all-time</div>
+                    <div style={{ fontSize: 11, color: "#3d424f", marginTop: 2 }}>{modelRecord.wins}–{modelRecord.losses} all-time</div>
                   </div>
                 )}
                 {modelStreak?.streak >= 2 && (
                   <div style={{ background: modelStreak.streakType === "win" ? "rgba(0,255,135,0.05)" : "rgba(255,77,77,0.05)", border: `1px solid ${modelStreak.streakType === "win" ? "rgba(0,255,135,0.2)" : "rgba(255,77,77,0.15)"}`, borderRadius: 12, padding: "14px 12px", textAlign: "center" }}>
                     <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 22, fontWeight: 700, color: modelStreak.streakType === "win" ? "#00FF87" : "#FF4D4D" }}>{modelStreak.streak}</div>
                     <div style={{ fontSize: 10, color: "#444", marginTop: 3, letterSpacing: 1 }}>DAY {modelStreak.streakType === "win" ? "WIN" : "LOSS"} STREAK</div>
-                    <div style={{ fontSize: 11, color: "#333", marginTop: 2 }}>{modelStreak.streakType === "win" ? "Model is hot 🔥" : "Bounce-back due"}</div>
+                    <div style={{ fontSize: 11, color: "#3d424f", marginTop: 2 }}>{modelStreak.streakType === "win" ? "Model is hot 🔥" : "Bounce-back due"}</div>
                   </div>
                 )}
               </div>
@@ -3291,7 +3291,7 @@ export default function ToT() {
                 Keep Pro — stay sharp
               </button>
               <button
-                style={{ width: "100%", background: "transparent", border: "1px solid #1a1a1a", borderRadius: 12, padding: "12px", fontSize: 13, color: "#444", cursor: "pointer", marginBottom: 4 }}
+                style={{ width: "100%", background: "transparent", border: "1px solid #242832", borderRadius: 12, padding: "12px", fontSize: 13, color: "#444", cursor: "pointer", marginBottom: 4 }}
                 onClick={() => { setShowCancelModal(false); goToBillingPortal("cancel"); }}>
                 Cancel subscription →
               </button>
@@ -3303,10 +3303,10 @@ export default function ToT() {
       {showDeleteModal && (
         <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.82)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
           onClick={() => !deleting && setShowDeleteModal(false)}>
-          <div style={{ width: "100%", maxWidth: 500, background: "#0a0a0a", borderRadius: "24px 24px 0 0", border: "1px solid rgba(255,77,77,0.25)", borderBottom: "none", padding: "0 0 max(28px, env(safe-area-inset-bottom)) 0", animation: "slideUp 0.3s cubic-bezier(0.32,0.72,0,1)" }}
+          <div style={{ width: "100%", maxWidth: 500, background: "linear-gradient(160deg, #14161c, #0d0e12)", borderRadius: "24px 24px 0 0", border: "1px solid rgba(255,77,77,0.25)", borderBottom: "none", padding: "0 0 max(28px, env(safe-area-inset-bottom)) 0", animation: "slideUp 0.3s cubic-bezier(0.32,0.72,0,1)" }}
             onClick={e => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "center", padding: "12px 0 4px" }}>
-              <div style={{ width: 36, height: 4, borderRadius: 2, background: "#222" }} />
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: "#2b2f3a" }} />
             </div>
             <div style={{ padding: "16px 24px 8px" }}>
               <div style={{ textAlign: "center", marginBottom: 20 }}>
@@ -3327,13 +3327,13 @@ export default function ToT() {
               />
 
               <button
-                style={{ width: "100%", background: deleteConfirmText === "DELETE" ? "#FF4D4D" : "#1a1a1a", color: deleteConfirmText === "DELETE" ? "#fff" : "#555", border: "none", borderRadius: 12, padding: "14px", fontSize: 15, fontWeight: 800, cursor: deleteConfirmText === "DELETE" ? "pointer" : "not-allowed", marginBottom: 10 }}
+                style={{ width: "100%", background: deleteConfirmText === "DELETE" ? "#FF4D4D" : "#242832", color: deleteConfirmText === "DELETE" ? "#fff" : "#555", border: "none", borderRadius: 12, padding: "14px", fontSize: 15, fontWeight: 800, cursor: deleteConfirmText === "DELETE" ? "pointer" : "not-allowed", marginBottom: 10 }}
                 disabled={deleteConfirmText !== "DELETE" || deleting}
                 onClick={deleteAccount}>
                 {deleting ? "Deleting…" : "Permanently delete my account"}
               </button>
               <button
-                style={{ width: "100%", background: "transparent", border: "1px solid #1a1a1a", borderRadius: 12, padding: "12px", fontSize: 13, color: "#444", cursor: "pointer", marginBottom: 4 }}
+                style={{ width: "100%", background: "transparent", border: "1px solid #242832", borderRadius: 12, padding: "12px", fontSize: 13, color: "#444", cursor: "pointer", marginBottom: 4 }}
                 disabled={deleting}
                 onClick={() => setShowDeleteModal(false)}>
                 Never mind
@@ -3354,9 +3354,9 @@ export default function ToT() {
       <div style={S.legal}>
         For entertainment only · Not gambling advice · Must be 21+ in a legal jurisdiction
         {" · "}
-        <a href="/terms" style={{ color: "#222", textDecoration: "underline" }}>Terms</a>
+        <a href="/terms" style={{ color: "#2b2f3a", textDecoration: "underline" }}>Terms</a>
         {" · "}
-        <a href="/privacy" style={{ color: "#222", textDecoration: "underline" }}>Privacy</a>
+        <a href="/privacy" style={{ color: "#2b2f3a", textDecoration: "underline" }}>Privacy</a>
         <br />
         Problem gambling? Call <span style={{ color: "#777" }}>1-800-GAMBLER</span>
       </div>
@@ -3407,7 +3407,7 @@ function SearchOverlay({ open, onClose, picks, nflPicks, savedPicks }) {
       <div key={`${prefix}-${p.id}`}>
         <div
           onClick={() => setActiveId(isOpen ? null : `${prefix}-${p.id}`)}
-          style={{ padding: "10px 16px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #141414" }}
+          style={{ padding: "10px 16px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #1c1f26" }}
         >
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: "#eee" }}>{p.awayTeam} @ {p.homeTeam}</div>
@@ -3416,7 +3416,7 @@ function SearchOverlay({ open, onClose, picks, nflPicks, savedPicks }) {
           <span style={{ color: "#444", fontSize: 12 }}>{isOpen ? "▲" : "▼"}</span>
         </div>
         {isOpen && (
-          <div style={{ padding: "0 16px 14px", background: "#080808" }}>
+          <div style={{ padding: "0 16px 14px", background: "#10131a" }}>
             <WinPctRow homeTeam={p.homeTeam} awayTeam={p.awayTeam} homeOdds={p.homeOdds} awayOdds={p.awayOdds} openHomeOdds={p.openHomeOdds} openAwayOdds={p.openAwayOdds} />
             {p.filter && (
               <div style={{ fontSize: 11, color: "#888", marginTop: 6 }}>
@@ -3432,8 +3432,8 @@ function SearchOverlay({ open, onClose, picks, nflPicks, savedPicks }) {
 
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "8vh 16px 16px" }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 480, background: "#0a0a0a", border: "1px solid #1e1e1e", borderRadius: 16, overflow: "hidden", maxHeight: "76vh", display: "flex", flexDirection: "column", animation: "fadeUp 0.15s ease" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", borderBottom: "1px solid #1a1a1a" }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 480, background: "linear-gradient(160deg, #14161c, #0d0e12)", border: "1px solid #1e1e1e", borderRadius: 16, overflow: "hidden", maxHeight: "76vh", display: "flex", flexDirection: "column", animation: "fadeUp 0.15s ease" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", borderBottom: "1px solid #242832" }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="11" cy="11" r="7" />
             <line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -3480,7 +3480,7 @@ function SearchOverlay({ open, onClose, picks, nflPicks, savedPicks }) {
                   <div key={p.id}>
                     <div
                       onClick={() => setActiveId(isOpen ? null : `t-${p.id}`)}
-                      style={{ padding: "10px 16px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #141414" }}
+                      style={{ padding: "10px 16px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #1c1f26" }}
                     >
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 600, color: "#eee" }}>{p.away_team} @ {p.home_team}</div>
@@ -3489,7 +3489,7 @@ function SearchOverlay({ open, onClose, picks, nflPicks, savedPicks }) {
                       <span style={{ fontSize: 11, fontWeight: 700, color: resultColor, textTransform: "uppercase" }}>{p.result}</span>
                     </div>
                     {isOpen && (
-                      <div style={{ padding: "0 16px 14px", background: "#080808", fontSize: 12, color: "#666" }}>
+                      <div style={{ padding: "0 16px 14px", background: "#10131a", fontSize: 12, color: "#666" }}>
                         {p.commence_time ? new Date(p.commence_time).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : ""} · Tier: {p.tier || "—"}
                       </div>
                     )}
@@ -3519,68 +3519,68 @@ const css = `
 `;
 
 const S = {
-  page: { minHeight: "100vh", background: "#000", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 20, gap: 20 },
-  previewBox: { width: "100%", maxWidth: 480, border: "1px solid #2a2a2a", borderRadius: 16, padding: 20, background: "#0d0d0d" },
+  page: { minHeight: "100vh", background: "radial-gradient(1200px 600px at 50% -10%, rgba(0,255,135,0.08), transparent 60%), #0a0b0f", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 20, gap: 20 },
+  previewBox: { width: "100%", maxWidth: 480, border: "1px solid #333947", borderRadius: 16, padding: 20, background: "linear-gradient(155deg, #1c202a, #14161c)", boxShadow: "0 12px 32px rgba(0,0,0,0.45)" },
   previewTag: { fontSize: 10, fontWeight: 700, color: "#00FF87", letterSpacing: 2, marginBottom: 10 },
   previewMatchup: { fontFamily: "'JetBrains Mono',monospace", fontSize: 17, fontWeight: 700 },
   previewReason: { fontSize: 13, color: "#888", marginTop: 10, lineHeight: 1.6 },
   authBox: { width: "100%", maxWidth: 480, display: "flex", flexDirection: "column", gap: 12 },
   logo: { fontFamily: "'JetBrains Mono',monospace", fontSize: 36, fontWeight: 700, textAlign: "center", letterSpacing: -1 },
   authSub: { fontSize: 14, color: "#888", textAlign: "center" },
-  googleBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: 13, borderRadius: 10, background: "#141414", border: "1px solid #2a2a2a", color: "#fff", fontSize: 14, fontWeight: 500 },
+  googleBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: 13, borderRadius: 10, background: "#1b1e26", border: "1px solid #333947", color: "#fff", fontSize: 14, fontWeight: 500 },
   orRow: { display: "flex", alignItems: "center" },
-  orLine: { flex: 1, height: 1, background: "#222" },
-  input: { padding: "13px 16px", borderRadius: 10, background: "#0d0d0d", border: "1px solid #2a2a2a", color: "#fff", fontSize: 14, width: "100%" },
-  primaryBtn: { padding: 14, borderRadius: 10, background: "#00FF87", color: "#000", fontSize: 14, fontWeight: 700, width: "100%" },
+  orLine: { flex: 1, height: 1, background: "#2b2f3a" },
+  input: { padding: "13px 16px", borderRadius: 10, background: "linear-gradient(155deg, #1c202a, #14161c)", border: "1px solid #333947", color: "#fff", fontSize: 14, width: "100%" },
+  primaryBtn: { padding: 14, borderRadius: 10, background: "#00FF87", color: "#000", fontSize: 14, fontWeight: 700, width: "100%", boxShadow: "0 4px 20px rgba(0,255,135,0.25)" },
   errMsg: { fontSize: 12, color: "#FF4D4D", textAlign: "center" },
   switchRow: { fontSize: 13, color: "#777", textAlign: "center" },
-  app: { minHeight: "100vh", width: "100%", background: "#000", display: "flex", flexDirection: "column" },
+  app: { minHeight: "100vh", width: "100%", background: "radial-gradient(1200px 500px at 50% -12%, rgba(0,255,135,0.06), transparent 60%), #0a0b0f", display: "flex", flexDirection: "column" },
   overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 1000, display: "flex" },
-  drawer: { width: 270, background: "#0a0a0a", borderRight: "1px solid #222", minHeight: "100vh", padding: 24, display: "flex", flexDirection: "column", gap: 4, animation: "slideIn 0.2s ease", overflowY: "auto" },
+  drawer: { width: 270, background: "linear-gradient(160deg, #14161c, #0d0e12)", borderRight: "1px solid #2b2f3a", minHeight: "100vh", padding: 24, display: "flex", flexDirection: "column", gap: 4, animation: "slideIn 0.2s ease", overflowY: "auto", boxShadow: "8px 0 30px rgba(0,0,0,0.5)" },
   drawerLogo: { fontFamily: "'JetBrains Mono',monospace", fontSize: 24, fontWeight: 700, marginBottom: 4 },
   drawerEmail: { fontSize: 12, color: "#666", marginBottom: 8 },
-  drawerLine: { height: 1, background: "#222", margin: "12px 0" },
+  drawerLine: { height: 1, background: "#2b2f3a", margin: "12px 0" },
   drawerItem: { padding: "11px 0", fontSize: 15, fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", gap: 10 },
   drawerSectionLabel: { fontSize: 10, fontWeight: 700, color: "#999", letterSpacing: 1.5, marginBottom: 10 },
-  accuracyCard: { background: "#111", border: "1px solid #222", borderRadius: 10, padding: 12 },
-  nav: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid #1a1a1a", position: "sticky", top: 0, background: "rgba(0,0,0,0.97)", backdropFilter: "blur(12px)", zIndex: 100 },
+  accuracyCard: { background: "#181b22", border: "1px solid #2b2f3a", borderRadius: 10, padding: 12 },
+  nav: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid #242832", position: "sticky", top: 0, background: "rgba(10,11,15,0.97)", backdropFilter: "blur(12px)", zIndex: 100, boxShadow: "0 4px 20px -8px rgba(0,0,0,0.5)" },
   menuBtn: { background: "none", display: "flex", flexDirection: "column", gap: 5, padding: 4 },
   menuLine: { width: 22, height: 2, background: "#ccc", borderRadius: 1 },
   navLogo: { fontFamily: "'JetBrains Mono',monospace", fontSize: 20, fontWeight: 700, letterSpacing: -1 },
-  navBadge: { fontSize: 11, fontWeight: 700, color: "#000", background: "#00FF87", padding: "3px 10px", borderRadius: 20, letterSpacing: 0.5 },
-  carousel: { margin: "12px 20px", border: "1px solid #222", borderRadius: 14, padding: "16px 18px", background: "#0d0d0d", height: 100, overflow: "hidden" },
+  navBadge: { fontSize: 11, fontWeight: 700, color: "#000", background: "#00FF87", padding: "3px 10px", borderRadius: 20, letterSpacing: 0.5, boxShadow: "0 2px 10px rgba(0,255,135,0.3)" },
+  carousel: { margin: "12px 20px", border: "1px solid #2b2f3a", borderRadius: 14, padding: "16px 18px", background: "linear-gradient(155deg, #1c202a, #14161c)", height: 100, overflow: "hidden", boxShadow: "0 4px 18px rgba(0,0,0,0.35)" },
   carouselTag: { fontSize: 9, fontWeight: 700, color: "#00FF87", letterSpacing: 2, marginBottom: 6 },
   carouselMatchup: { fontFamily: "'JetBrains Mono',monospace", fontSize: 15, fontWeight: 700 },
-  dateScroll: { display: "flex", gap: 6, padding: "10px 20px", overflowX: "auto", borderBottom: "1px solid #1a1a1a" },
+  dateScroll: { display: "flex", gap: 6, padding: "10px 20px", overflowX: "auto", borderBottom: "1px solid #242832" },
   dateBtn: { flexShrink: 0, padding: "7px 16px", borderRadius: 20, fontSize: 12, fontWeight: 600, border: "1px solid", letterSpacing: 0.3, whiteSpace: "nowrap" },
-  subNav: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 20px", borderBottom: "1px solid #1a1a1a" },
-  tabBtn: { padding: "6px 16px", borderRadius: 20, fontSize: 12, fontWeight: 600, background: "#111", border: "1px solid #2a2a2a", letterSpacing: 0.3 },
-  sortBtn: { width: 32, height: 32, borderRadius: 8, fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", background: "#111", border: "1px solid #2a2a2a" },
+  subNav: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 20px", borderBottom: "1px solid #242832" },
+  tabBtn: { padding: "6px 16px", borderRadius: 20, fontSize: 12, fontWeight: 600, background: "#181b22", border: "1px solid #333947", letterSpacing: 0.3 },
+  sortBtn: { width: 32, height: 32, borderRadius: 8, fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", background: "#181b22", border: "1px solid #333947" },
   content: { flex: 1, padding: "12px 20px 40px", display: "flex", flexDirection: "column", gap: 10, overflowY: "auto" },
   center: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 60, textAlign: "center" },
-  spinner: { width: 28, height: 28, border: "2px solid #222", borderTopColor: "#00FF87", borderRadius: "50%", animation: "spin 0.7s linear infinite" },
-  card: { background: "#0d0d0d", border: "1px solid", borderRadius: 14, padding: 16, transition: "border-color 0.2s", animation: "fadeUp 0.3s ease" },
+  spinner: { width: 28, height: 28, border: "2px solid #2b2f3a", borderTopColor: "#00FF87", borderRadius: "50%", animation: "spin 0.7s linear infinite" },
+  card: { background: "linear-gradient(155deg, #1c202a, #14161c)", border: "1px solid", borderRadius: 14, padding: 16, transition: "border-color 0.2s, box-shadow 0.2s", animation: "fadeUp 0.3s ease", boxShadow: "0 4px 18px rgba(0,0,0,0.35)" },
   cardTop: { display: "flex", alignItems: "flex-start", gap: 10 },
   badge: { display: "inline-block", fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 6, letterSpacing: 0.3, marginBottom: 6 },
   cardMatchup: { fontFamily: "'JetBrains Mono',monospace", fontSize: 14, fontWeight: 700, marginTop: 2 },
   cardMeta: { fontSize: 12, color: "#777", marginTop: 4 },
   saveBtn: { fontSize: 11, fontWeight: 700, padding: "6px 12px", borderRadius: 8, border: "1px solid", letterSpacing: 0.3 },
-  expandBtn: { width: 32, height: 32, borderRadius: 8, background: "#111", border: "1px solid #333", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", color: "#888" },
-  pitchRow: { display: "flex", alignItems: "center", gap: 8, marginTop: 10, padding: "10px 12px", background: "#080808", borderRadius: 10, border: "1px solid #222" },
+  expandBtn: { width: 32, height: 32, borderRadius: 8, background: "#181b22", border: "1px solid #3d424f", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", color: "#888" },
+  pitchRow: { display: "flex", alignItems: "center", gap: 8, marginTop: 10, padding: "10px 12px", background: "#10131a", borderRadius: 10, border: "1px solid #2b2f3a" },
   pitchBox: { flex: 1 },
   pitchLabel: { fontSize: 9, fontWeight: 700, color: "#999", letterSpacing: 1.5, marginBottom: 3 },
   pitchName: { fontSize: 12, fontWeight: 600, color: "#aaa" },
   pitchVs: { fontSize: 10, fontWeight: 700, color: "#888" },
-  preview: { fontSize: 13, color: "#888", lineHeight: 1.6, marginTop: 10, paddingTop: 10, borderTop: "1px solid #1a1a1a" },
-  expDivider: { height: 1, background: "#1a1a1a", margin: "12px 0" },
+  preview: { fontSize: 13, color: "#888", lineHeight: 1.6, marginTop: 10, paddingTop: 10, borderTop: "1px solid #242832" },
+  expDivider: { height: 1, background: "#242832", margin: "12px 0" },
   expSection: { marginBottom: 12 },
   expLabel: { fontSize: 10, fontWeight: 700, color: "#999", letterSpacing: 1.5, marginBottom: 6 },
   expText: { fontSize: 13, color: "#999", lineHeight: 1.6 },
-  statBox: { flex: 1, background: "#080808", borderRadius: 8, padding: "10px 12px", border: "1px solid #222" },
-  statCard: { background: "#0d0d0d", border: "1px solid #222", borderRadius: 12, padding: 14, textAlign: "center" },
+  statBox: { flex: 1, background: "#10131a", borderRadius: 8, padding: "10px 12px", border: "1px solid #2b2f3a" },
+  statCard: { background: "linear-gradient(155deg, #1c202a, #14161c)", border: "1px solid #2b2f3a", borderRadius: 12, padding: 14, textAlign: "center", boxShadow: "0 4px 18px rgba(0,0,0,0.35)" },
   statLabel: { fontSize: 10, color: "#999", marginBottom: 3, marginTop: 4 },
   statVal: { fontSize: 14, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace" },
-  trashBtn: { background: "#111", border: "1px solid #222", borderRadius: 6, fontSize: 15, cursor: "pointer", padding: "4px 8px", opacity: 0.8 },
+  trashBtn: { background: "#181b22", border: "1px solid #2b2f3a", borderRadius: 6, fontSize: 15, cursor: "pointer", padding: "4px 8px", opacity: 0.8 },
   resultBtn: { flex: 1, padding: "10px", borderRadius: 10, border: "2px solid", fontSize: 13, fontWeight: 800 },
   legal: { padding: "14px 20px", borderTop: "1px solid #111", textAlign: "center", fontSize: 10, color: "#777", lineHeight: 1.9 },
 };

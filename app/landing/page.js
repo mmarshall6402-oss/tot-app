@@ -45,11 +45,11 @@ export default function Landing() {
   ];
 
   return (
-    <div style={{ minHeight: "100vh", background: "#000", fontFamily: "'Space Grotesk', sans-serif", color: "#fff", overflowX: "hidden" }}>
+    <div style={{ minHeight: "100vh", background: "#0a0b0f", fontFamily: "'Space Grotesk', sans-serif", color: "#fff", overflowX: "hidden" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #000; }
+        body { background: radial-gradient(1400px 700px at 50% -15%, rgba(0,255,135,0.07), transparent 60%), #0a0b0f; }
         input, button, a { font-family: inherit; }
         a { text-decoration: none; }
         ::selection { background: rgba(0,255,135,0.2); }
@@ -71,30 +71,30 @@ export default function Landing() {
         .glow-green  { box-shadow: 0 0 40px rgba(0,255,135,0.12); }
         .glow-line   { background: linear-gradient(90deg, transparent, rgba(0,255,135,0.4), transparent); height:1px; width:100%; }
 
-        .pick-card   { background:#080808; border:1px solid #1a1a1a; border-radius:14px; padding:14px 16px; transition: border-color .2s; }
-        .pick-card:hover { border-color:#2a2a2a; }
+        .pick-card   { background:linear-gradient(155deg, #1c202a, #14161c); border:1px solid #242832; border-radius:14px; padding:14px 16px; transition: border-color .2s, box-shadow .2s; box-shadow: 0 4px 18px rgba(0,0,0,0.35); }
+        .pick-card:hover { border-color:#333947; }
 
-        .cta-btn     { background:#00FF87; color:#000; font-weight:800; font-size:15px; padding:15px 32px; border:none; border-radius:12px; cursor:pointer; transition: opacity .15s, transform .15s; display:inline-block; text-align:center; }
-        .cta-btn:hover { opacity:.9; transform:translateY(-1px); }
+        .cta-btn     { background:#00FF87; color:#000; font-weight:800; font-size:15px; padding:15px 32px; border:none; border-radius:12px; cursor:pointer; transition: opacity .15s, transform .15s, box-shadow .15s; display:inline-block; text-align:center; box-shadow: 0 4px 20px rgba(0,255,135,0.25); }
+        .cta-btn:hover { opacity:.9; transform:translateY(-1px); box-shadow: 0 6px 26px rgba(0,255,135,0.35); }
 
-        .ghost-btn   { background:transparent; color:#fff; font-weight:700; font-size:14px; padding:13px 28px; border:1px solid #333; border-radius:12px; cursor:pointer; transition: border-color .2s, color .2s; display:inline-block; text-align:center; }
+        .ghost-btn   { background:transparent; color:#fff; font-weight:700; font-size:14px; padding:13px 28px; border:1px solid #3d424f; border-radius:12px; cursor:pointer; transition: border-color .2s, color .2s; display:inline-block; text-align:center; }
         .ghost-btn:hover { border-color:#555; color:#fff; }
 
-        .stat-card   { background:#080808; border:1px solid #1a1a1a; border-radius:16px; padding:22px 20px; flex:1; min-width:140px; }
+        .stat-card   { background:linear-gradient(155deg, #1c202a, #14161c); border:1px solid #242832; border-radius:16px; padding:22px 20px; flex:1; min-width:140px; box-shadow: 0 4px 18px rgba(0,0,0,0.35); }
 
-        .feature-card { background:#060606; border:1px solid #111; border-radius:18px; padding:24px; flex:1; min-width:200px; }
+        .feature-card { background:linear-gradient(155deg, #17191f, #101216); border:1px solid #242832; border-radius:18px; padding:24px; flex:1; min-width:200px; box-shadow: 0 4px 18px rgba(0,0,0,0.3); }
 
         .blur-card   { position:relative; overflow:hidden; }
         .blur-mask   { position:absolute; inset:0; backdrop-filter:blur(5px); background:rgba(0,0,0,0.4); border-radius:14px; display:flex; align-items:center; justify-content:center; z-index:2; }
-        .lock-badge  { background:rgba(0,0,0,0.8); border:1px solid #222; border-radius:8px; padding:6px 12px; font-size:11px; color:#555; font-weight:700; letter-spacing:1px; }
+        .lock-badge  { background:rgba(0,0,0,0.8); border:1px solid #2b2f3a; border-radius:8px; padding:6px 12px; font-size:11px; color:#555; font-weight:700; letter-spacing:1px; }
 
-        .testimonial { background:#060606; border:1px solid #111; border-radius:16px; padding:22px 20px; }
+        .testimonial { background:linear-gradient(155deg, #17191f, #101216); border:1px solid #242832; border-radius:16px; padding:22px 20px; box-shadow: 0 4px 18px rgba(0,0,0,0.3); }
 
-        .shimmer-line { background:linear-gradient(90deg,#111 25%,#1a1a1a 50%,#111 75%); background-size:400px 100%; animation: shimmer 1.4s infinite; border-radius:4px; }
+        .shimmer-line { background:linear-gradient(90deg,#181b22 25%,#242832 50%,#181b22 75%); background-size:400px 100%; animation: shimmer 1.4s infinite; border-radius:4px; }
       `}</style>
 
       {/* ─── NAV ──────────────────────────────────────── */}
-      <nav style={{ position: "sticky", top: 0, zIndex: 100, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(20px)", borderBottom: "1px solid #0d0d0d", padding: "14px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", maxWidth: 1100, margin: "0 auto" }}>
+      <nav style={{ position: "sticky", top: 0, zIndex: 100, background: "rgba(10,11,15,0.85)", backdropFilter: "blur(20px)", borderBottom: "1px solid #1c1f26", padding: "14px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", maxWidth: 1100, margin: "0 auto" }}>
         <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 18, fontWeight: 700, letterSpacing: -0.5 }}>
           T<span style={{ color: "#00FF87" }}>|</span>T
         </div>
@@ -132,7 +132,7 @@ export default function Landing() {
 
         {/* Hero stat strip */}
         {record?.total > 0 && (
-          <div className="fade-in" style={{ display: "inline-flex", gap: 32, background: "#080808", border: "1px solid #1a1a1a", borderRadius: 14, padding: "14px 28px", flexWrap: "wrap", justifyContent: "center" }}>
+          <div className="fade-in" style={{ display: "inline-flex", gap: 32, background: "#10131a", border: "1px solid #242832", borderRadius: 14, padding: "14px 28px", flexWrap: "wrap", justifyContent: "center" }}>
             {[
               { label: "Win Rate", value: `${winPct}%`, color: rateColor },
               { label: "Record",   value: `${record.wins}-${record.losses}`, color: "#fff" },
@@ -162,7 +162,7 @@ export default function Landing() {
         </div>
 
         {/* Phone mockup frame */}
-        <div className="float" style={{ background: "#080808", border: "1px solid #1a1a1a", borderRadius: 28, padding: "20px 16px", position: "relative", boxShadow: "0 40px 80px rgba(0,0,0,0.6), 0 0 0 1px #111" }}>
+        <div className="float" style={{ background: "#10131a", border: "1px solid #242832", borderRadius: 28, padding: "20px 16px", position: "relative", boxShadow: "0 40px 80px rgba(0,0,0,0.6), 0 0 0 1px #111" }}>
           {/* Status bar */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, padding: "0 4px" }}>
             <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 14, fontWeight: 700 }}>
@@ -170,7 +170,7 @@ export default function Landing() {
             </div>
             <div style={{ display: "flex", gap: 10 }}>
               {["⚾ Picks", "💎 Steals", "📊 Tracker"].map(t => (
-                <div key={t} style={{ fontSize: 10, color: t === "⚾ Picks" ? "#00FF87" : "#333", fontWeight: 700 }}>{t}</div>
+                <div key={t} style={{ fontSize: 10, color: t === "⚾ Picks" ? "#00FF87" : "#3d424f", fontWeight: 700 }}>{t}</div>
               ))}
             </div>
           </div>
@@ -196,7 +196,7 @@ export default function Landing() {
                 </span>
               </div>
               <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                <div style={{ flex: 1, background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 8, padding: "8px 10px" }}>
+                <div style={{ flex: 1, background: "linear-gradient(155deg, #1c202a, #14161c)", border: "1px solid #242832", borderRadius: 8, padding: "8px 10px" }}>
                   <div style={{ fontSize: 9, color: "#555", marginBottom: 3 }}>AWAY</div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: freePick.pick === freePick.awayTeam ? "#00FF87" : "#fff" }}>
                     {freePick.awayTeam?.split(" ").pop()}
@@ -205,8 +205,8 @@ export default function Landing() {
                     {freePick.awayOdds != null ? fmtOdds(freePick.awayOdds) : "—"}
                   </div>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", fontSize: 10, color: "#222" }}>@</div>
-                <div style={{ flex: 1, background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 8, padding: "8px 10px", textAlign: "right" }}>
+                <div style={{ display: "flex", alignItems: "center", fontSize: 10, color: "#2b2f3a" }}>@</div>
+                <div style={{ flex: 1, background: "linear-gradient(155deg, #1c202a, #14161c)", border: "1px solid #242832", borderRadius: 8, padding: "8px 10px", textAlign: "right" }}>
                   <div style={{ fontSize: 9, color: "#555", marginBottom: 3 }}>HOME</div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: freePick.pick === freePick.homeTeam ? "#00FF87" : "#fff" }}>
                     {freePick.homeTeam?.split(" ").pop()}
@@ -360,17 +360,17 @@ export default function Landing() {
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 10, color: "#444", fontWeight: 700, letterSpacing: 1, marginBottom: 3 }}>VEGAS</div>
-                  <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 20, fontWeight: 700, color: "#333" }}>{them}</div>
+                  <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 20, fontWeight: 700, color: "#3d424f" }}>{them}</div>
                 </div>
               </div>
-              <div style={{ fontSize: 11, color: "#333", marginTop: 8 }}>{sub}</div>
+              <div style={{ fontSize: 11, color: "#3d424f", marginTop: 8 }}>{sub}</div>
             </div>
           ))}
         </div>
 
         {/* Disclaimer */}
-        <div style={{ textAlign: "center", background: "#060606", border: "1px solid #0d0d0d", borderRadius: 12, padding: "16px 20px" }}>
-          <div style={{ fontSize: 12, color: "#333", lineHeight: 1.6 }}>
+        <div style={{ textAlign: "center", background: "linear-gradient(155deg,#17191f,#101216)", border: "1px solid #242832", boxShadow: "0 4px 18px rgba(0,0,0,0.3)", borderRadius: 12, padding: "16px 20px" }}>
+          <div style={{ fontSize: 12, color: "#3d424f", lineHeight: 1.6 }}>
             MLB carries extreme variance. Even 60% pickers lose stretches. This is a tool for finding edges, not a guarantee. Bet responsibly.
           </div>
         </div>
@@ -429,13 +429,13 @@ export default function Landing() {
 
         <div style={{ display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap", marginBottom: 48 }}>
           {/* Free */}
-          <div style={{ background: "#060606", border: "1px solid #111", borderRadius: 20, padding: "28px 28px", flex: "1 1 220px", maxWidth: 280, textAlign: "left" }}>
+          <div style={{ background: "linear-gradient(155deg,#17191f,#101216)", border: "1px solid #242832", boxShadow: "0 4px 18px rgba(0,0,0,0.3)", borderRadius: 20, padding: "28px 28px", flex: "1 1 220px", maxWidth: 280, textAlign: "left" }}>
             <div style={{ fontSize: 13, color: "#555", fontWeight: 700, marginBottom: 10, letterSpacing: 1 }}>FREE</div>
             <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 36, fontWeight: 700, marginBottom: 4 }}>$0</div>
             <div style={{ fontSize: 12, color: "#444", marginBottom: 24 }}>forever</div>
             {["1 free pick daily", "Email digest every morning", "Model record public stats"].map(f => (
-              <div key={f} style={{ display: "flex", gap: 8, alignItems: "center", padding: "7px 0", borderBottom: "1px solid #0d0d0d", fontSize: 13, color: "#666" }}>
-                <span style={{ color: "#333", fontSize: 14 }}>✓</span> {f}
+              <div key={f} style={{ display: "flex", gap: 8, alignItems: "center", padding: "7px 0", borderBottom: "1px solid #1c1f26", fontSize: 13, color: "#666" }}>
+                <span style={{ color: "#3d424f", fontSize: 14 }}>✓</span> {f}
               </div>
             ))}
             <a href="/" className="ghost-btn" style={{ marginTop: 20, width: "100%", display: "block", textAlign: "center", fontSize: 13, padding: "12px" }}>Get started free</a>
@@ -456,13 +456,13 @@ export default function Landing() {
           </div>
 
           {/* Annual */}
-          <div style={{ background: "#060606", border: "1px solid #111", borderRadius: 20, padding: "28px 28px", flex: "1 1 220px", maxWidth: 280, textAlign: "left" }}>
+          <div style={{ background: "linear-gradient(155deg,#17191f,#101216)", border: "1px solid #242832", boxShadow: "0 4px 18px rgba(0,0,0,0.3)", borderRadius: 20, padding: "28px 28px", flex: "1 1 220px", maxWidth: 280, textAlign: "left" }}>
             <div style={{ fontSize: 13, color: "#555", fontWeight: 700, marginBottom: 10, letterSpacing: 1 }}>PRO ANNUAL</div>
             <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 36, fontWeight: 700, marginBottom: 4 }}>$19.99</div>
             <div style={{ fontSize: 12, color: "#444", marginBottom: 24 }}>$1.67/mo · 2 months free</div>
             {["Everything in Pro Monthly", "Best value for the season", "Cancel anytime"].map(f => (
-              <div key={f} style={{ display: "flex", gap: 8, alignItems: "center", padding: "7px 0", borderBottom: "1px solid #0d0d0d", fontSize: 13, color: "#666" }}>
-                <span style={{ color: "#333", fontSize: 14 }}>✓</span> {f}
+              <div key={f} style={{ display: "flex", gap: 8, alignItems: "center", padding: "7px 0", borderBottom: "1px solid #1c1f26", fontSize: 13, color: "#666" }}>
+                <span style={{ color: "#3d424f", fontSize: 14 }}>✓</span> {f}
               </div>
             ))}
             <a href="/" className="ghost-btn" style={{ marginTop: 20, width: "100%", display: "block", textAlign: "center", fontSize: 13, padding: "12px" }}>Get annual →</a>
@@ -492,7 +492,7 @@ export default function Landing() {
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 required
-                style={{ flex: 1, background: "#0a0a0a", border: "1px solid #1a1a1a", borderRadius: 12, padding: "14px 16px", color: "#fff", fontSize: 14, outline: "none" }}
+                style={{ flex: 1, background: "linear-gradient(160deg, #14161c, #0d0e12)", border: "1px solid #242832", borderRadius: 12, padding: "14px 16px", color: "#fff", fontSize: 14, outline: "none" }}
               />
               <button type="submit" disabled={subStatus === "loading"} className="cta-btn" style={{ flexShrink: 0, fontSize: 14, padding: "14px 20px" }}>
                 {subStatus === "loading" ? "…" : "Send me picks"}
@@ -504,17 +504,17 @@ export default function Landing() {
       </section>
 
       {/* ─── FOOTER ───────────────────────────────────── */}
-      <footer style={{ borderTop: "1px solid #0d0d0d", padding: "28px 24px", textAlign: "center" }}>
+      <footer style={{ borderTop: "1px solid #1c1f26", padding: "28px 24px", textAlign: "center" }}>
         <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
           T<span style={{ color: "#00FF87" }}>|</span>T
         </div>
-        <div style={{ display: "flex", gap: 20, justifyContent: "center", flexWrap: "wrap", fontSize: 12, color: "#333" }}>
-          <a href="/" style={{ color: "#333" }}>App</a>
-          <a href="https://twitter.com/ThisorThatPicks" target="_blank" rel="noopener noreferrer" style={{ color: "#333" }}>𝕏 @ThisorThatPicks</a>
-          <a href="/privacy" style={{ color: "#333" }}>Privacy</a>
-          <a href="/terms" style={{ color: "#333" }}>Terms</a>
+        <div style={{ display: "flex", gap: 20, justifyContent: "center", flexWrap: "wrap", fontSize: 12, color: "#3d424f" }}>
+          <a href="/" style={{ color: "#3d424f" }}>App</a>
+          <a href="https://twitter.com/ThisorThatPicks" target="_blank" rel="noopener noreferrer" style={{ color: "#3d424f" }}>𝕏 @ThisorThatPicks</a>
+          <a href="/privacy" style={{ color: "#3d424f" }}>Privacy</a>
+          <a href="/terms" style={{ color: "#3d424f" }}>Terms</a>
         </div>
-        <div style={{ fontSize: 11, color: "#1a1a1a", marginTop: 16 }}>
+        <div style={{ fontSize: 11, color: "#242832", marginTop: 16 }}>
           For entertainment purposes. Bet responsibly.
         </div>
       </footer>
