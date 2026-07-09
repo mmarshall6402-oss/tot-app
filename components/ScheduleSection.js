@@ -70,7 +70,7 @@ export default function ScheduleSection({ S, getAuthHeaders, onTeamClick }) {
   }
 
   return (
-    <div style={{ padding: "16px 20px 40px" }}>
+    <div style={{ padding: "16px 20px 84px" }}>
       <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
         {[
           { id: "mlb", icon: "⚾", label: "MLB" },

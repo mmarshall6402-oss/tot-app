@@ -230,7 +230,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
         ))}
       </div>
 
-      <div style={{ flex: 1, padding: "16px 20px 40px", display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ flex: 1, padding: "16px 20px 84px", display: "flex", flexDirection: "column", gap: 14 }}>
 
         {/* Scoring format */}
         {(subTab === "fantasy") && (

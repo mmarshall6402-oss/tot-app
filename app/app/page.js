@@ -741,6 +741,13 @@ export default function ToT() {
   // or Settings is an MLB-scoped tab, so it defaults to "mlb" rather than needing
   // every MLB tab id listed out here.
   const currentSport = activeTab === "home" ? "home" : activeTab === "nfl" ? "nfl" : activeTab === "settings" ? "settings" : activeTab === "schedule" ? "schedule" : "mlb";
+  // Bottom-tab-bar grouping — Home/Games/Portfolio/Profile. Games covers the
+  // whole "today's board" experience (Picks/Steals/Live/Feed/Chat/Props/NFL/
+  // Schedule); Portfolio is "my bets" (Tracker/Parlay/Record); everything
+  // else maps 1:1. activeTab itself keeps its existing fine-grained values —
+  // this is purely a navigation grouping layer on top.
+  const navGroup = (tab) => (["tracker", "parlay", "record"].includes(tab) ? "portfolio" : tab === "settings" ? "profile" : tab === "home" ? "home" : "games");
+  const NAV_GROUP_DEFAULT = { home: "home", games: "picks", portfolio: "tracker", profile: "settings" };
 
   const sorted = [...(picks || [])].sort((a, b) => {
     if (sortBy === "time") return new Date(a.commenceTime) - new Date(b.commenceTime);
@@ -1214,70 +1221,8 @@ export default function ToT() {
         </div>
       )}
 
-      {drawerOpen && (
-        <div style={S.overlay} onClick={() => setDrawerOpen(false)}>
-          <div style={S.drawer} onClick={e => e.stopPropagation()}>
-            <div style={S.drawerLogo}>T<span style={{ color: "#00FF87" }}>|</span>T</div>
-            <div style={S.drawerEmail}>{user.email}</div>
-            <div style={S.drawerLine} />
-
-            <div style={{ ...S.drawerSectionLabel, marginBottom: 6 }}>⚾ MLB</div>
-            {[
-              { id: "picks", icon: "⚾", label: "Picks" },
-              { id: "steals", icon: "🔥", label: "Steals" },
-              { id: "parlay", icon: "🎲", label: "Parlay" },
-              { id: "tracker", icon: "📊", label: "Tracker" },
-              { id: "record", icon: "📅", label: "Record" },
-              { id: "chat", icon: "💬", label: "Assistant" },
-              ...(isBeta ? [
-                { id: "props", icon: "🎯", label: "Props" },
-              ] : []),
-            ].map(({ id, icon, label }) => (
-              <div key={id} style={{ ...S.drawerItem, color: activeTab === id ? "#00FF87" : "#fff" }} onClick={() => { setActiveTab(id); setDrawerOpen(false); }}>
-                {icon} {label}
-              </div>
-            ))}
-
-            <div style={S.drawerLine} />
-            <div key="home" style={{ ...S.drawerItem, color: activeTab === "home" ? "#00FF87" : "#fff" }} onClick={() => { setActiveTab("home"); setDrawerOpen(false); }}>
-              🏠 Home
-            </div>
-            <div style={S.drawerLine} />
-            {[
-              { id: "nfl", icon: "🏈", label: "NFL", color: "#FF6B35" },
-              { id: "schedule", icon: "📅", label: "Schedule", color: "#4DA6FF" },
-              { id: "settings", icon: "⚙️", label: "Settings", color: "#888" },
-            ].map(({ id, icon, label, color }) => (
-              <div key={id} style={{ ...S.drawerItem, color: activeTab === id ? color : "#fff" }} onClick={() => { setActiveTab(id); setDrawerOpen(false); }}>
-                {icon} {label}
-              </div>
-            ))}
-
-            <div style={S.drawerLine} />
-            <AccuracyPanel savedPicks={savedPicks} />
-            <div style={{ flex: 1 }} />
-            <div style={S.drawerLine} />
-            <a href="https://twitter.com/ThisorThatPicks" target="_blank" rel="noopener noreferrer"
-              style={{ ...S.drawerItem, color: "#1DA1F2", textDecoration: "none" }}>
-              𝕏 @ThisorThatPicks
-            </a>
-            <div style={S.drawerLine} />
-            {isPro ? (
-              <div style={{ ...S.drawerItem, color: "#999" }} onClick={manageBilling}>⚡ Manage Billing</div>
-            ) : (
-              <div style={{ ...S.drawerItem, color: "#00FF87" }} onClick={() => { setDrawerOpen(false); setUpgradeModal(true); }}>⚡ Upgrade to Pro</div>
-            )}
-            <div style={{ ...S.drawerItem, color: "#FF4D4D" }} onClick={signOut}>Sign Out</div>
-          </div>
-        </div>
-      )}
-
       <div style={S.nav}>
-        <button style={S.menuBtn} onClick={() => setDrawerOpen(true)}>
-          {[0, 1, 2].map(i => <div key={i} style={S.menuLine} />)}
-        </button>
         <div style={S.navLogo}>T<span style={{ color: "#00FF87" }}>|</span>T</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <button
           onClick={() => setSearchOpen(true)}
           aria-label="Search"
@@ -1288,32 +1233,6 @@ export default function ToT() {
             <line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
         </button>
-        <div style={{ display: "flex", gap: 4, background: "linear-gradient(155deg, #1c202a, #14161c)", border: "1px solid #242832", borderRadius: 14, padding: 3 }}>
-          {[
-            { sport: "home", icon: "🏠", label: "", tab: "home", color: "#00FF87" },
-            { sport: "mlb", icon: "⚾", label: "MLB", tab: "picks", color: "#00FF87" },
-            { sport: "nfl", icon: "🏈", label: "NFL", tab: "nfl", color: "#FF6B35" },
-            { sport: "schedule", icon: "📅", label: "", tab: "schedule", color: "#4DA6FF" },
-            { sport: "settings", icon: "⚙️", label: "", tab: "settings", color: "#888" },
-          ].map(({ sport, icon, label, tab, color }) => {
-            const active = currentSport === sport;
-            return (
-              <button key={sport} onClick={() => setActiveTab(tab)} aria-label={sport === "settings" ? "Settings" : sport === "schedule" ? "Schedule" : sport === "home" ? "Home" : label}
-                style={{
-                  display: "flex", alignItems: "center", gap: 5,
-                  fontSize: 11, fontWeight: 700, padding: label ? "5px 12px" : "5px 9px", borderRadius: 10,
-                  border: "none", cursor: "pointer", letterSpacing: 0.3,
-                  background: active ? `${color}1f` : "transparent",
-                  color: active ? color : "#444",
-                  transition: "all 0.15s",
-                }}>
-                <span style={{ fontSize: 14 }}>{icon}</span>
-                {label}
-              </button>
-            );
-          })}
-        </div>
-        </div>
       </div>
 
       {/* nflPicks now lives inside components/NFLSection.js (not lifted to this
@@ -1402,17 +1321,16 @@ export default function ToT() {
         </div>
       )}
 
-      {currentSport === "mlb" && (
+      {navGroup(activeTab) === "games" && (
       <div style={S.subNav}>
-        <div style={{ display: "flex", gap: 6 }}>
+        <div style={{ display: "flex", gap: 6, overflowX: "auto" }}>
           {[
             { id: "picks", label: "Picks" },
             { id: "live", label: "🔴 Live" },
             { id: "feed", label: "⚡ Feed" },
             { id: "steals", label: "Steals" },
-            { id: "parlay", label: "🎲 Parlay" },
-            { id: "tracker", label: "Tracker" },
-            { id: "record", label: "📅 Record" },
+            { id: "schedule", label: "📅 Schedule" },
+            { id: "nfl", label: "🏈 NFL" },
             { id: "chat", label: "💬 Ask AI" },
             ...(isBeta ? [
               { id: "props", label: "🎯 Props" },
@@ -1420,9 +1338,9 @@ export default function ToT() {
           ].map(({ id, label }) => (
             <button
               key={id}
-              style={{ ...S.tabBtn, borderColor: activeTab === id ? "#00FF87" : "#3d424f", color: activeTab === id ? "#00FF87" : "#999", background: activeTab === id ? "rgba(0,255,135,0.08)" : "#181b22" }}
+              style={{ ...S.tabBtn, flexShrink: 0, borderColor: activeTab === id ? "#00FF87" : "#3d424f", color: activeTab === id ? "#00FF87" : "#999", background: activeTab === id ? "rgba(0,255,135,0.08)" : "#181b22" }}
               onClick={() => {
-                if (!isPro && ["steals", "parlay", "tracker", "live", "feed"].includes(id)) { setUpgradeModal(true); return; }
+                if (!isPro && ["steals", "live", "feed"].includes(id)) { setUpgradeModal(true); return; }
                 setActiveTab(id);
               }}
             >
@@ -1461,6 +1379,29 @@ export default function ToT() {
             >🔍</button>
           </div>
         )}
+      </div>
+      )}
+
+      {navGroup(activeTab) === "portfolio" && (
+      <div style={S.subNav}>
+        <div style={{ display: "flex", gap: 6 }}>
+          {[
+            { id: "tracker", label: "Tracker" },
+            { id: "parlay", label: "🎲 Parlay" },
+            { id: "record", label: "📅 Record" },
+          ].map(({ id, label }) => (
+            <button
+              key={id}
+              style={{ ...S.tabBtn, borderColor: activeTab === id ? "#00FF87" : "#3d424f", color: activeTab === id ? "#00FF87" : "#999", background: activeTab === id ? "rgba(0,255,135,0.08)" : "#181b22" }}
+              onClick={() => {
+                if (!isPro && ["tracker", "parlay"].includes(id)) { setUpgradeModal(true); return; }
+                setActiveTab(id);
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
       )}
 
@@ -3104,7 +3045,7 @@ export default function ToT() {
         })()}
 
         {activeTab === "home" && (
-          <div style={{ padding: "16px 20px 40px", display: "flex", flexDirection: "column", gap: 20 }}>
+          <div style={{ padding: "16px 20px 84px", display: "flex", flexDirection: "column", gap: 20 }}>
             {freePick && !freePick._quietDay ? (
               <DecisionCard pick={freePick} sport="mlb" S={S} savePick={savePick} saving={saving} />
             ) : (
@@ -3170,6 +3111,14 @@ export default function ToT() {
                 {isPro ? "⚡ PRO" : "FREE"}
               </span>
             </div>
+
+            <div style={{ background: "linear-gradient(155deg, #1c202a, #14161c)", border: "1px solid #242832", borderRadius: 14, padding: "16px 18px" }}>
+              <AccuracyPanel savedPicks={savedPicks} />
+            </div>
+            <a href="https://twitter.com/ThisorThatPicks" target="_blank" rel="noopener noreferrer"
+              style={{ display: "block", textAlign: "center", padding: "10px 12px", fontSize: 13, color: "#1DA1F2", textDecoration: "none" }}>
+              𝕏 @ThisorThatPicks
+            </a>
 
             <div style={{ background: "linear-gradient(155deg, #1c202a, #14161c)", border: "1px solid #242832", borderRadius: 14, padding: "16px 18px" }}>
               <div style={{ fontSize: 10, color: "#555", letterSpacing: 1.5, fontWeight: 700, marginBottom: 10 }}>PREFERENCES</div>
@@ -3449,6 +3398,31 @@ export default function ToT() {
         <br />
         Problem gambling? Call <span style={{ color: "#777" }}>1-800-GAMBLER</span>
       </div>
+
+      <div style={S.bottomBar}>
+        {[
+          { group: "home", icon: "🏠", label: "Home" },
+          { group: "games", icon: "⚾", label: "Games" },
+          { group: "portfolio", icon: "💰", label: "Portfolio" },
+          { group: "profile", icon: "👤", label: "Profile" },
+        ].map(({ group, icon, label }) => {
+          const active = navGroup(activeTab) === group;
+          return (
+            <button
+              key={group}
+              onClick={() => setActiveTab(NAV_GROUP_DEFAULT[group])}
+              style={{
+                flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+                background: "none", border: "none", cursor: "pointer", padding: "8px 4px",
+                color: active ? "#00FF87" : "#555",
+              }}
+            >
+              <span style={{ fontSize: 18 }}>{icon}</span>
+              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.3 }}>{label}</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -3633,6 +3607,7 @@ const S = {
   drawerSectionLabel: { fontSize: 10, fontWeight: 700, color: "#999", letterSpacing: 1.5, marginBottom: 10 },
   accuracyCard: { background: "#181b22", border: "1px solid #2b2f3a", borderRadius: 10, padding: 12 },
   nav: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid #242832", position: "sticky", top: 0, background: "rgba(10,11,15,0.97)", backdropFilter: "blur(12px)", zIndex: 100, boxShadow: "0 4px 20px -8px rgba(0,0,0,0.5)" },
+  bottomBar: { position: "fixed", bottom: 0, left: 0, right: 0, display: "flex", background: "rgba(10,11,15,0.97)", backdropFilter: "blur(12px)", borderTop: "1px solid #242832", boxShadow: "0 -4px 20px -8px rgba(0,0,0,0.5)", zIndex: 100, paddingBottom: "env(safe-area-inset-bottom)" },
   menuBtn: { background: "none", display: "flex", flexDirection: "column", gap: 5, padding: 4 },
   menuLine: { width: 22, height: 2, background: "#ccc", borderRadius: 1 },
   navLogo: { fontFamily: "'JetBrains Mono',monospace", fontSize: 20, fontWeight: 700, letterSpacing: -1 },
@@ -3645,7 +3620,7 @@ const S = {
   subNav: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 20px", borderBottom: "1px solid #242832" },
   tabBtn: { padding: "6px 16px", borderRadius: 20, fontSize: 12, fontWeight: 600, background: "#181b22", border: "1px solid #333947", letterSpacing: 0.3 },
   sortBtn: { width: 32, height: 32, borderRadius: 8, fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", background: "#181b22", border: "1px solid #333947" },
-  content: { flex: 1, padding: "12px 20px 40px", display: "flex", flexDirection: "column", gap: 10, overflowY: "auto" },
+  content: { flex: 1, padding: "12px 20px 84px", display: "flex", flexDirection: "column", gap: 10, overflowY: "auto" },
   center: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 60, textAlign: "center" },
   spinner: { width: 28, height: 28, border: "2px solid #2b2f3a", borderTopColor: "#00FF87", borderRadius: "50%", animation: "spin 0.7s linear infinite" },
   card: { background: "linear-gradient(155deg, #1c202a, #14161c)", border: "1px solid", borderRadius: 14, padding: 16, transition: "border-color 0.2s, box-shadow 0.2s", animation: "fadeUp 0.3s ease", boxShadow: "0 4px 18px rgba(0,0,0,0.35)" },
