@@ -211,6 +211,9 @@ export default function ToT() {
   const [generating, setGenerating] = useState(false);
   const [activatingPro, setActivatingPro] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
   const [modelStreak, setModelStreak] = useState(null);
   const [teamSearchOpen, setTeamSearchOpen] = useState(false);
   const [teamQuery, setTeamQuery] = useState("");
@@ -401,13 +404,13 @@ export default function ToT() {
     setShowCancelModal(true);
   };
 
-  const goToBillingPortal = async () => {
+  const goToBillingPortal = async (flow) => {
     try {
       const authHeaders = await getAuthHeaders();
       const res = await fetch("/api/stripe/portal", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders },
-        body: JSON.stringify({}),
+        body: JSON.stringify(flow ? { flow } : {}),
       });
       const data = await res.json();
       if (data.url) { window.location.href = data.url; return; }
@@ -415,6 +418,34 @@ export default function ToT() {
     } catch (e) {
       alert("Could not open billing portal. Try again later.");
     }
+  };
+
+  const changePlan = () => {
+    setDrawerOpen(false);
+    goToBillingPortal("update");
+  };
+
+  const deleteAccount = async () => {
+    if (deleteConfirmText !== "DELETE") return;
+    setDeleting(true);
+    try {
+      const authHeaders = await getAuthHeaders();
+      const res = await fetch("/api/account/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        try { localStorage.removeItem("tot-pro"); } catch {}
+        await getSupabase().auth.signOut();
+        window.location.href = "/";
+        return;
+      }
+      alert(data.error || "Could not delete account. Contact support.");
+    } catch (e) {
+      alert("Could not delete account. Try again later.");
+    }
+    setDeleting(false);
   };
 
   const copySteals = () => {
@@ -3075,7 +3106,10 @@ export default function ToT() {
             <div style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 14, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
               <div style={{ fontSize: 10, color: "#555", letterSpacing: 1.5, fontWeight: 700, marginBottom: 2 }}>BILLING</div>
               {isPro ? (
-                <button style={{ ...S.saveBtn, textAlign: "left", padding: "10px 12px" }} onClick={manageBilling}>⚡ Manage Billing</button>
+                <>
+                  <button style={{ ...S.saveBtn, textAlign: "left", padding: "10px 12px" }} onClick={changePlan}>🔁 Change Plan</button>
+                  <button style={{ ...S.saveBtn, textAlign: "left", padding: "10px 12px", color: "#FF4D4D", borderColor: "rgba(255,77,77,0.3)" }} onClick={manageBilling}>✕ Cancel Subscription</button>
+                </>
               ) : (
                 <button style={{ ...S.saveBtn, textAlign: "left", padding: "10px 12px", background: "#00FF87", color: "#000", borderColor: "#00FF87" }} onClick={() => setUpgradeModal(true)}>⚡ Upgrade to Pro</button>
               )}
@@ -3087,6 +3121,16 @@ export default function ToT() {
             >
               Sign Out
             </button>
+
+            <div style={{ background: "#0d0d0d", border: "1px solid rgba(255,77,77,0.2)", borderRadius: 14, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ fontSize: 10, color: "#FF4D4D", letterSpacing: 1.5, fontWeight: 700, marginBottom: 2 }}>DANGER ZONE</div>
+              <button
+                style={{ ...S.saveBtn, textAlign: "left", padding: "10px 12px", color: "#FF4D4D", borderColor: "rgba(255,77,77,0.3)" }}
+                onClick={() => { setDeleteConfirmText(""); setShowDeleteModal(true); }}
+              >
+                💀 Delete Account
+              </button>
+            </div>
           </div>
         )}
 
@@ -3241,8 +3285,51 @@ export default function ToT() {
               </button>
               <button
                 style={{ width: "100%", background: "transparent", border: "1px solid #1a1a1a", borderRadius: 12, padding: "12px", fontSize: 13, color: "#444", cursor: "pointer", marginBottom: 4 }}
-                onClick={() => { setShowCancelModal(false); goToBillingPortal(); }}>
-                Manage / cancel subscription →
+                onClick={() => { setShowCancelModal(false); goToBillingPortal("cancel"); }}>
+                Cancel subscription →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteModal && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.82)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+          onClick={() => !deleting && setShowDeleteModal(false)}>
+          <div style={{ width: "100%", maxWidth: 500, background: "#0a0a0a", borderRadius: "24px 24px 0 0", border: "1px solid rgba(255,77,77,0.25)", borderBottom: "none", padding: "0 0 max(28px, env(safe-area-inset-bottom)) 0", animation: "slideUp 0.3s cubic-bezier(0.32,0.72,0,1)" }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "center", padding: "12px 0 4px" }}>
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: "#222" }} />
+            </div>
+            <div style={{ padding: "16px 24px 8px" }}>
+              <div style={{ textAlign: "center", marginBottom: 20 }}>
+                <div style={{ fontSize: 24, marginBottom: 8 }}>💀</div>
+                <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, color: "#FF4D4D" }}>Delete your account?</div>
+                <div style={{ fontSize: 13, color: "#666", lineHeight: 1.6 }}>
+                  This cancels any active subscription and permanently erases your picks, tracker history, and login. This can't be undone.
+                </div>
+              </div>
+
+              <div style={{ fontSize: 12, color: "#555", marginBottom: 8 }}>Type <strong style={{ color: "#fff" }}>DELETE</strong> to confirm</div>
+              <input
+                type="text"
+                value={deleteConfirmText}
+                onChange={e => setDeleteConfirmText(e.target.value)}
+                placeholder="DELETE"
+                style={{ ...S.input, width: "100%", boxSizing: "border-box", textAlign: "center", letterSpacing: 2, fontFamily: "'JetBrains Mono',monospace", marginBottom: 14 }}
+              />
+
+              <button
+                style={{ width: "100%", background: deleteConfirmText === "DELETE" ? "#FF4D4D" : "#1a1a1a", color: deleteConfirmText === "DELETE" ? "#fff" : "#555", border: "none", borderRadius: 12, padding: "14px", fontSize: 15, fontWeight: 800, cursor: deleteConfirmText === "DELETE" ? "pointer" : "not-allowed", marginBottom: 10 }}
+                disabled={deleteConfirmText !== "DELETE" || deleting}
+                onClick={deleteAccount}>
+                {deleting ? "Deleting…" : "Permanently delete my account"}
+              </button>
+              <button
+                style={{ width: "100%", background: "transparent", border: "1px solid #1a1a1a", borderRadius: 12, padding: "12px", fontSize: 13, color: "#444", cursor: "pointer", marginBottom: 4 }}
+                disabled={deleting}
+                onClick={() => setShowDeleteModal(false)}>
+                Never mind
               </button>
             </div>
           </div>

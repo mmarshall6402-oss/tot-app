@@ -153,6 +153,9 @@ function AccuracyPanel({ savedPicks }) {
 
 export default function ToT() {
   const [user, setUser] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
   const [authMode, setAuthMode] = useState("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -347,13 +350,13 @@ export default function ToT() {
     setCheckingOut(false);
   };
 
-  const manageBilling = async () => {
+  const goToBillingPortal = async (flow) => {
     try {
       const authHeaders = await getAuthHeaders();
       const res = await fetch("/api/stripe/portal", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders },
-        body: JSON.stringify({}),
+        body: JSON.stringify(flow ? { flow } : {}),
       });
       const data = await res.json();
       if (data.url) { window.location.href = data.url; return; }
@@ -361,6 +364,32 @@ export default function ToT() {
     } catch (e) {
       alert("Could not open billing portal. Try again later.");
     }
+  };
+
+  const changePlan = () => goToBillingPortal("update");
+  const cancelSubscription = () => goToBillingPortal("cancel");
+
+  const deleteAccount = async () => {
+    if (deleteConfirmText !== "DELETE") return;
+    setDeleting(true);
+    try {
+      const authHeaders = await getAuthHeaders();
+      const res = await fetch("/api/account/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        try { localStorage.removeItem("tot-pro"); } catch {}
+        await getSupabase().auth.signOut();
+        window.location.href = "/";
+        return;
+      }
+      alert(data.error || "Could not delete account. Contact support.");
+    } catch (e) {
+      alert("Could not delete account. Try again later.");
+    }
+    setDeleting(false);
   };
 
   const copySteals = () => {
@@ -1116,7 +1145,7 @@ export default function ToT() {
             </a>
             <div style={S.drawerLine} />
             {isPro ? (
-              <div style={{ ...S.drawerItem, color: "#999" }} onClick={manageBilling}>⚡ Manage Billing</div>
+              <div style={{ ...S.drawerItem, color: "#999" }} onClick={() => goToBillingPortal()}>⚡ Manage Billing</div>
             ) : (
               <div style={{ ...S.drawerItem, color: "#00FF87" }} onClick={() => { setDrawerOpen(false); setUpgradeModal(true); }}>⚡ Upgrade to Pro</div>
             )}
@@ -2667,7 +2696,10 @@ export default function ToT() {
           <div style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 14, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
             <div style={{ fontSize: 10, color: "#555", letterSpacing: 1.5, fontWeight: 700, marginBottom: 2 }}>BILLING</div>
             {isPro ? (
-              <button style={{ ...S.saveBtn, textAlign: "left", padding: "10px 12px" }} onClick={manageBilling}>⚡ Manage Billing</button>
+              <>
+                <button style={{ ...S.saveBtn, textAlign: "left", padding: "10px 12px" }} onClick={changePlan}>🔁 Change Plan</button>
+                <button style={{ ...S.saveBtn, textAlign: "left", padding: "10px 12px", color: "#FF4D4D", borderColor: "rgba(255,77,77,0.3)" }} onClick={cancelSubscription}>✕ Cancel Subscription</button>
+              </>
             ) : (
               <button style={{ ...S.saveBtn, textAlign: "left", padding: "10px 12px", background: "#00FF87", color: "#000", borderColor: "#00FF87" }} onClick={() => setUpgradeModal(true)}>⚡ Upgrade to Pro</button>
             )}
@@ -2679,6 +2711,59 @@ export default function ToT() {
           >
             Sign Out
           </button>
+
+          <div style={{ background: "#0d0d0d", border: "1px solid rgba(255,77,77,0.2)", borderRadius: 14, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ fontSize: 10, color: "#FF4D4D", letterSpacing: 1.5, fontWeight: 700, marginBottom: 2 }}>DANGER ZONE</div>
+            <button
+              style={{ ...S.saveBtn, textAlign: "left", padding: "10px 12px", color: "#FF4D4D", borderColor: "rgba(255,77,77,0.3)" }}
+              onClick={() => { setDeleteConfirmText(""); setShowDeleteModal(true); }}
+            >
+              💀 Delete Account
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showDeleteModal && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.82)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+          onClick={() => !deleting && setShowDeleteModal(false)}>
+          <div style={{ width: "100%", maxWidth: 500, background: "#0a0a0a", borderRadius: "24px 24px 0 0", border: "1px solid rgba(255,77,77,0.25)", borderBottom: "none", padding: "0 0 max(28px, env(safe-area-inset-bottom)) 0" }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "center", padding: "12px 0 4px" }}>
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: "#222" }} />
+            </div>
+            <div style={{ padding: "16px 24px 8px" }}>
+              <div style={{ textAlign: "center", marginBottom: 20 }}>
+                <div style={{ fontSize: 24, marginBottom: 8 }}>💀</div>
+                <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, color: "#FF4D4D" }}>Delete your account?</div>
+                <div style={{ fontSize: 13, color: "#666", lineHeight: 1.6 }}>
+                  This cancels any active subscription and permanently erases your picks, tracker history, and login. This can't be undone.
+                </div>
+              </div>
+
+              <div style={{ fontSize: 12, color: "#555", marginBottom: 8 }}>Type <strong style={{ color: "#fff" }}>DELETE</strong> to confirm</div>
+              <input
+                type="text"
+                value={deleteConfirmText}
+                onChange={e => setDeleteConfirmText(e.target.value)}
+                placeholder="DELETE"
+                style={{ ...S.input, width: "100%", boxSizing: "border-box", textAlign: "center", letterSpacing: 2, fontFamily: "'JetBrains Mono',monospace", marginBottom: 14 }}
+              />
+
+              <button
+                style={{ width: "100%", background: deleteConfirmText === "DELETE" ? "#FF4D4D" : "#1a1a1a", color: deleteConfirmText === "DELETE" ? "#fff" : "#555", border: "none", borderRadius: 12, padding: "14px", fontSize: 15, fontWeight: 800, cursor: deleteConfirmText === "DELETE" ? "pointer" : "not-allowed", marginBottom: 10 }}
+                disabled={deleteConfirmText !== "DELETE" || deleting}
+                onClick={deleteAccount}>
+                {deleting ? "Deleting…" : "Permanently delete my account"}
+              </button>
+              <button
+                style={{ width: "100%", background: "transparent", border: "1px solid #1a1a1a", borderRadius: 12, padding: "12px", fontSize: 13, color: "#444", cursor: "pointer", marginBottom: 4 }}
+                disabled={deleting}
+                onClick={() => setShowDeleteModal(false)}>
+                Never mind
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

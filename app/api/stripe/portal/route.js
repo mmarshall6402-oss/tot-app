@@ -14,9 +14,11 @@ export async function POST(request) {
   if (authError) return authError;
 
   try {
+    const { flow } = await request.json().catch(() => ({}));
+
     const { data } = await getSupabase()
       .from("subscriptions")
-      .select("stripe_customer_id")
+      .select("stripe_customer_id, stripe_subscription_id")
       .eq("user_id", user.id)
       .single();
 
@@ -24,10 +26,20 @@ export async function POST(request) {
       return Response.json({ error: "no subscription found" }, { status: 404 });
     }
 
-    const session = await getStripe().billingPortal.sessions.create({
+    const params = {
       customer: data.stripe_customer_id,
       return_url: APP_URL,
-    });
+    };
+
+    // Deep-link straight into the cancel or plan-change flow so users don't
+    // have to hunt for it in Stripe's generic portal home screen.
+    if (data.stripe_subscription_id && (flow === "cancel" || flow === "update")) {
+      params.flow_data = flow === "cancel"
+        ? { type: "subscription_cancel", subscription_cancel: { subscription: data.stripe_subscription_id } }
+        : { type: "subscription_update", subscription_update: { subscription: data.stripe_subscription_id } };
+    }
+
+    const session = await getStripe().billingPortal.sessions.create(params);
 
     return Response.json({ url: session.url });
   } catch (e) {
