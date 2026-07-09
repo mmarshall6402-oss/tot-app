@@ -1182,6 +1182,8 @@ export default function ToT() {
             <div style={S.drawerLogo}>T<span style={{ color: "#00FF87" }}>|</span>T</div>
             <div style={S.drawerEmail}>{user.email}</div>
             <div style={S.drawerLine} />
+
+            <div style={{ ...S.drawerSectionLabel, marginBottom: 6 }}>⚾ MLB</div>
             {[
               { id: "picks", icon: "⚾", label: "Picks" },
               { id: "steals", icon: "🔥", label: "Steals" },
@@ -1189,16 +1191,25 @@ export default function ToT() {
               { id: "tracker", icon: "📊", label: "Tracker" },
               { id: "record", icon: "📅", label: "Record" },
               { id: "chat", icon: "💬", label: "Assistant" },
-              { id: "nfl", icon: "🏈", label: "NFL" },
               ...(isBeta ? [
                 { id: "props", icon: "🎯", label: "Props" },
               ] : []),
-              { id: "settings", icon: "⚙️", label: "Settings" },
             ].map(({ id, icon, label }) => (
               <div key={id} style={{ ...S.drawerItem, color: activeTab === id ? "#00FF87" : "#fff" }} onClick={() => { setActiveTab(id); setDrawerOpen(false); }}>
                 {icon} {label}
               </div>
             ))}
+
+            <div style={S.drawerLine} />
+            {[
+              { id: "nfl", icon: "🏈", label: "NFL", color: "#FF6B35" },
+              { id: "settings", icon: "⚙️", label: "Settings", color: "#888" },
+            ].map(({ id, icon, label, color }) => (
+              <div key={id} style={{ ...S.drawerItem, color: activeTab === id ? color : "#fff" }} onClick={() => { setActiveTab(id); setDrawerOpen(false); }}>
+                {icon} {label}
+              </div>
+            ))}
+
             <div style={S.drawerLine} />
             <AccuracyPanel savedPicks={savedPicks} />
             <div style={{ flex: 1 }} />
