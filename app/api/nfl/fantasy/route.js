@@ -1,5 +1,5 @@
 import { requireAuth } from "../../../../lib/auth.js";
-import { lookupNFLPlayer, formatNFLPlayerContext } from "../../../../lib/nfl-roster.js";
+import { lookupNFLPlayer, formatNFLPlayerContext, findMentionedNFLPlayers } from "../../../../lib/nfl-roster.js";
 import Anthropic from "@anthropic-ai/sdk";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -59,7 +59,11 @@ export async function POST(request) {
       `Trade analysis: I'm giving ${tradeGive} and receiving ${tradeGet}. Should I accept or decline?`;
   } else if (mode === "ask") {
     if (!question) return Response.json({ error: "question required" }, { status: 400 });
-    userMessage = `Scoring format: ${scoring || "PPR"}\n\n${question}`;
+    const mentioned = await findMentionedNFLPlayers(question).catch(() => []);
+    const context = mentioned.map(formatNFLPlayerContext).filter(Boolean).join("\n");
+    userMessage = `Scoring format: ${scoring || "PPR"}\n\n` +
+      (context ? `Current roster/injury data for players mentioned below:\n${context}\n\n` : "") +
+      question;
   } else {
     return Response.json({ error: "mode must be startSit, trade, or ask" }, { status: 400 });
   }

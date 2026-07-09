@@ -10,6 +10,8 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { getNFLGamesForDate } from "../../../../lib/nfl-stats.js";
+import { fetchNFLScoresFromOddsAPI } from "../../../../lib/nfl-odds.js";
+import { findNFLGameMatch, gradeNFLPick } from "../../../../lib/nfl-picks.js";
 import { getEloRatings, updateEloAfterGame } from "../../../../lib/elo-db.js";
 import { timingSafeEqual } from "../../../../lib/auth.js";
 
@@ -18,38 +20,12 @@ const getSupabase = () => createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-const lastWord = (s) => (s || "").trim().split(" ").pop().toLowerCase();
-
-function findESPNGame(pick, games) {
-  return games.find(g => {
-    const ht = (g.homeTeam || "").toLowerCase();
-    const at = (g.awayTeam || "").toLowerCase();
-    return ht.includes(lastWord(pick.home_team)) && at.includes(lastWord(pick.away_team));
-  });
-}
-
-// Resolves a single pick's win/loss/push given the final score, using the market-
-// appropriate line comparison. Spread `line` is the HOME team's market spread
-// (negative if home favored), same convention as game.spread throughout the NFL
-// pipeline; totals `line` is the market total.
-function gradePick(pick, homeScore, awayScore) {
-  if (pick.market_type === "spread") {
-    const homeMargin = homeScore - awayScore;
-    const adjMargin = pick.pick === pick.home_team ? homeMargin + Number(pick.line) : -homeMargin - Number(pick.line);
-    if (adjMargin > 0) return "win";
-    if (adjMargin < 0) return "loss";
-    return "push";
-  }
-  if (pick.market_type === "total") {
-    const totalScore = homeScore + awayScore;
-    if (totalScore === Number(pick.line)) return "push";
-    const wentOver = totalScore > Number(pick.line);
-    return (pick.pick === "Over") === wentOver ? "win" : "loss";
-  }
-  // moneyline
-  if (homeScore === awayScore) return "push";
-  if (homeScore > awayScore) return pick.home_team === pick.pick ? "win" : "loss";
-  return pick.away_team === pick.pick ? "win" : "loss";
+const ctFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit",
+});
+function ctDateOf(iso) {
+  const p = ctFormatter.formatToParts(new Date(iso));
+  return `${p.find(x => x.type === "year").value}-${p.find(x => x.type === "month").value}-${p.find(x => x.type === "day").value}`;
 }
 
 export async function GET(request) {
@@ -76,6 +52,19 @@ export async function GET(request) {
       gamesByDate[d] = await getNFLGamesForDate(d);
     }));
 
+    // Fallback: ESPN's scoreboard is an undocumented, unofficial API with no SLA. If
+    // it came back empty for any pending date, pull The Odds API's documented (paid)
+    // scores feed once and use it to fill the gaps — narrower lookback (~3 days) but
+    // a meaningfully more reliable source when ESPN is down or has changed shape.
+    const oddsApiScores = dates.some(d => !gamesByDate[d]?.length)
+      ? await fetchNFLScoresFromOddsAPI()
+      : [];
+    const oddsApiByDate = {};
+    for (const g of oddsApiScores) {
+      const d = ctDateOf(g.date);
+      (oddsApiByDate[d] ||= []).push(g);
+    }
+
     const eloRatings = await getEloRatings(supabase, "nfl_team_elo", null);
     let currentElo = { ...eloRatings };
     const eloUpdatedGames = new Set();
@@ -84,10 +73,13 @@ export async function GET(request) {
 
     for (const pick of pending) {
       const games = gamesByDate[pick.date] || [];
-      const g = findESPNGame(pick, games);
+      let g = findNFLGameMatch(pick, games);
+      if (!g || !g.completed || g.homeScore == null || g.awayScore == null) {
+        g = findNFLGameMatch(pick, oddsApiByDate[pick.date] || []);
+      }
       if (!g || !g.completed || g.homeScore == null || g.awayScore == null) continue;
 
-      const result = gradePick(pick, g.homeScore, g.awayScore);
+      const result = gradeNFLPick(pick, g.homeScore, g.awayScore);
 
       await supabase
         .from("nfl_model_picks")
@@ -95,17 +87,22 @@ export async function GET(request) {
         .eq("id", pick.id);
       resolved++;
 
+      // Preseason games (backups, small samples, not representative of true team
+      // strength) are graded for pipeline testing but must not feed Elo or the
+      // public-facing record — see sql/003_nfl_preseason.sql.
+      const isPreseason = pick.season_type === "preseason";
+
       // Elo reflects the actual game outcome, not the pick — update once per unique
       // game regardless of how many markets (ml/spread/total) reference it.
       const gameKey = `${pick.home_team}|${pick.away_team}|${pick.date}`;
-      if (!eloUpdatedGames.has(gameKey) && g.homeScore !== g.awayScore) {
+      if (!isPreseason && !eloUpdatedGames.has(gameKey) && g.homeScore !== g.awayScore) {
         currentElo = await updateEloAfterGame(
           supabase, pick.home_team, pick.away_team, g.homeScore > g.awayScore, currentElo, "nfl_team_elo"
         );
         eloUpdatedGames.add(gameKey);
       }
 
-      if (pick.is_bet && (result === "win" || result === "loss")) {
+      if (!isPreseason && pick.is_bet && (result === "win" || result === "loss")) {
         dailyDelta[pick.date] = dailyDelta[pick.date] || { wins: 0, losses: 0 };
         dailyDelta[pick.date][result === "win" ? "wins" : "losses"]++;
       }

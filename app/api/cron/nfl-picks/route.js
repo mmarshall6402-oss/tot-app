@@ -28,11 +28,17 @@ export async function GET(request) {
 
   const supabase = getSupabase();
   try {
-    const dateParam = new URL(request.url).searchParams.get("date");
+    const { searchParams } = new URL(request.url);
+    const dateParam = searchParams.get("date");
+    // Preseason mode lets the whole pipeline get exercised against real games before
+    // the regular season starts — tagged season_type='preseason' so resolve skips
+    // Elo/record updates for it (see app/api/cron/nfl-resolve, app/api/nfl/daily-record).
+    const preseason = searchParams.get("preseason") === "1";
+    const seasonType = preseason ? "preseason" : "regular";
 
-    const games = await fetchNFLOdds();
+    const games = await fetchNFLOdds(preseason ? "americanfootball_nfl_preseason" : "americanfootball_nfl");
     if (!games.length) {
-      return Response.json({ generated: [], notice: "no NFL games/odds available" });
+      return Response.json({ generated: [], notice: `no NFL${preseason ? " preseason" : ""} games/odds available` });
     }
 
     const byDate = new Map();
@@ -61,7 +67,7 @@ export async function GET(request) {
       const { data: existingSettled } = await supabase.from("nfl_model_picks")
         .select("id").eq("date", date).in("result", ["win", "loss", "push"]).limit(1);
       if (!existingSettled?.length) {
-        const rows = buildNFLModelPickRows(picks, date);
+        const rows = buildNFLModelPickRows(picks, date, seasonType);
         if (rows.length) {
           await supabase.from("nfl_model_picks").delete().eq("date", date);
           const { error: insErr } = await supabase.from("nfl_model_picks").insert(rows);

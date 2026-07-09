@@ -1,8 +1,15 @@
-// Auto-resolves pending saved picks by checking final scores from MLB Stats API.
+// Auto-resolves pending saved picks. MLB picks (sport='mlb', the default) resolve
+// against the MLB Stats API, unchanged from before. NFL picks (sport='nfl') resolve
+// against ESPN's scoreboard (falling back to The Odds API's scores feed), using the
+// same market-aware grading (moneyline/spread/total) as app/api/cron/nfl-resolve —
+// see sql/004_nfl_tracker.sql for the columns this needs on saved_picks.
 // Called when the user opens the tracker tab.
 
 import { createClient } from "@supabase/supabase-js";
 import { requireAuth } from "../../../../lib/auth.js";
+import { getNFLGamesForDate } from "../../../../lib/nfl-stats.js";
+import { fetchNFLScoresFromOddsAPI } from "../../../../lib/nfl-odds.js";
+import { findNFLGameMatch, gradeNFLPick } from "../../../../lib/nfl-picks.js";
 
 const MLB_API = "https://statsapi.mlb.com/api/v1";
 
@@ -50,6 +57,41 @@ function resolveResult(pick, games) {
   return pick.away_team === pick.pick ? "win" : "loss";
 }
 
+function ctDateOf(iso) {
+  const p = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date(iso));
+  return `${p.find(x => x.type === "year").value}-${p.find(x => x.type === "month").value}-${p.find(x => x.type === "day").value}`;
+}
+
+async function resolveNFLPicks(supabase, picks, userId) {
+  const dates = [...new Set(picks.map(p => ctDateOf(p.commence_time)))];
+  const gamesByDate = {};
+  await Promise.all(dates.map(async (d) => { gamesByDate[d] = await getNFLGamesForDate(d); }));
+
+  const anyMissing = dates.some(d => !gamesByDate[d]?.length);
+  const oddsApiScores = anyMissing ? await fetchNFLScoresFromOddsAPI() : [];
+  const oddsApiByDate = {};
+  for (const g of oddsApiScores) (oddsApiByDate[ctDateOf(g.date)] ||= []).push(g);
+
+  let resolved = 0;
+  await Promise.all(picks.map(async (pick) => {
+    const date = ctDateOf(pick.commence_time);
+    let g = findNFLGameMatch(pick, gamesByDate[date] || []);
+    if (!g || !g.completed || g.homeScore == null || g.awayScore == null) {
+      g = findNFLGameMatch(pick, oddsApiByDate[date] || []);
+    }
+    if (!g || !g.completed || g.homeScore == null || g.awayScore == null) return;
+
+    const result = gradeNFLPick(pick, g.homeScore, g.awayScore);
+    await supabase.from("saved_picks")
+      .update({ result, home_score: g.homeScore, away_score: g.awayScore })
+      .eq("id", pick.id).eq("user_id", userId);
+    resolved++;
+  }));
+  return resolved;
+}
+
 export async function POST(request) {
   const { user, error: authError } = await requireAuth(request);
   if (authError) return authError;
@@ -73,15 +115,19 @@ export async function POST(request) {
   const resolvable = pending.filter(p => new Date(p.commence_time) < cutoff);
   if (!resolvable.length) return Response.json({ resolved: 0 });
 
+  const mlbPicks = resolvable.filter(p => p.sport !== "nfl");
+  const nflPicks = resolvable.filter(p => p.sport === "nfl");
+
+  let resolved = 0;
+
   // Group by game date to minimize MLB API calls
   const byDate = {};
-  for (const pick of resolvable) {
+  for (const pick of mlbPicks) {
     const date = pick.commence_time.split("T")[0];
     if (!byDate[date]) byDate[date] = [];
     byDate[date].push(pick);
   }
 
-  let resolved = 0;
   for (const [date, picks] of Object.entries(byDate)) {
     const games = await fetchFinalScores(date);
     const updates = picks
@@ -92,6 +138,10 @@ export async function POST(request) {
       supabase.from("saved_picks").update({ result }).eq("id", pick.id).eq("user_id", userId)
     ));
     resolved += updates.length;
+  }
+
+  if (nflPicks.length) {
+    resolved += await resolveNFLPicks(supabase, nflPicks, userId);
   }
 
   return Response.json({ resolved });

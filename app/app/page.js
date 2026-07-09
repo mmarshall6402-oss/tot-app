@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef } from "react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { createClient } from "@supabase/supabase-js";
+import NFLSection from "../../components/NFLSection.js";
 
 // Single shared instance — sign-out and auth listeners must share the same client
 // so state changes propagate correctly. Calling createClient() on every request
@@ -139,10 +140,6 @@ export default function ToT() {
   const [picks, setPicks] = useState(null);
   const [picksError, setPicksError] = useState(null);
   const [picksDiagnostic, setPicksDiagnostic] = useState(null);
-  const [nflPicks, setNflPicks] = useState(null);
-  const [nflPicksError, setNflPicksError] = useState(null);
-  const [nflExpanded, setNflExpanded] = useState(null);
-  const [nflGenerating, setNflGenerating] = useState(false);
   const [savedPicks, setSavedPicks] = useState([]);
   const [gameRecaps, setGameRecaps] = useState({});
   const [chatMessages, setChatMessages] = useState([]);
@@ -301,7 +298,6 @@ export default function ToT() {
     if (activeTab === "parlay" && picksDate !== selectedDate) fetchPicks(selectedDate);
     if (activeTab === "steals") fetchSteals(selectedDate);
     if (activeTab === "tracker") fetchSaved();
-    if (activeTab === "nfl") fetchNflPicks(selectedDate);
   }, [user, isPro, activeTab, selectedDate]);
 
   useEffect(() => {
@@ -400,23 +396,6 @@ export default function ToT() {
     setLoading(false);
   };
 
-  const fetchNflPicks = async (date, bust = false) => {
-    setLoading(true);
-    try {
-      const headers = await getAuthHeaders();
-      const res = await fetch(`/api/nfl/picks?date=${date}${bust ? "&bust=1" : ""}`, { headers });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
-      setNflPicksError(null);
-      setNflPicks(data.picks || []);
-    } catch (e) {
-      console.error("nfl picks error", e);
-      setNflPicksError(e.message || "Could not load games");
-      setNflPicks(prev => prev ?? []);
-    }
-    setLoading(false);
-  };
-
   const fetchSaved = async () => {
     setLoading(activeTab === "tracker");
     // Auto-resolve any pending picks whose games are finished
@@ -437,12 +416,17 @@ export default function ToT() {
     const merged = picks.map(p => ({ ...p, ...(modelData[p.game_id] || {}) }));
     setSavedPicks(merged);
 
-    // Auto-fetch recaps for all resolved picks
-    const resolved = merged.filter(p => p.result !== "pending" && p.result !== "push" && p.game_id);
-    if (resolved.length) {
+    // Auto-fetch recaps for all resolved picks. NFL has no recap source yet
+    // (game-recap is MLB-boxscore-specific) — mark those "error" directly instead of
+    // fetching, so the tracker card shows "details unavailable" rather than getting
+    // stuck on "Loading game details..." forever.
+    const resolvedAll = merged.filter(p => p.result !== "pending" && p.result !== "push" && p.game_id);
+    const mlbResolved = resolvedAll.filter(p => p.sport !== "nfl");
+    const nflEntries = resolvedAll.filter(p => p.sport === "nfl").map(p => [p.game_id, "error"]);
+    if (resolvedAll.length) {
       const headers = await getAuthHeaders();
       const recapEntries = await Promise.all(
-        resolved.map(async p => {
+        mlbResolved.map(async p => {
           try {
             const date = p.commence_time?.split("T")[0] || "";
             const params = new URLSearchParams({ gamePk: p.game_id, homeTeam: p.home_team, awayTeam: p.away_team, date, pick: p.pick || "", result: p.result || "", edge: p.edge != null ? String(p.edge) : "", tier: p.tier || "" });
@@ -454,26 +438,40 @@ export default function ToT() {
           }
         })
       );
-      setGameRecaps(Object.fromEntries(recapEntries));
+      setGameRecaps(prev => ({ ...prev, ...Object.fromEntries([...recapEntries, ...nflEntries]) }));
     }
 
     setLoading(false);
   };
 
-  const savePick = async (pick) => {
+  // sport: "mlb" (default, existing behavior) | "nfl". NFL picks carry a market_type
+  // (moneyline/spread/total) and, for spread/total, a line — needed by
+  // app/api/tracker/resolve to grade them correctly, since NFL games have 3 markets
+  // per pick.id rather than MLB's 1. pick.id already includes the market suffix
+  // (e.g. "<gameId>-spread"), so the existing user_id+game_id uniqueness still holds.
+  const savePick = async (pick, sport = "mlb") => {
     if (saving[pick.id] === "saved") return;
     if (savedPicks.some(p => p.game_id === pick.id)) return;
     setSaving(s => ({ ...s, [pick.id]: "saving" }));
+    const odds = sport === "nfl"
+      ? (pick.marketType === "spread" ? (pick.pick === pick.homeTeam ? pick.homeSpreadOdds : pick.awaySpreadOdds)
+        : pick.marketType === "total" ? (pick.pick === "Over" ? pick.overOdds : pick.underOdds)
+        : (pick.pick === pick.homeTeam ? pick.homeOdds : pick.awayOdds))
+      : (pick.homeTeam === pick.pick ? pick.homeOdds : pick.awayOdds);
     await getSupabase().from("saved_picks").upsert({
       user_id: user.id,
       game_id: pick.id,
       home_team: pick.homeTeam,
       away_team: pick.awayTeam,
       pick: pick.pick,
-      odds: pick.homeTeam === pick.pick ? pick.homeOdds : pick.awayOdds,
+      odds,
       tier: pick.tier?.level,
       commence_time: pick.commenceTime,
       result: "pending",
+      sport,
+      market_type: sport === "nfl" ? pick.marketType : "moneyline",
+      line: sport === "nfl" ? (pick.marketType === "spread" ? pick.spread : pick.marketType === "total" ? pick.total : null) : null,
+      edge: sport === "nfl" ? pick.edge : null,
     }, { onConflict: "user_id,game_id" });
     setSaving(s => ({ ...s, [pick.id]: "saved" }));
   };
@@ -541,16 +539,6 @@ export default function ToT() {
       await fetchPicks(selectedDate, true);
     } catch (e) { console.error("regen error", e); }
     setGenerating(false);
-  };
-
-  const generateNflPicks = async () => {
-    setNflGenerating(true);
-    try {
-      const headers = await getAuthHeaders();
-      await fetch("/api/admin/regen", { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify({ sport: "nfl", date: selectedDate }) });
-      await fetchNflPicks(selectedDate, true);
-    } catch (e) { console.error("nfl regen error", e); }
-    setNflGenerating(false);
   };
 
   const sorted = [...(picks || [])].sort((a, b) => {
@@ -2287,156 +2275,17 @@ export default function ToT() {
           );
         })()}
 
-        {activeTab === "nfl" && !isPro && (
-          <div style={{ ...S.card, textAlign: "center", padding: "28px 16px" }}>
-            <div style={{ fontSize: 22, marginBottom: 8 }}>🏈</div>
-            <div style={{ fontWeight: 700 }}>NFL picks are Pro-only</div>
-            <div style={{ fontSize: 12, color: "#777", marginTop: 6 }}>Upgrade to unlock spread, moneyline & total picks.</div>
-            <button style={{ ...S.saveBtn, marginTop: 12, background: "#00FF87", color: "#000", borderColor: "#00FF87" }} onClick={() => setUpgradeModal(true)}>⚡ Upgrade to Pro</button>
-          </div>
-        )}
-
-        {activeTab === "nfl" && isPro && (
-          nflPicks === null ? (
-            <div style={S.center}>
-              <div style={S.spinner} />
-              <div style={{ color: "#777", fontSize: 13, marginTop: 12 }}>Analyzing {fmtDateLabel(selectedDate)}'s games…</div>
-            </div>
-          ) : nflPicksError ? (
-            <div style={S.center}>
-              <div style={{ fontSize: 32 }}>⚠️</div>
-              <div style={{ color: "#fff", fontWeight: 700, marginTop: 8 }}>Could not load games</div>
-              <div style={{ color: "#777", fontSize: 13, marginTop: 4 }}>{nflPicksError}</div>
-              <button style={{ ...S.saveBtn, marginTop: 14 }} onClick={() => fetchNflPicks(selectedDate, true)}>Retry</button>
-            </div>
-          ) : nflPicks.length === 0 ? (
-            <div style={S.center}>
-              <div style={{ fontSize: 32 }}>🏈</div>
-              <div style={{ color: "#fff", fontWeight: 700, marginTop: 8 }}>No games found</div>
-              <div style={{ color: "#777", fontSize: 13, marginTop: 4 }}>Try a different date</div>
-            </div>
-          ) : (
-            <>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "6px 0", borderBottom: "1px solid #0d0d0d", marginBottom: 4 }}>
-                <span style={{ fontSize: 11, color: "#777" }}>{nflPicks.length} picks</span>
-                <span style={{ fontSize: 11, color: "#00FF87" }}>{nflPicks.filter(p => p.isBet).length} BET</span>
-                <span style={{ fontSize: 11, color: "#555" }}>{nflPicks.filter(p => !p.isBet).length} PASS</span>
-                <button style={{ ...S.sortBtn, marginLeft: "auto", fontSize: 13 }} onClick={() => fetchNflPicks(selectedDate, true)} title="Refresh picks">↺</button>
-                {isAdmin && (
-                  <button
-                    style={{ ...S.sortBtn, fontSize: 11, background: nflGenerating ? "rgba(0,255,135,0.1)" : "#111", color: nflGenerating ? "#00FF87" : "#555", borderColor: nflGenerating ? "#00FF87" : "#333" }}
-                    onClick={generateNflPicks}
-                    disabled={nflGenerating}
-                    title="Force-generate NFL picks for this date"
-                  >{nflGenerating ? "…" : "⚡ Gen"}</button>
-                )}
-              </div>
-              {nflPicks.map(pick => {
-                const isBet = pick.isBet;
-                const edge = pick.edge || 0;
-                const t = TIER[pick.tier?.level] || TIER.Low;
-                const isOpen = nflExpanded === pick.id;
-                const f = pick.filter;
-                const verdict = f?.verdict;
-                const pickOdds = pick.marketType === "spread"
-                  ? (pick.pick === pick.homeTeam ? pick.homeSpreadOdds : pick.awaySpreadOdds)
-                  : pick.marketType === "total"
-                  ? (pick.pick === "Over" ? pick.overOdds : pick.underOdds)
-                  : (pick.pick === pick.homeTeam ? pick.homeOdds : pick.awayOdds);
-                const spreadLine = pick.marketType === "spread" && pick.spread != null
-                  ? (pick.pick === pick.homeTeam ? -pick.spread : pick.spread)
-                  : null;
-                const totalLine = pick.marketType === "total" && pick.total != null ? pick.total : null;
-                const cardBorder = isOpen ? (isBet ? "#00FF87" : "#2a2a2a") : (isBet ? "rgba(0,255,135,0.25)" : "#1a1a1a");
-
-                return (
-                  <div key={pick.id} style={{ ...S.card, borderColor: cardBorder }}>
-                    <div style={S.cardTop}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
-                          <span style={{
-                            fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5,
-                            background: verdict === "TRAP" ? "rgba(255,77,77,0.1)" : isBet ? "rgba(0,255,135,0.08)" : "rgba(50,50,50,0.5)",
-                            color: verdict === "TRAP" ? "#FF4D4D" : isBet ? "#00FF87" : "#333",
-                            border: `1px solid ${verdict === "TRAP" ? "rgba(255,77,77,0.3)" : isBet ? "rgba(0,255,135,0.2)" : "#222"}`,
-                          }}>
-                            {verdict === "TRAP" ? "TRAP" : isBet ? "BET" : "PASS"}
-                          </span>
-                          <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 5, background: "#111", color: "#888", letterSpacing: 0.5 }}>
-                            {pick.marketType === "spread" ? "SPREAD" : pick.marketType === "total" ? "TOTAL" : "MONEYLINE"}
-                          </span>
-                          {f && <span style={{ fontSize: 11, color: isBet ? "#555" : "#333", fontFamily: "'JetBrains Mono',monospace" }}>{edge.toFixed(1)}% edge</span>}
-                          {isBet && <span style={{ fontSize: 10, color: t.color, opacity: 0.7 }}>{t.label}</span>}
-                        </div>
-                        <div style={S.cardMatchup}>{pick.awayTeam} @ {pick.homeTeam}</div>
-                        <div style={S.cardMeta}>
-                          {fmtGameTime(pick.commenceTime)}
-                          {pick.pick && <> · Take{" "}
-                            <span style={{ color: isBet ? "#00FF87" : "#aaa", fontWeight: 700 }}>
-                              {pick.pick}
-                              {spreadLine != null ? ` ${spreadLine > 0 ? "+" : ""}${spreadLine}` : ""}
-                              {totalLine != null ? ` ${totalLine}` : ""}
-                            </span>
-                          </>}
-                          {pickOdds != null && <span style={{ color: "#888", fontFamily: "'JetBrains Mono',monospace" }}> · {fmtOdds(pickOdds)}</span>}
-                        </div>
-                        <div style={{ marginTop: 7, display: "flex", alignItems: "center", gap: 7 }}>
-                          <div style={{ flex: 1, height: 3, background: "#111", borderRadius: 2 }}>
-                            <div style={{ height: "100%", borderRadius: 2, width: `${Math.min(100, edge * 6)}%`, background: isBet ? t.color : "#222", transition: "width 0.5s ease" }} />
-                          </div>
-                          {f && <span style={{ fontSize: 10, color: isBet ? t.color : "#333", fontFamily: "'JetBrains Mono',monospace", flexShrink: 0 }}>{edge.toFixed(1)}%</span>}
-                        </div>
-                      </div>
-                      <button
-                        style={{ ...S.expandBtn, borderColor: isOpen ? (isBet ? "#00FF87" : "#444") : "#222", color: isOpen ? (isBet ? "#00FF87" : "#444") : "#333" }}
-                        onClick={() => setNflExpanded(isOpen ? null : pick.id)}
-                      >
-                        {isOpen ? "▲" : "▼"}
-                      </button>
-                    </div>
-                    <div style={S.pitchRow}>
-                      <div style={S.pitchBox}>
-                        <div style={S.pitchLabel}>{pick.awayTeam?.toUpperCase()}</div>
-                        <div style={S.pitchName}>{pick.matchup?.away || "stats unavailable"}</div>
-                      </div>
-                      <div style={S.pitchVs}>VS</div>
-                      <div style={{ ...S.pitchBox, textAlign: "right" }}>
-                        <div style={S.pitchLabel}>{pick.homeTeam?.toUpperCase()}</div>
-                        <div style={S.pitchName}>{pick.matchup?.home || "stats unavailable"}</div>
-                      </div>
-                    </div>
-                    {isOpen && f && (
-                      <div style={{ animation: "fadeUp 0.2s ease" }}>
-                        <div style={S.expDivider} />
-                        <div style={S.expSection}>
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#888", marginBottom: 4 }}>
-                            <span>Confidence</span><span style={{ color: "#ccc", fontFamily: "'JetBrains Mono',monospace" }}>{f.confidence}/10</span>
-                          </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#888", marginBottom: 4 }}>
-                            <span>Model win prob</span><span style={{ color: "#ccc", fontFamily: "'JetBrains Mono',monospace" }}>{f.trueWinProbPct}%</span>
-                          </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#888", marginBottom: 4 }}>
-                            <span>Market implied</span><span style={{ color: "#ccc", fontFamily: "'JetBrains Mono',monospace" }}>{f.marketImpliedPct}%</span>
-                          </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#888", marginBottom: 4 }}>
-                            <span>Uncertainty</span><span style={{ color: "#ccc", fontFamily: "'JetBrains Mono',monospace" }}>±{f.uncertaintyPct}%</span>
-                          </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#888" }}>
-                            <span>Data variance</span><span style={{ color: "#ccc" }}>{f.variance}</span>
-                          </div>
-                          {f.failures?.length > 0 && (
-                            <div style={{ marginTop: 8, fontSize: 11, color: "#666", lineHeight: 1.5 }}>
-                              {f.failures.map((fail, i) => <div key={i}>· {fail}</div>)}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </>
-          )
+        {activeTab === "nfl" && (
+          <NFLSection
+            S={S}
+            getAuthHeaders={getAuthHeaders}
+            isPro={isPro}
+            isAdmin={isAdmin}
+            setUpgradeModal={setUpgradeModal}
+            savePick={savePick}
+            saving={saving}
+            selectedDate={selectedDate}
+          />
         )}
 
       </div>

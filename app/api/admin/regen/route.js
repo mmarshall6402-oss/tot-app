@@ -22,6 +22,7 @@ export async function POST(request) {
   if (body.sport === "nfl") {
     const nflParams = new URLSearchParams();
     if (body.date) nflParams.set("date", body.date);
+    if (body.preseason) nflParams.set("preseason", "1");
     const res = await fetch(`${BASE_URL}/api/cron/nfl-picks?${nflParams}`, {
       headers: { Authorization: `Bearer ${CRON_SECRET}` },
     });

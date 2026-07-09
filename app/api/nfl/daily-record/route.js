@@ -26,6 +26,7 @@ export async function GET() {
       .from("nfl_model_picks")
       .select("odds, result")
       .eq("is_bet", true)
+      .eq("season_type", "regular") // exclude preseason test runs — see sql/003_nfl_preseason.sql
       .in("result", ["win", "loss", "push"]);
 
     if (error) throw error;
