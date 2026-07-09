@@ -170,13 +170,10 @@ function buildPick(game, mlb, breakdown, precomputedFilter) {
       : { level: "Low",    label: "👀 Lean",         emoji: "👀" }
     : { level: "Low", label: "👀 Lean", emoji: "👀" };
 
-  const tier = breakdown?.tier?.level
-    ? {
-        label: breakdown.tier.level === "High" ? "🔥 Value Pick" : breakdown.tier.level === "Medium" ? "✅ Solid Pick" : "👀 Lean",
-        level: breakdown.tier.level,
-        emoji: breakdown.tier.level === "High" ? "🔥" : breakdown.tier.level === "Medium" ? "✅" : "👀",
-      }
-    : verdictTier;
+  // Always use the filter-derived tier — Claude's breakdown tier is not constrained to
+  // match the filter's confidence/verdict, so using it here creates a contradiction
+  // between the tier badge and the CONFIDENCE/VARIANCE values shown in the filter panel.
+  const tier = verdictTier;
 
   const ipStr = (p) => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";
   const hp = mlb?.homePitcher;
@@ -208,18 +205,52 @@ async function generateForDate(date, oddsGames, supabase, force = false, isToday
   const cacheCtDate = existing?.generated_at
     ? (() => { const p = ctFormatter.formatToParts(new Date(existing.generated_at)); return `${p.find(x=>x.type==="year").value}-${p.find(x=>x.type==="month").value}-${p.find(x=>x.type==="day").value}`; })()
     : null;
-  if (!force && cacheCtDate === date && existing?.picks?.some(p => p.breakdown?.preview)) {
+  if (!force && cacheCtDate === date && existing?.picks?.every(p => p.breakdown?.preview)) {
     return { skipped: true, date };
   }
 
   // Never overwrite today's picks once games are in progress unless explicitly forced.
   // Auto-runs after 1 PM would only return remaining games (odds APIs drop started games).
   // force=1 from admin bypasses this — admin knows what they're doing.
+  // Exception: if picks exist but breakdowns are missing (e.g. API was out of credits when
+  // cron ran), add breakdowns to the existing cached picks without rebuilding pick verdicts.
   if (!force && isToday && existing?.picks?.length >= 3) {
     const ctHour = parseInt(new Intl.DateTimeFormat("en-US", {
       timeZone: "America/Chicago", hour: "numeric", hour12: false,
     }).format(new Date()), 10);
-    if (ctHour >= 13) return { skipped: true, date, reason: "games in progress — preserving today's cache" };
+    if (ctHour >= 13) {
+      const missingBreakdowns = !existing.picks.some(p => p.breakdown?.preview);
+      if (!missingBreakdowns) return { skipped: true, date, reason: "games in progress — preserving today's cache" };
+      // Breakdowns are missing — generate them from cached pick data without rebuilding picks
+      const bdContexts = existing.picks.map(p => ({
+        homeTeam: p.homeTeam, awayTeam: p.awayTeam,
+        homeOdds: p.homeOdds, awayOdds: p.awayOdds,
+        pick: p.pick,
+        trueEdgePct: p.filter?.trueEdgePct ?? 0,
+        verdict: p.filter?.verdict ?? "PASS",
+        variance: p.filter?.variance ?? 0,
+        parkFactor: p.filter?.parkFactor ?? 0,
+        flags: Array.isArray(p.filter?.flags)
+          ? p.filter.flags.map(f => f.replace(/_/g, " ").toLowerCase()).join(", ")
+          : "none",
+        homePStr: p.breakdown?.pitcher_home || "TBD",
+        awayPStr: p.breakdown?.pitcher_away || "N/A",
+        homeBullpenStr: "no data", awayBullpenStr: "no data",
+        homeFormStr: "no data", awayFormStr: "no data",
+        homeRecordStr: p.homeRecord || "no data",
+        awayRecordStr: p.awayRecord || "no data",
+        homeLineupStr: "not posted", awayLineupStr: "not posted",
+      }));
+      const newBreakdowns = await callClaudeBatch(bdContexts);
+      const updatedPicks = existing.picks.map((p, i) => {
+        const bd = newBreakdowns[i];
+        if (!bd?.preview) return p;
+        return { ...p, breakdown: { ...(p.breakdown || {}), ...bd } };
+      });
+      await supabase.from("picks_cache")
+        .upsert({ date, picks: updatedPicks, generated_at: existing.generated_at }, { onConflict: "date" });
+      return { date, count: updatedPicks.length, breakdownsAdded: true };
+    }
   }
 
   const mlbRes = await fetch(`${BASE_URL}/api/mlb?date=${date}`).then(r => r.json()).catch(() => ({}));

@@ -179,6 +179,10 @@ export default function ToT() {
   const weekDates = getWeekDates();
   const todayStr = weekDates[7];
   const [selectedDate, setSelectedDate] = useState(todayStr);
+  // Tracks the most recently selected date so a slow fetch for a date the
+  // user has since navigated away from can't clobber newer state on arrival.
+  const selectedDateRef = useRef(todayStr);
+  useEffect(() => { selectedDateRef.current = selectedDate; }, [selectedDate]);
   const dateScrollRef = useRef(null);
   const todayBtnRef = useRef(null);
   const [steals, setSteals] = useState(null);
@@ -384,8 +388,9 @@ export default function ToT() {
       const headers = await getAuthHeaders();
       const res = await fetch(`/api/steals?date=${date}`, { headers });
       const data = await res.json();
+      if (date !== selectedDateRef.current) return; // stale — user navigated away
       setSteals(data.steals || []);
-    } catch (e) { setSteals(prev => prev ?? []); }
+    } catch (e) { if (date === selectedDateRef.current) setSteals(prev => prev ?? []); }
   };
 
   const fetchPicks = async (date, bust = false) => {
@@ -395,6 +400,7 @@ export default function ToT() {
       const res = await fetch(`/api/picks?date=${date}${bust ? "&bust=1" : ""}`, { headers });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
+      if (date !== selectedDateRef.current) return; // stale — user navigated away
       const next = data.picks || [];
       setPicksError(null);
       setPicksDiagnostic(data.diagnostic || null);
@@ -411,9 +417,11 @@ export default function ToT() {
       });
     } catch (e) {
       console.error("picks error", e);
-      setPicksError(e.message || "Could not load games");
-      setPicksDiagnostic(null);
-      setPicks(prev => prev ?? []);
+      if (date === selectedDateRef.current) {
+        setPicksError(e.message || "Could not load games");
+        setPicksDiagnostic(null);
+        setPicks(prev => prev ?? []);
+      }
     }
     setLoading(false);
   };

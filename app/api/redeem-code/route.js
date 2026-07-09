@@ -33,6 +33,25 @@ export async function POST(request) {
       return Response.json({ error: "Code has reached its limit" }, { status: 410 });
     }
 
+    // Atomically claim a use slot before granting access — the WHERE guard is
+    // re-checked against the row's live state, so two concurrent redemptions
+    // of a single-use code can't both pass (row-level locking serializes the
+    // two UPDATEs; the second sees the already-incremented count and fails
+    // the `.lt()` condition instead of overwriting it).
+    if (ac.uses_max !== null) {
+      const { data: claimed } = await supabase
+        .from("access_codes")
+        .update({ uses_count: ac.uses_count + 1 })
+        .eq("id", ac.id)
+        .lt("uses_count", ac.uses_max)
+        .select("id");
+      if (!claimed?.length) {
+        return Response.json({ error: "Code has reached its limit" }, { status: 410 });
+      }
+    } else {
+      await supabase.from("access_codes").update({ uses_count: ac.uses_count + 1 }).eq("id", ac.id);
+    }
+
     // Grant access — create/update subscription row
     const { data: existing } = await supabase.from("subscriptions").select("id").eq("user_id", userId).single();
     const subData = {
@@ -47,9 +66,6 @@ export async function POST(request) {
     } else {
       await supabase.from("subscriptions").insert(subData);
     }
-
-    // Increment use count
-    await supabase.from("access_codes").update({ uses_count: ac.uses_count + 1 }).eq("id", ac.id);
 
     return Response.json({ ok: true, label: ac.label });
   } catch (e) {

@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { fetchMLBOdds, getOddsDiagnostics } from "../../../lib/odds.js";
-import { calculateEdge, getConfidenceTier, americanToDecimal, decimalToImplied, removeVig } from "../../../lib/edge.js";
+import { calculateEdge, americanToDecimal, decimalToImplied, removeVig } from "../../../lib/edge.js";
 import { getModelProbability } from "../../../lib/probability.js";
 import { applyFilterLayer, buildParlayCards } from "../../../lib/filter.js";
 import { requirePro } from "../../../lib/auth.js";
@@ -299,13 +299,23 @@ export async function GET(request) {
             const homeImplied   = gameWithImplied.homeImplied || 0.5;
             const modelProb     = homeImplied + (modelProbRaw - homeImplied) * 0.20;
             const rawEdge       = calculateEdge(modelProb, homeImplied);
-            const freshPick     = rawEdge >= 0 ? pick.homeTeam : pick.awayTeam;
+            // Lock pick direction when a Claude breakdown exists. The breakdown was written
+            // for the original pick; flipping it via a small odds movement creates a direct
+            // contradiction where the card says "Take A" but the breakdown argues for "Take B".
+            const hasBreakdown  = !!pick.breakdown?.preview;
+            const freshPick     = hasBreakdown ? pick.pick : (rawEdge >= 0 ? pick.homeTeam : pick.awayTeam);
             const freshFilter   = applyFilterLayer(freshPick, { ...gameWithImplied, source: pick.filter?.isSquareLine ? "sportsdata" : undefined }, mlb, modelProbRaw);
             const filteredIsBet = ["CLEAN", "BET"].includes(freshFilter.verdict);
             const edgePct       = freshFilter.trueEdgePct;
-            const tier = pick.breakdown?.tier?.level
-              ? { label: pick.breakdown.tier.level === "High" ? "🔥 Value Pick" : pick.breakdown.tier.level === "Medium" ? "✅ Solid Pick" : "👀 Lean", level: pick.breakdown.tier.level }
-              : getConfidenceTier(edgePct / 100) || { label: "👀 Lean", level: "Low" };
+            // Always derive tier from the live filter — Claude's cron-time tier may conflict
+            // with the CONFIDENCE/VARIANCE values shown in the expanded filter panel.
+            const tier = filteredIsBet
+              ? (freshFilter?.verdict === "CLEAN" || (freshFilter?.confidence || 0) >= 7.5)
+                ? { level: "High",   label: "🔥 Value Pick", emoji: "🔥" }
+                : (freshFilter?.confidence || 0) >= 6.5
+                ? { level: "Medium", label: "✅ Solid Pick",  emoji: "✅" }
+                : { level: "Low",    label: "👀 Lean",         emoji: "👀" }
+              : { level: "Low",    label: "👀 Lean",           emoji: "👀" };
 
             return {
               ...pick,

@@ -67,6 +67,14 @@ export async function GET(request) {
   const today     = etDate(0);
   const yesterday = etDate(-1);
 
+  // Idempotency guard — a retried/duplicated cron invocation must not post
+  // the whole thread a second time to the live account.
+  const { data: alreadyTweeted } = await supabase
+    .from("picks_cache").select("date").eq("date", `__tweet_${today}__`).single();
+  if (alreadyTweeted) {
+    return Response.json({ skipped: true, reason: "already tweeted today" });
+  }
+
   try {
     // ── Fetch yesterday's results ────────────────────────────────────────────
     const { data: yPicks } = await supabase

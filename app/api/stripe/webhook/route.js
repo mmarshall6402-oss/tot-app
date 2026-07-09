@@ -6,20 +6,13 @@ const getSupabase = () => createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-// user_id has no UNIQUE constraint so upsert(onConflict:"user_id") silently fails.
-// Use select → update-or-insert instead.
+// Requires the unique constraint added by sql/005_subscriptions_unique_user_id.sql.
+// A real upsert makes concurrent webhook deliveries for the same user (e.g.
+// checkout.session.completed and customer.subscription.created arriving close
+// together) resolve atomically at the DB level instead of racing on a
+// select-then-insert-or-update, which could previously create duplicate rows.
 async function writeSubscription(supabase, fields) {
-  const { data: existing } = await supabase
-    .from("subscriptions")
-    .select("id")
-    .eq("user_id", fields.user_id)
-    .single();
-
-  if (existing) {
-    await supabase.from("subscriptions").update(fields).eq("user_id", fields.user_id);
-  } else {
-    await supabase.from("subscriptions").insert(fields);
-  }
+  await supabase.from("subscriptions").upsert(fields, { onConflict: "user_id" });
 }
 
 export async function POST(request) {

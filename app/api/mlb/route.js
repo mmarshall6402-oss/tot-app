@@ -169,11 +169,21 @@ async function fetchPitcherRecentStarts(pitcherId, numStarts = 5) {
 const _mlbCache = new Map();
 const LIVE_TTL = 4 * 60 * 1000;
 
+// MLB "game day" is defined in US time, not UTC — use the same America/Chicago
+// convention as the rest of the pipeline (app/api/picks/route.js, lib/odds.js)
+// so this route's "today" doesn't roll over hours before the actual CT day ends.
+function ctDateStr(d = new Date()) {
+  const p = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(d);
+  return `${p.find(x => x.type === "year").value}-${p.find(x => x.type === "month").value}-${p.find(x => x.type === "day").value}`;
+}
+
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const date    = searchParams.get("date") || new Date().toISOString().split("T")[0];
-    const today   = new Date().toISOString().split("T")[0];
+    const date    = searchParams.get("date") || ctDateStr();
+    const today   = ctDateStr();
 
     const cached  = _mlbCache.get(date);
     const isPast  = date < today;
