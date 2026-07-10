@@ -356,6 +356,27 @@ export default function ToT() {
     if (user && isPro && activeTab !== "tracker") fetchSaved();
   }, [user, isPro]);
 
+  useEffect(() => {
+    if (!upgradeModal) return;
+    const onKey = (e) => { if (e.key === "Escape") setUpgradeModal(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [upgradeModal]);
+
+  useEffect(() => {
+    if (!showDeleteModal) return;
+    const onKey = (e) => { if (e.key === "Escape" && !deleting) setShowDeleteModal(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showDeleteModal, deleting]);
+
+  useEffect(() => {
+    if (!showInstallPrompt) return;
+    const onKey = (e) => { if (e.key === "Escape") setShowInstallPrompt(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showInstallPrompt]);
+
   // Home needs today's NFL picks too — the "best bet" hero has to compare
   // across both sports, not just default to MLB. NFLSection.js fetches its
   // own copy of this independently; duplicated here rather than lifting
@@ -1094,7 +1115,7 @@ export default function ToT() {
                     setSubStatus(r.ok ? "ok" : "err");
                   } catch { setSubStatus("err"); }
                 }} style={{ display:"flex",gap:10 }}>
-                  <input type="email" required placeholder="your@email.com" value={subEmail} onChange={e => setSubEmail(e.target.value)}
+                  <input type="email" required placeholder="your@email.com" aria-label="Email address" value={subEmail} onChange={e => setSubEmail(e.target.value)}
                     style={{ flex:1,background: "linear-gradient(160deg, #14161c, #0d0e12)",border:"1px solid #242832",borderRadius:12,padding:"13px 15px",color:"#fff",fontSize:14,outline:"none" }} />
                   <button type="submit" disabled={subStatus==="loading"} className="l-cta" style={{ flexShrink:0,fontSize:14,padding:"13px 18px" }}>
                     {subStatus==="loading" ? "…" : "Send me picks"}
@@ -1108,13 +1129,13 @@ export default function ToT() {
           {/* FOOTER */}
           <footer style={{ borderTop:"1px solid #1c1f26",padding:"24px 20px",textAlign:"center" }}>
             <div style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:14,fontWeight:700,marginBottom:10 }}>T<span style={{ color:"#00FF87" }}>|</span>T</div>
-            <div style={{ display:"flex",gap:18,justifyContent:"center",flexWrap:"wrap",fontSize:12,color:"#3d424f" }}>
-              <button style={{ background:"none",border:"none",color:"#555",cursor:"pointer",fontSize:12 }} onClick={() => { setShowAuth(true); setAuthMode("signin"); }}>Sign In</button>
-              <a href="https://twitter.com/ThisorThatPicks" target="_blank" rel="noopener noreferrer" style={{ color:"#3d424f",textDecoration:"none" }}>𝕏 @ThisorThatPicks</a>
-              <a href="/privacy" style={{ color:"#3d424f",textDecoration:"none" }}>Privacy</a>
-              <a href="/terms" style={{ color:"#3d424f",textDecoration:"none" }}>Terms</a>
+            <div style={{ display:"flex",gap:18,justifyContent:"center",flexWrap:"wrap",fontSize:12,color:"#777" }}>
+              <button style={{ background:"none",border:"none",color:"#777",cursor:"pointer",fontSize:12 }} onClick={() => { setShowAuth(true); setAuthMode("signin"); }}>Sign In</button>
+              <a href="https://twitter.com/ThisorThatPicks" target="_blank" rel="noopener noreferrer" style={{ color:"#777",textDecoration:"none" }}>𝕏 @ThisorThatPicks</a>
+              <a href="/privacy" style={{ color:"#777",textDecoration:"none" }}>Privacy</a>
+              <a href="/terms" style={{ color:"#777",textDecoration:"none" }}>Terms</a>
             </div>
-            <div style={{ fontSize:11,color:"#242832",marginTop:12 }}>For entertainment purposes. Bet responsibly.</div>
+            <div style={{ fontSize:11,color:"#777",marginTop:12 }}>For entertainment purposes. Bet responsibly.</div>
           </footer>
         </>
       ) : (
@@ -1131,22 +1152,22 @@ export default function ToT() {
               <span style={{ color:"#777",fontSize:12,padding:"0 10px" }}>or</span>
               <div style={S.orLine} />
             </div>
-            <input style={S.input} type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
-            <input style={S.input} type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} />
-            {authError && <div style={S.errMsg}>{authError}</div>}
+            <input style={S.input} type="email" placeholder="Email" aria-label="Email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} />
+            <input style={S.input} type="password" placeholder="Password" aria-label="Password" autoComplete={authMode === "signin" ? "current-password" : "new-password"} value={password} onChange={e => setPassword(e.target.value)} />
+            {authError && <div style={S.errMsg} role="alert">{authError}</div>}
             <button style={S.primaryBtn} onClick={authMode === "signin" ? signIn : signUp} disabled={authLoading}>
               {authLoading ? "…" : authMode === "signin" ? "Sign In" : "Create Account"}
             </button>
             <div style={S.switchRow}>
               {authMode === "signin" ? "No account? " : "Have an account? "}
-              <span style={{ color:"#00FF87",cursor:"pointer" }} onClick={() => { setAuthMode(authMode === "signin" ? "signup" : "signin"); setAuthError(""); }}>
+              <button type="button" style={{ background:"none",border:"none",padding:0,fontFamily:"inherit",fontSize:"inherit",color:"#00FF87",cursor:"pointer" }} onClick={() => { setAuthMode(authMode === "signin" ? "signup" : "signin"); setAuthError(""); }}>
                 {authMode === "signin" ? "Sign up" : "Sign in"}
-              </span>
+              </button>
             </div>
-            <div style={{ fontSize:10,color:"#2b2f3a",textAlign:"center",lineHeight:1.7,marginTop:4 }}>
+            <div style={{ fontSize:10,color:"#777",textAlign:"center",lineHeight:1.7,marginTop:4 }}>
               For entertainment only · Not gambling advice · 21+{" · "}
-              <a href="/terms" style={{ color:"#2b2f3a" }}>Terms</a>{" · "}
-              <a href="/privacy" style={{ color:"#2b2f3a" }}>Privacy</a>
+              <a href="/terms" style={{ color:"#777" }}>Terms</a>{" · "}
+              <a href="/privacy" style={{ color:"#777" }}>Privacy</a>
             </div>
           </div>
         </div>
@@ -1171,6 +1192,7 @@ export default function ToT() {
         <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
           onClick={() => setShowInstallPrompt(false)}>
           <div style={{ width: "100%", maxWidth: 500, background: "linear-gradient(160deg, #14161c, #0d0e12)", borderRadius: "24px 24px 0 0", border: "1px solid #242832", borderBottom: "none", padding: "0 0 max(24px, env(safe-area-inset-bottom)) 0", animation: "slideUp 0.3s cubic-bezier(0.32,0.72,0,1)" }}
+            role="dialog" aria-modal="true" aria-label="Install app"
             onClick={e => e.stopPropagation()}>
             {/* Drag handle */}
             <div style={{ display: "flex", justifyContent: "center", padding: "12px 0 4px" }}>
@@ -1186,7 +1208,7 @@ export default function ToT() {
                   <div style={{ fontWeight: 700, fontSize: 17, color: "#fff", letterSpacing: -0.3 }}>ToT Picks</div>
                   <div style={{ fontSize: 12, color: "#777", marginTop: 2, fontFamily: "'JetBrains Mono',monospace" }}>thisthatpicks.com</div>
                 </div>
-                <button onClick={() => setShowInstallPrompt(false)} style={{ background: "#242832", border: "none", borderRadius: "50%", width: 28, height: 28, color: "#999", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>✕</button>
+                <button onClick={() => setShowInstallPrompt(false)} aria-label="Close" style={{ background: "#242832", border: "none", borderRadius: "50%", width: 28, height: 28, color: "#999", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>✕</button>
               </div>
 
               {installPlatform === "android" ? (
@@ -1230,10 +1252,10 @@ export default function ToT() {
                   </button>
                 </>
               )}
-              <div style={{ textAlign: "center", fontSize: 13, color: "#333947", cursor: "pointer", padding: "4px 0" }}
+              <button type="button" style={{ width: "100%", background: "none", border: "none", fontFamily: "inherit", textAlign: "center", fontSize: 13, color: "#777", cursor: "pointer", padding: "4px 0" }}
                 onClick={() => { localStorage.setItem("tot-pwa-dismissed", String(Date.now())); setShowInstallPrompt(false); }}>
                 Don't show again
-              </div>
+              </button>
             </div>
           </div>
         </div>
@@ -1313,7 +1335,7 @@ export default function ToT() {
         )}
         <div style={{ display: "flex", gap: 5, marginTop: 10 }}>
           {carouselSlides.map((_, i) => (
-            <div key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: carouselIdx % carouselSlides.length === i ? "#00FF87" : "#242832", cursor: "pointer" }}
+            <button key={i} type="button" aria-label={`Go to slide ${i + 1}`} style={{ width: 5, height: 5, borderRadius: "50%", background: carouselIdx % carouselSlides.length === i ? "#00FF87" : "#242832", border: "none", padding: 0, cursor: "pointer" }}
               onClick={() => setCarouselIdx(i)} />
           ))}
         </div>
@@ -1452,18 +1474,19 @@ export default function ToT() {
       {activeTab === "picks" && teamSearchOpen && (
         <div style={{ padding: "10px 20px", borderBottom: "1px solid #242832", position: "relative" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, background: "linear-gradient(155deg, #1c202a, #14161c)", border: "1px solid #333947", borderRadius: 10, padding: "8px 12px" }}>
-            <span style={{ fontSize: 14, flexShrink: 0 }}>🔍</span>
+            <span aria-hidden="true" style={{ fontSize: 14, flexShrink: 0 }}>🔍</span>
             <input
               autoFocus
               type="text"
               placeholder="Search team — e.g. Yankees, Dodgers, Red Sox…"
+              aria-label="Search team"
               value={teamQuery}
               onChange={e => setTeamQuery(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter" && teamSuggestions.length === 1) fetchTeamSchedule(teamSuggestions[0]); if (e.key === "Escape") clearTeamSearch(); }}
               style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: "#fff", fontSize: 14, minWidth: 0 }}
             />
             {teamQuery.length > 0 && (
-              <button onClick={() => { setTeamQuery(""); setTeamView(null); }} style={{ background: "none", border: "none", color: "#555", fontSize: 16, cursor: "pointer", flexShrink: 0, padding: 0 }}>✕</button>
+              <button onClick={() => { setTeamQuery(""); setTeamView(null); }} aria-label="Clear search" style={{ background: "none", border: "none", color: "#555", fontSize: 16, cursor: "pointer", flexShrink: 0, padding: 0 }}>✕</button>
             )}
           </div>
           {teamSuggestions.length > 0 && !teamViewLoading && !teamView && (
@@ -1474,7 +1497,7 @@ export default function ToT() {
                   onClick={() => fetchTeamSchedule(t)}
                   style={{ width: "100%", padding: "11px 14px", background: "none", border: "none", color: "#ccc", fontSize: 14, textAlign: "left", cursor: "pointer", borderBottom: "1px solid #242832", display: "flex", alignItems: "center", gap: 10 }}
                 >
-                  <span style={{ fontSize: 12 }}>⚾</span>
+                  <span aria-hidden="true" style={{ fontSize: 12 }}>⚾</span>
                   {t}
                 </button>
               ))}
@@ -1715,7 +1738,7 @@ export default function ToT() {
               { away: "Dodgers", home: "Padres",    verdict: "BET",   pick: "Dodgers", odds: "-132", edge: "3.1" },
               { away: "Astros",  home: "Rangers",   verdict: "BET",   pick: "Rangers", odds: "+104", edge: "2.7" },
             ].map((p, i) => (
-              <div key={i} style={{ ...S.card, position: "relative", overflow: "hidden", cursor: "pointer" }}
+              <button key={i} type="button" aria-label="Pro only — tap to upgrade" style={{ ...S.card, display: "block", width: "100%", fontFamily: "inherit", textAlign: "left", position: "relative", overflow: "hidden", cursor: "pointer" }}
                 onClick={() => setUpgradeModal(true)}>
                 <div style={{ position: "absolute", inset: 0, backdropFilter: "blur(5px)", background: "rgba(0,0,0,0.5)", zIndex: 2, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <div style={{ background: "rgba(0,0,0,0.9)", border: "1px solid #2b2f3a", borderRadius: 10, padding: "8px 18px", textAlign: "center" }}>
@@ -1731,13 +1754,13 @@ export default function ToT() {
                   <div style={S.cardMatchup}>{p.away} @ {p.home}</div>
                   <div style={S.cardMeta}>Take <span style={{ color: "#00FF87" }}>{p.pick}</span> {p.odds}</div>
                 </div>
-              </div>
+              </button>
             ))}
-            <div style={{ background: "rgba(0,255,135,0.05)", border: "1px solid rgba(0,255,135,0.15)", borderRadius: 12, padding: "16px", textAlign: "center", cursor: "pointer" }}
+            <button type="button" style={{ width: "100%", background: "rgba(0,255,135,0.05)", border: "1px solid rgba(0,255,135,0.15)", borderRadius: 12, padding: "16px", textAlign: "center", cursor: "pointer", fontFamily: "inherit" }}
               onClick={() => setUpgradeModal(true)}>
               <div style={{ fontSize: 14, fontWeight: 700, color: "#00FF87", marginBottom: 4 }}>⚡ Unlock all picks for $2/mo</div>
               <div style={{ fontSize: 12, color: "#555" }}>Full breakdowns · edge scores · parlay builder</div>
-            </div>
+            </button>
           </div>
         )}
 
@@ -3221,7 +3244,7 @@ export default function ToT() {
                 style={{ ...S.saveBtn, textAlign: "left", padding: "10px 12px", color: "#FF4D4D", borderColor: "rgba(255,77,77,0.3)" }}
                 onClick={() => { setDeleteConfirmText(""); setShowDeleteModal(true); }}
               >
-                💀 Delete Account
+                <span aria-hidden="true">💀</span> Delete Account
               </button>
             </div>
           </div>
@@ -3233,6 +3256,7 @@ export default function ToT() {
         <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
           onClick={() => setUpgradeModal(false)}>
           <div style={{ width: "100%", maxWidth: 500, background: "linear-gradient(160deg, #14161c, #0d0e12)", borderRadius: "24px 24px 0 0", border: "1px solid #242832", borderBottom: "none", padding: "0 0 max(24px, env(safe-area-inset-bottom)) 0", animation: "slideUp 0.3s cubic-bezier(0.32,0.72,0,1)" }}
+            role="dialog" aria-modal="true" aria-label="Upgrade to Pro"
             onClick={e => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "center", padding: "12px 0 4px" }}>
               <div style={{ width: 36, height: 4, borderRadius: 2, background: "#2b2f3a" }} />
@@ -3286,7 +3310,7 @@ export default function ToT() {
                       }
                     } catch { setCodeStatus("invalid"); setTimeout(() => setCodeStatus(null), 3000); }
                   }} style={{ display: "flex", gap: 8 }}>
-                    <input type="text" placeholder="Enter code" value={accessCode}
+                    <input type="text" placeholder="Enter code" aria-label="Access code" value={accessCode}
                       onChange={e => setAccessCode(e.target.value.toUpperCase())}
                       style={{ ...S.input, flex: 1, letterSpacing: 3, fontFamily: "'JetBrains Mono',monospace", textAlign: "center", fontSize: 15 }} />
                     <button type="submit" disabled={codeStatus === "loading"}
@@ -3390,13 +3414,14 @@ export default function ToT() {
         <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.82)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
           onClick={() => !deleting && setShowDeleteModal(false)}>
           <div style={{ width: "100%", maxWidth: 500, background: "linear-gradient(160deg, #14161c, #0d0e12)", borderRadius: "24px 24px 0 0", border: "1px solid rgba(255,77,77,0.25)", borderBottom: "none", padding: "0 0 max(28px, env(safe-area-inset-bottom)) 0", animation: "slideUp 0.3s cubic-bezier(0.32,0.72,0,1)" }}
+            role="dialog" aria-modal="true" aria-label="Delete your account"
             onClick={e => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "center", padding: "12px 0 4px" }}>
               <div style={{ width: 36, height: 4, borderRadius: 2, background: "#2b2f3a" }} />
             </div>
             <div style={{ padding: "16px 24px 8px" }}>
               <div style={{ textAlign: "center", marginBottom: 20 }}>
-                <div style={{ fontSize: 24, marginBottom: 8 }}>💀</div>
+                <div style={{ fontSize: 24, marginBottom: 8 }} aria-hidden="true">💀</div>
                 <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, color: "#FF4D4D" }}>Delete your account?</div>
                 <div style={{ fontSize: 13, color: "#666", lineHeight: 1.6 }}>
                   This cancels any active subscription and permanently erases your picks, tracker history, and login. This can't be undone.
@@ -3409,6 +3434,7 @@ export default function ToT() {
                 value={deleteConfirmText}
                 onChange={e => setDeleteConfirmText(e.target.value)}
                 placeholder="DELETE"
+                aria-label="Type DELETE to confirm account deletion"
                 style={{ ...S.input, width: "100%", boxSizing: "border-box", textAlign: "center", letterSpacing: 2, fontFamily: "'JetBrains Mono',monospace", marginBottom: 14 }}
               />
 
@@ -3449,9 +3475,9 @@ export default function ToT() {
       <div style={S.legal}>
         For entertainment only · Not gambling advice · Must be 21+ in a legal jurisdiction
         {" · "}
-        <a href="/terms" style={{ color: "#2b2f3a", textDecoration: "underline" }}>Terms</a>
+        <a href="/terms" style={{ color: "#777", textDecoration: "underline" }}>Terms</a>
         {" · "}
-        <a href="/privacy" style={{ color: "#2b2f3a", textDecoration: "underline" }}>Privacy</a>
+        <a href="/privacy" style={{ color: "#777", textDecoration: "underline" }}>Privacy</a>
         <br />
         Problem gambling? Call <span style={{ color: "#777" }}>1-800-GAMBLER</span>
       </div>
@@ -3468,13 +3494,15 @@ export default function ToT() {
             <button
               key={group}
               onClick={() => setActiveTab(NAV_GROUP_DEFAULT[group])}
+              aria-label={label}
+              aria-current={active ? "page" : undefined}
               style={{
                 flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
                 background: "none", border: "none", cursor: "pointer", padding: "8px 4px",
                 color: active ? "#00FF87" : "#555",
               }}
             >
-              <span style={{ fontSize: 18 }}>{icon}</span>
+              <span aria-hidden="true" style={{ fontSize: 18 }}>{icon}</span>
               <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.3 }}>{label}</span>
             </button>
           );
@@ -3527,13 +3555,16 @@ function SearchOverlay({ open, onClose, picks, nflPicks, savedPicks, onTeamClick
       <div key={`${prefix}-${p.id}`}>
         <div
           onClick={() => setActiveId(isOpen ? null : `${prefix}-${p.id}`)}
+          role="button" tabIndex={0}
+          onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setActiveId(isOpen ? null : `${prefix}-${p.id}`); } }}
+          aria-expanded={isOpen}
           style={{ padding: "10px 16px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #1c1f26" }}
         >
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: "#eee" }}><TeamMatchupLink sport={sport} awayTeam={p.awayTeam} homeTeam={p.homeTeam} onPick={onTeamClick} /></div>
             <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>{fmtGameTime(p.commenceTime)}{p.pick ? ` · Take ${p.pick}` : ""}</div>
           </div>
-          <span style={{ color: "#444", fontSize: 12 }}>{isOpen ? "▲" : "▼"}</span>
+          <span aria-hidden="true" style={{ color: "#444", fontSize: 12 }}>{isOpen ? "▲" : "▼"}</span>
         </div>
         {isOpen && (
           <div style={{ padding: "0 16px 14px", background: "#10131a" }}>
@@ -3552,9 +3583,10 @@ function SearchOverlay({ open, onClose, picks, nflPicks, savedPicks, onTeamClick
 
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "8vh 16px 16px" }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 480, background: "linear-gradient(160deg, #14161c, #0d0e12)", border: "1px solid #1e1e1e", borderRadius: 16, overflow: "hidden", maxHeight: "76vh", display: "flex", flexDirection: "column", animation: "fadeUp 0.15s ease" }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 480, background: "linear-gradient(160deg, #14161c, #0d0e12)", border: "1px solid #1e1e1e", borderRadius: 16, overflow: "hidden", maxHeight: "76vh", display: "flex", flexDirection: "column", animation: "fadeUp 0.15s ease" }}
+        role="dialog" aria-modal="true" aria-label="Search">
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", borderBottom: "1px solid #242832" }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="11" cy="11" r="7" />
             <line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
@@ -3563,9 +3595,10 @@ function SearchOverlay({ open, onClose, picks, nflPicks, savedPicks, onTeamClick
             value={query}
             onChange={e => { setQuery(e.target.value); setActiveId(null); }}
             placeholder="Search teams, games, tracker history…"
+            aria-label="Search teams, games, tracker history"
             style={{ flex: 1, background: "none", border: "none", outline: "none", color: "#fff", fontSize: 15 }}
           />
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 18, lineHeight: 1, padding: 4 }}>✕</button>
+          <button onClick={onClose} aria-label="Close search" style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 18, lineHeight: 1, padding: 4 }}>✕</button>
         </div>
         <div style={{ overflowY: "auto", padding: q ? "6px 0" : "0" }}>
           {!q && (
@@ -3600,6 +3633,9 @@ function SearchOverlay({ open, onClose, picks, nflPicks, savedPicks, onTeamClick
                   <div key={p.id}>
                     <div
                       onClick={() => setActiveId(isOpen ? null : `t-${p.id}`)}
+                      role="button" tabIndex={0}
+                      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setActiveId(isOpen ? null : `t-${p.id}`); } }}
+                      aria-expanded={isOpen}
                       style={{ padding: "10px 16px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #1c1f26" }}
                     >
                       <div>

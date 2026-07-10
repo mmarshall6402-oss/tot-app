@@ -28,7 +28,7 @@ function fmtGameTime(iso) {
 function Stars({ confidence }) {
   const n = Math.max(0, Math.min(5, Math.round((confidence || 0) / 2)));
   return (
-    <span style={{ letterSpacing: 1, fontSize: 13 }}>
+    <span aria-hidden="true" style={{ letterSpacing: 1, fontSize: 13 }}>
       {"★".repeat(n)}
       <span style={{ opacity: 0.25 }}>{"★".repeat(5 - n)}</span>
     </span>
@@ -55,9 +55,11 @@ export default function DecisionCard({ pick, sport = "mlb", S, savePick, saving,
 
   if (!full) {
     return (
-      <div
-        style={{ ...S.card, borderColor: "#242832", padding: "12px 14px", cursor: "pointer" }}
+      <button
+        type="button"
+        style={{ ...S.card, display: "block", width: "100%", textAlign: "left", fontFamily: "inherit", borderColor: "#242832", padding: "12px 14px", cursor: "pointer" }}
         onClick={() => setFull(true)}
+        aria-label={`${pick.pick}${sport === "nfl" ? "" : " ML"} — tap for details`}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
@@ -71,7 +73,7 @@ export default function DecisionCard({ pick, sport = "mlb", S, savePick, saving,
             <Stars confidence={confidence} />
           </div>
         </div>
-      </div>
+      </button>
     );
   }
 

@@ -65,12 +65,19 @@ export default function TeamModal({ open, sport, team, onClose, getAuthHeaders, 
     return () => { cancelled = true; };
   }, [open, sport, team]);
 
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
   if (!open) return null;
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 9997, background: "#0a0b0f", display: "flex", flexDirection: "column", animation: "fadeUp 0.2s ease" }}>
+    <div role="dialog" aria-modal="true" aria-label={`${team} team details`} style={{ position: "fixed", inset: 0, zIndex: 9997, background: "#0a0b0f", display: "flex", flexDirection: "column", animation: "fadeUp 0.2s ease" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px", borderBottom: "1px solid #242832", flexShrink: 0 }}>
-        <button onClick={onClose} style={{ background: "none", border: "none", color: "#999", fontSize: 20, cursor: "pointer", padding: 0 }}>←</button>
+        <button onClick={onClose} aria-label="Back" style={{ background: "none", border: "none", color: "#999", fontSize: 20, cursor: "pointer", padding: 0 }}>←</button>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 16, fontWeight: 700 }}>{data?.name || team}</div>
           {data?.division && <div style={{ fontSize: 11, color: "#666", marginTop: 1 }}>{data.division}</div>}
@@ -218,11 +225,13 @@ export default function TeamModal({ open, sport, team, onClose, getAuthHeaders, 
 export function TeamMatchupLink({ sport, awayTeam, homeTeam, onPick, style, awayLabel, homeLabel }) {
   const linkStyle = { cursor: onPick ? "pointer" : undefined };
   const pick = (team) => (e) => { if (!onPick) return; e.stopPropagation(); onPick(sport, team); };
+  const onKey = (team) => (e) => { if (!onPick) return; if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); onPick(sport, team); } };
+  const interactiveProps = onPick ? { role: "button", tabIndex: 0 } : {};
   return (
     <span style={style}>
-      <span style={linkStyle} onClick={pick(awayTeam)}>{awayLabel ?? awayTeam}</span>
+      <span style={linkStyle} {...interactiveProps} onClick={pick(awayTeam)} onKeyDown={onKey(awayTeam)}>{awayLabel ?? awayTeam}</span>
       {" @ "}
-      <span style={linkStyle} onClick={pick(homeTeam)}>{homeLabel ?? homeTeam}</span>
+      <span style={linkStyle} {...interactiveProps} onClick={pick(homeTeam)} onKeyDown={onKey(homeTeam)}>{homeLabel ?? homeTeam}</span>
     </span>
   );
 }
