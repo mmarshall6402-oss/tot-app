@@ -1,7 +1,7 @@
 {
   "name": "T|T Picks",
   "short_name": "T|T",
-  "description": "MLB picks powered by edge analytics",
+  "description": "MLB & NFL picks powered by edge analytics",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#000000",

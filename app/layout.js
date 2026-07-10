@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 const APP_URL = "https://thisorthatpicks.com";
 
 export const metadata = {
-  title: "T|T Picks — Sharp MLB Picks",
-  description: "We outperform Vegas odds with data. Sharp MLB model with pitcher analysis, edge scoring, and a 6-layer filter. Free pick every morning.",
+  title: "T|T Picks — Sharp MLB & NFL Picks",
+  description: "We outperform Vegas odds with data. Sharp MLB and NFL models with matchup analysis, edge scoring, and a multi-layer filter. Free pick every morning.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -23,18 +23,18 @@ export const metadata = {
     title: "T|T Picks",
   },
   openGraph: {
-    title: "T|T Picks — Sharp MLB Picks",
+    title: "T|T Picks — Sharp MLB & NFL Picks",
     description: "We outperform Vegas odds with data. Free pick daily. Full model breakdowns and edge analytics.",
     url: APP_URL,
     siteName: "T|T Picks",
-    images: [{ url: `${APP_URL}/api/og`, width: 1200, height: 630, alt: "T|T — Sharp MLB Picks" }],
+    images: [{ url: `${APP_URL}/api/og`, width: 1200, height: 630, alt: "T|T — Sharp MLB & NFL Picks" }],
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
     site: "@ThisorThatPicks",
     creator: "@ThisorThatPicks",
-    title: "T|T Picks — Sharp MLB Picks",
+    title: "T|T Picks — Sharp MLB & NFL Picks",
     description: "We outperform Vegas odds with data. Free pick daily. Full model breakdowns and edge analytics.",
     images: [`${APP_URL}/api/og`],
   },

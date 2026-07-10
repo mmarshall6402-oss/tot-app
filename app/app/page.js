@@ -826,10 +826,10 @@ export default function ToT() {
   const landWinPct = modelRecord?.pct;
   const landRateColor = landWinPct == null ? "#fff" : landWinPct >= 58 ? "#00FF87" : landWinPct >= 52 ? "#FFD600" : "#fff";
   const MOCK_PICKS = [
-    { away: "Yankees", home: "Red Sox",   verdict: "CLEAN", pick: "Yankees", odds: "-118", edge: "+4.2%", blur: false },
-    { away: "Dodgers", home: "Padres",    verdict: "BET",   pick: "Dodgers", odds: "-132", edge: "+3.1%", blur: false },
-    { away: "Astros",  home: "Rangers",   verdict: null,    pick: "Rangers", odds: "+104", edge: null,    blur: true  },
-    { away: "Cubs",    home: "Cardinals", verdict: null,    pick: "Cubs",    odds: "-110", edge: null,    blur: true  },
+    { away: "Yankees", home: "Red Sox",   verdict: "CLEAN", pick: "Yankees", odds: "-118", edge: "+4.2%", blur: false, sport: "MLB" },
+    { away: "Dodgers", home: "Padres",    verdict: "BET",   pick: "Dodgers", odds: "-132", edge: "+3.1%", blur: false, sport: "MLB" },
+    { away: "Bills",   home: "Dolphins",  verdict: null,    pick: "Bills",   odds: "-145", edge: null,    blur: true,  sport: "NFL" },
+    { away: "Cubs",    home: "Cardinals", verdict: null,    pick: "Cubs",    odds: "-110", edge: null,    blur: true,  sport: "MLB" },
   ];
 
   if (!user) return (
@@ -873,13 +873,13 @@ export default function ToT() {
           <section style={{ padding:"72px 20px 60px",maxWidth:800,margin:"0 auto",textAlign:"center" }}>
             <div className="l-fade" style={{ display:"inline-flex",alignItems:"center",gap:8,background:"rgba(0,255,135,.06)",border:"1px solid rgba(0,255,135,.15)",borderRadius:40,padding:"5px 13px",marginBottom:24 }}>
               <span style={{ width:7,height:7,borderRadius:"50%",background:"#00FF87",animation:"pulse 1.5s ease-in-out infinite",display:"inline-block" }} />
-              <span style={{ fontSize:11,color:"#00FF87",fontWeight:700,letterSpacing:1.5 }}>LIVE TODAY · MLB</span>
+              <span style={{ fontSize:11,color:"#00FF87",fontWeight:700,letterSpacing:1.5 }}>LIVE TODAY · MLB & NFL</span>
             </div>
             <h1 className="l-fade2" style={{ fontSize:"clamp(38px,8vw,72px)",fontWeight:800,lineHeight:1.05,letterSpacing:-2,marginBottom:18 }}>
               We outperform<br/><span style={{ color:"#00FF87" }}>Vegas odds</span><br/>with data.
             </h1>
             <p className="l-fade3" style={{ fontSize:"clamp(14px,2.5vw,17px)",color:"#666",lineHeight:1.65,maxWidth:520,margin:"0 auto 32px" }}>
-              T|T is a sharp MLB model that finds genuine edges the books miss — pitcher match-ups, bullpen state, park factors, and line movement. Not gut feelings. Edges.
+              T|T is a sharp MLB and NFL model that finds genuine edges the books miss — pitcher match-ups, bullpen state, park factors, QB matchups, EPA, and line movement. Not gut feelings. Edges.
             </p>
             <div style={{ display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap",marginBottom:40 }}>
               <button className="l-cta" onClick={() => { setShowAuth(true); setAuthMode("signup"); }}>Start free →</button>
@@ -914,8 +914,8 @@ export default function ToT() {
               <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,padding:"0 3px" }}>
                 <div style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:14,fontWeight:700 }}>T<span style={{ color:"#00FF87" }}>|</span>T</div>
                 <div style={{ display:"flex",gap:8 }}>
-                  {["⚾ Picks","💎 Steals","📊 Tracker"].map(t => (
-                    <div key={t} style={{ fontSize:10,color:t==="⚾ Picks"?"#00FF87":"#3d424f",fontWeight:700 }}>{t}</div>
+                  {["🏠 Home","🏟️ Games","💰 Portfolio"].map(t => (
+                    <div key={t} style={{ fontSize:10,color:t==="🏠 Home"?"#00FF87":"#3d424f",fontWeight:700 }}>{t}</div>
                   ))}
                 </div>
               </div>
@@ -951,7 +951,7 @@ export default function ToT() {
                 <div key={i} className={`l-pick l-blur`} style={{ marginBottom:8,opacity:p.blur?.7:1 }}>
                   {p.blur && <div className="l-mask"><div className="l-lock">🔒 PRO ONLY</div></div>}
                   <div style={{ display:"flex",justifyContent:"space-between",marginBottom:5 }}>
-                    <span style={{ fontSize:10,color:"#444" }}>MLB</span>
+                    <span style={{ fontSize:10,color:"#444" }}>{p.sport}</span>
                     {!p.blur && p.verdict && <span style={{ background:p.verdict==="CLEAN"?"rgba(0,255,135,.1)":"rgba(255,214,0,.1)",color:p.verdict==="CLEAN"?"#00FF87":"#FFD600",fontSize:9,fontWeight:800,padding:"2px 7px",borderRadius:5,letterSpacing:1 }}>{p.verdict==="CLEAN"?"🔥 Value":"✅ Solid"}</span>}
                   </div>
                   <div style={{ fontSize:12,fontWeight:700,filter:p.blur?"blur(6px)":"none" }}>{p.away} @ {p.home}</div>
@@ -973,16 +973,17 @@ export default function ToT() {
             <div style={{ textAlign:"center",marginBottom:44 }}>
               <div style={{ fontSize:11,color:"#00FF87",fontWeight:700,letterSpacing:2,marginBottom:8 }}>HOW IT WORKS</div>
               <h2 style={{ fontSize:"clamp(24px,5vw,38px)",fontWeight:800,letterSpacing:-1 }}>Built different from the jump</h2>
-              <p style={{ color:"#555",fontSize:14,marginTop:10,maxWidth:440,margin:"10px auto 0",lineHeight:1.6 }}>A six-layer AND-gate filter. Every condition must pass — one failure means PASS.</p>
+              <p style={{ color:"#555",fontSize:14,marginTop:10,maxWidth:440,margin:"10px auto 0",lineHeight:1.6 }}>A multi-layer AND-gate filter, tuned per sport. Every condition must pass — one failure means PASS.</p>
             </div>
             <div style={{ display:"flex",gap:14,flexWrap:"wrap" }}>
               {[
-                { icon:"⚾", tag:"DATA LAYER 1", title:"Pitcher-first analysis",   body:"Starter ERA, WHIP, innings pitched, and sample size. Plus bullpen ERA and K/9 for the full game — starters get the spotlight, bullpens finish ~40% of outs." },
-                { icon:"📐", tag:"DATA LAYER 2", title:"Market edge scoring",       body:"We compare our model's win probability to the book's implied probability. Only plays with a verified edge above 2.5% after market calibration pass. No phantom edges." },
-                { icon:"🏟️", tag:"DATA LAYER 3", title:"Park + lineup context",     body:"Every pick accounts for park factor, lineup OPS vs pitcher hand, and recent form over the last 10 games. Coors isn't Petco." },
+                { icon:"⚾", tag:"MLB DATA LAYER", title:"Pitcher-first analysis",   body:"Starter ERA, WHIP, innings pitched, and sample size. Plus bullpen ERA and K/9 for the full game — starters get the spotlight, bullpens finish ~40% of outs." },
+                { icon:"🏈", tag:"NFL DATA LAYER", title:"Matchup + EPA",            body:"Team offensive/defensive efficiency (EPA per play), recent form, and Elo ratings feed the model's win probability for moneyline, spread, and total." },
+                { icon:"📐", tag:"BOTH SPORTS",    title:"Market edge scoring",       body:"We compare our model's win probability to the book's implied probability. Only plays with a verified edge after market calibration pass. No phantom edges." },
+                { icon:"🏟️", tag:"MLB DATA LAYER", title:"Park + lineup context",     body:"Every MLB pick accounts for park factor, lineup OPS vs pitcher hand, and recent form over the last 10 games. Coors isn't Petco." },
                 { icon:"⚡", tag:"VERDICT",       title:"CLEAN / BET / PASS tiers",  body:"CLEAN passes every condition in the AND-gate. BET passes most. PASS is the honest answer when there's no edge. Some days are zero-bet days — that's correct." },
-                { icon:"📊", tag:"TRACKER",       title:"Personal tracker + P&L",    body:"Every pick you save auto-resolves. Real-time P&L in dollars based on your unit size. See your actual edge over time, not just win-loss." },
-                { icon:"🤖", tag:"AI",            title:"Claude AI breakdowns",      body:"Every pick has a 2-sentence preview, key deciding factor, main risk, and honest lean — from the same AI reasoning layer that powers the pick." },
+                { icon:"📊", tag:"TRACKER",       title:"Personal tracker + P&L",    body:"Every pick you save — MLB or NFL — auto-resolves. Real-time P&L in dollars based on your unit size. See your actual edge over time, not just win-loss." },
+                { icon:"🤖", tag:"AI",            title:"Claude AI breakdowns",      body:"Every MLB pick has a 2-sentence preview, key deciding factor, main risk, and honest lean. NFL picks show the same underlying model reasoning as plain-English bullets." },
               ].map(({ icon, tag, title, body }) => (
                 <div key={title} className="l-feat" style={{ minWidth:"calc(33% - 10px)",flex:"1 1 260px" }}>
                   <div style={{ fontSize:10,color:"#00FF87",fontWeight:700,letterSpacing:1.5,marginBottom:10 }}>{tag}</div>
@@ -1027,7 +1028,7 @@ export default function ToT() {
               ))}
             </div>
             <div style={{ textAlign:"center",background:"linear-gradient(155deg,#17191f,#101216)",border:"1px solid #242832",boxShadow:"0 4px 18px rgba(0,0,0,0.3)",borderRadius:12,padding:"14px 20px" }}>
-              <div style={{ fontSize:12,color:"#333947",lineHeight:1.6 }}>MLB carries extreme variance. Even 60% pickers lose stretches. This is a tool for finding edges, not a guarantee. Bet responsibly.</div>
+              <div style={{ fontSize:12,color:"#333947",lineHeight:1.6 }}>Sports betting carries extreme variance — MLB and NFL alike. Even 60% pickers lose stretches. This is a tool for finding edges, not a guarantee. Bet responsibly.</div>
             </div>
           </section>
 
