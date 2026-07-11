@@ -10,12 +10,14 @@ import { useState } from "react";
 import { translateReasons } from "../lib/reason-labels.js";
 import { impliedWinPct } from "../lib/odds-display.js";
 import { shouldBetNow } from "../lib/fair-odds.js";
+import { tokens } from "../lib/ui-theme.js";
+import { CheckIcon } from "./icons.js";
 
 const VERDICT_STYLE = {
-  CLEAN: { color: "#00FF87", label: "BET" },
-  BET:   { color: "#00FF87", label: "BET" },
-  PASS:  { color: "#666",    label: "PASS" },
-  TRAP:  { color: "#FF4D4D", label: "TRAP" },
+  CLEAN: { color: tokens.color.brand, label: "BET" },
+  BET:   { color: tokens.color.brand, label: "BET" },
+  PASS:  { color: tokens.color.textMuted, label: "PASS" },
+  TRAP:  { color: tokens.color.red, label: "TRAP" },
 };
 
 const fmtOdds = (o) => (o == null ? "—" : o > 0 ? `+${o}` : `${o}`);
@@ -102,7 +104,7 @@ export default function DecisionCard({ pick, sport = "mlb", S, savePick, saving,
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {reasons.map((r, i) => (
               <div key={i} style={{ fontSize: 13, color: "#ccc", display: "flex", gap: 8 }}>
-                <span style={{ color: r.sign === "-" ? "#FF4D4D" : "#00FF87", flexShrink: 0 }}>{r.sign === "-" ? "✗" : "✓"}</span>
+                <span style={{ color: r.sign === "-" ? "#D9645C" : "#2FBF71", flexShrink: 0 }}>{r.sign === "-" ? "✗" : "✓"}</span>
                 <span>{r.text}</span>
               </div>
             ))}
@@ -120,7 +122,7 @@ export default function DecisionCard({ pick, sport = "mlb", S, savePick, saving,
           disabled={isSaved}
           onClick={() => savePick && savePick(pick, sport)}
         >
-          {isSaved ? "✓ Tracked" : "Bet Now"}
+          {isSaved ? <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><CheckIcon size={13} /> Tracked</span> : "Bet Now"}
         </button>
         <button
           style={{ flex: 1, padding: "10px 14px", borderRadius: 10, fontSize: 13, fontWeight: 700, background: "transparent", border: "1px solid #333947", color: "#ccc", cursor: "pointer" }}
@@ -143,7 +145,7 @@ export default function DecisionCard({ pick, sport = "mlb", S, savePick, saving,
               <div style={{ fontSize: 11, color: "#888" }}>
                 Current <b style={{ color: "#ccc" }}>{fmtOdds(betNow.currentOdds)}</b> · Fair <b style={{ color: "#ccc" }}>{fmtOdds(betNow.fairOdds)}</b>
               </div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: betNow.verdict === "bet" ? "#00FF87" : "#FFD600" }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: betNow.verdict === "bet" ? "#2FBF71" : "#D6B23D" }}>
                 {betNow.verdict === "bet" ? "✅ Bet Now" : "⏳ Wait — price moved"}
               </div>
             </div>

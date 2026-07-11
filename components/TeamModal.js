@@ -6,9 +6,10 @@
 // app/app/page.js the same way NFLSection.js and ScheduleSection.js are.
 
 import { useState, useEffect } from "react";
+import { ChevronLeftIcon } from "./icons.js";
 
-const MLB_GREEN = "#00FF87";
-const NFL_ORANGE = "#FF6B35";
+const MLB_GREEN = "#2FBF71";
+const NFL_ORANGE = "#D9754A";
 
 const fmtTime = (iso) => {
   if (!iso) return "";
@@ -77,7 +78,7 @@ export default function TeamModal({ open, sport, team, onClose, getAuthHeaders, 
   return (
     <div role="dialog" aria-modal="true" aria-label={`${team} team details`} style={{ position: "fixed", inset: 0, zIndex: 9997, background: "#0a0b0f", display: "flex", flexDirection: "column", animation: "fadeUp 0.2s ease" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px", borderBottom: "1px solid #242832", flexShrink: 0 }}>
-        <button onClick={onClose} aria-label="Back" style={{ background: "none", border: "none", color: "#999", fontSize: 20, cursor: "pointer", padding: 0 }}>←</button>
+        <button onClick={onClose} aria-label="Back" style={{ background: "none", border: "none", color: "#999", fontSize: 20, cursor: "pointer", padding: 0, display: "inline-flex" }}><ChevronLeftIcon size={18} /></button>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 16, fontWeight: 700 }}>{data?.name || team}</div>
           {data?.division && <div style={{ fontSize: 11, color: "#666", marginTop: 1 }}>{data.division}</div>}
