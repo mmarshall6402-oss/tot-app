@@ -3165,7 +3165,7 @@ export default function ToT() {
             {isBeta && isPro && trendingProps && trendingProps.length > 0 && (
               <div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#999", letterSpacing: 0.5 }}>TRENDING PROPS</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#999", letterSpacing: 0.5 }}>⚾ MLB TRENDING PROPS</div>
                   <button
                     style={{ background: "transparent", border: "none", color: "#2FBF71", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0 }}
                     onClick={() => setActiveTab("props")}
