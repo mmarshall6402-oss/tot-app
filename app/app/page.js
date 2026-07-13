@@ -7,6 +7,7 @@ import NFLSection from "../../components/NFLSection.js";
 import ScheduleSection from "../../components/ScheduleSection.js";
 import TeamModal, { TeamMatchupLink } from "../../components/TeamModal.js";
 import DecisionCard from "../../components/DecisionCard.js";
+import PropCard from "../../components/PropCard.js";
 import { impliedWinPct, oddsMovement } from "../../lib/odds-display.js";
 import { translateReasons } from "../../lib/reason-labels.js";
 import { shouldBetNow } from "../../lib/fair-odds.js";
@@ -194,6 +195,7 @@ export default function ToT() {
   const dateScrollRef = useRef(null);
   const todayBtnRef = useRef(null);
   const [steals, setSteals] = useState(null);
+  const [trendingProps, setTrendingProps] = useState(null);
   const [parlayLegs, setParlayLegs] = useState(new Map()); // id -> { game, teamPick }
   const [parlayStake, setParlayStake] = useState(10);
   const [picksDate, setPicksDate] = useState(null); // tracks which date picks were loaded for
@@ -351,8 +353,9 @@ export default function ToT() {
     if (activeTab === "picks" || activeTab === "home") fetchPicks(selectedDate);
     if (activeTab === "parlay" && picksDate !== selectedDate) fetchPicks(selectedDate);
     if (activeTab === "steals") fetchSteals(selectedDate);
+    if (activeTab === "props" && isBeta) fetchProps(selectedDate);
     if (activeTab === "tracker") fetchSaved();
-  }, [user, isPro, activeTab, selectedDate]);
+  }, [user, isPro, isBeta, activeTab, selectedDate]);
 
   useEffect(() => {
     if (user && isPro && activeTab !== "tracker") fetchSaved();
@@ -597,6 +600,16 @@ export default function ToT() {
       if (date !== selectedDateRef.current) return; // stale — user navigated away
       setSteals(data.steals || []);
     } catch (e) { if (date === selectedDateRef.current) setSteals(prev => prev ?? []); }
+  };
+
+  const fetchProps = async (date) => {
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/props?date=${date}`, { headers });
+      const data = await res.json();
+      if (date !== selectedDateRef.current) return; // stale — user navigated away
+      setTrendingProps(data.picks || []);
+    } catch (e) { if (date === selectedDateRef.current) setTrendingProps(prev => prev ?? []); }
   };
 
   const fetchPicks = async (date, bust = false) => {
@@ -1334,7 +1347,7 @@ export default function ToT() {
         </div>
       </div>
 
-      {(activeTab === "picks" || activeTab === "steals" || activeTab === "parlay" || activeTab === "nfl") && (
+      {(activeTab === "picks" || activeTab === "steals" || activeTab === "parlay" || activeTab === "nfl" || activeTab === "props") && (
         <div ref={dateScrollRef} style={S.dateScroll}>
           {weekDates.map(date => (
             <button
@@ -1392,14 +1405,14 @@ export default function ToT() {
             { id: "schedule", label: "Schedule" },
             { id: "chat", label: "Ask AI" },
             ...(isBeta ? [
-              { id: "props", label: "Props" },
+              { id: "props", label: "Trending" },
             ] : []),
           ].map(({ id, label }) => (
             <button
               key={id}
               style={{ ...S.tabBtn, flexShrink: 0, borderColor: activeTab === id ? "#2FBF71" : "#3d424f", color: activeTab === id ? "#2FBF71" : "#999", background: activeTab === id ? "rgba(47,191,113,0.08)" : "#181b22" }}
               onClick={() => {
-                if (!isPro && ["steals", "live", "feed"].includes(id)) { setUpgradeModal(true); return; }
+                if (!isPro && ["steals", "live", "feed", "props"].includes(id)) { setUpgradeModal(true); return; }
                 setActiveTab(id);
               }}
             >
@@ -3243,6 +3256,30 @@ export default function ToT() {
           </div>
         )}
 
+        {activeTab === "props" && isBeta && (
+          trendingProps === null ? (
+            <div style={S.center}>
+              <div style={S.spinner} />
+              <div style={{ color: "#777", fontSize: 13, marginTop: 12 }}>Scanning K's and HR's for edges…</div>
+            </div>
+          ) : trendingProps.length === 0 ? (
+            <div style={S.center}>
+              <div style={{ fontSize: 32 }}>📈</div>
+              <div style={{ color: "#fff", fontWeight: 700, marginTop: 8 }}>No trending props {fmtDateLabel(selectedDate)}</div>
+              <div style={{ color: "#777", fontSize: 13, marginTop: 4 }}>Check back closer to game time — lines and lineups are still posting</div>
+            </div>
+          ) : (
+            <>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#2FBF71", letterSpacing: 2, marginBottom: 4 }}>
+                {trendingProps.length} TRENDING PICK{trendingProps.length !== 1 ? "S" : ""} — SORTED BY EDGE
+              </div>
+              {trendingProps.map((pick, i) => (
+                <PropCard key={`${pick.marketType}-${pick.playerId ?? pick.player}-${i}`} pick={pick} S={S} />
+              ))}
+            </>
+          )
+        )}
+
       </div>
 
       {upgradeModal && (
@@ -3456,14 +3493,6 @@ export default function ToT() {
         getAuthHeaders={getAuthHeaders}
         S={S}
       />
-
-      {activeTab === "props" && isBeta && (
-        <div style={{ padding: "32px 20px", textAlign: "center", color: "#555" }}>
-          <div style={{ fontSize: 28, marginBottom: 12 }}>🎯</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#fff", marginBottom: 6 }}>Player Props — Coming Soon</div>
-          <div style={{ fontSize: 13, lineHeight: 1.6 }}>Player prop picks are under development. Check back here during beta testing.</div>
-        </div>
-      )}
 
       <div style={S.legal}>
         For entertainment only · Not gambling advice · Must be 21+ in a legal jurisdiction
