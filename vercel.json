@@ -42,6 +42,7 @@
     "app/api/cron/snapshot/route.js": { "maxDuration": 60 },
     "app/api/cron/nfl-picks/route.js": { "maxDuration": 300 },
     "app/api/cron/nfl-resolve/route.js": { "maxDuration": 60 },
-    "app/api/cron/weekly/route.js": { "maxDuration": 60 }
+    "app/api/cron/weekly/route.js": { "maxDuration": 60 },
+    "app/api/admin/backtest/route.js": { "maxDuration": 300 }
   }
 }
