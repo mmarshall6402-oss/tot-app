@@ -353,7 +353,7 @@ export default function ToT() {
     if (activeTab === "picks" || activeTab === "home") fetchPicks(selectedDate);
     if (activeTab === "parlay" && picksDate !== selectedDate) fetchPicks(selectedDate);
     if (activeTab === "steals") fetchSteals(selectedDate);
-    if (activeTab === "props" && isBeta) fetchProps(selectedDate);
+    if ((activeTab === "props" || activeTab === "home") && isBeta) fetchProps(selectedDate);
     if (activeTab === "tracker") fetchSaved();
   }, [user, isPro, isBeta, activeTab, selectedDate]);
 
@@ -3159,6 +3159,25 @@ export default function ToT() {
               <div style={{ ...S.card, borderColor: "rgba(47,191,113,0.2)", textAlign: "center", padding: "20px 16px" }}>
                 <div style={{ fontSize: 13, color: "#999", marginBottom: 10 }}>Unlock today's full slate and every Decision Card</div>
                 <button style={{ ...S.saveBtn, background: "#2FBF71", color: "#000", borderColor: "#2FBF71" }} onClick={() => setUpgradeModal(true)}>Upgrade to Pro</button>
+              </div>
+            )}
+
+            {isBeta && isPro && trendingProps && trendingProps.length > 0 && (
+              <div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#999", letterSpacing: 0.5 }}>TRENDING PROPS</div>
+                  <button
+                    style={{ background: "transparent", border: "none", color: "#2FBF71", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0 }}
+                    onClick={() => setActiveTab("props")}
+                  >
+                    View all →
+                  </button>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {trendingProps.slice(0, 3).map((pick, i) => (
+                    <PropCard key={`${pick.marketType}-${pick.playerId ?? pick.player}-${i}`} pick={pick} S={S} />
+                  ))}
+                </div>
               </div>
             )}
           </div>
