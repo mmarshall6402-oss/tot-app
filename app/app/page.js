@@ -6,6 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 import NFLSection from "../../components/NFLSection.js";
 import ScheduleSection from "../../components/ScheduleSection.js";
 import TeamModal, { TeamMatchupLink } from "../../components/TeamModal.js";
+import PlayerModal from "../../components/PlayerModal.js";
 import DecisionCard from "../../components/DecisionCard.js";
 import PropCard from "../../components/PropCard.js";
 import { impliedWinPct, oddsMovement } from "../../lib/odds-display.js";
@@ -226,6 +227,8 @@ export default function ToT() {
   const [deleting, setDeleting] = useState(false);
   const [teamModal, setTeamModal] = useState(null); // { sport, team }
   const openTeam = (sport, team) => { if (team) setTeamModal({ sport, team }); };
+  const [playerModal, setPlayerModal] = useState(null); // { sport, id, name }
+  const openPlayer = (sport, id, name) => { if (id) setPlayerModal({ sport, id, name }); };
   const [modelStreak, setModelStreak] = useState(null);
   const [teamSearchOpen, setTeamSearchOpen] = useState(false);
   const [teamQuery, setTeamQuery] = useState("");
@@ -1289,6 +1292,8 @@ export default function ToT() {
         picks={picks}
         savedPicks={savedPicks}
         onTeamClick={openTeam}
+        onPlayerClick={openPlayer}
+        getAuthHeaders={getAuthHeaders}
       />
 
       {/* Carousel — cycles between free pick, model record, and promo */}
@@ -3513,6 +3518,16 @@ export default function ToT() {
         S={S}
       />
 
+      <PlayerModal
+        open={!!playerModal}
+        sport={playerModal?.sport}
+        playerId={playerModal?.id}
+        playerName={playerModal?.name}
+        onClose={() => setPlayerModal(null)}
+        getAuthHeaders={getAuthHeaders}
+        S={S}
+      />
+
       <div style={S.legal}>
         For entertainment only · Not gambling advice · Must be 21+ in a legal jurisdiction
         {" · "}
@@ -3564,13 +3579,15 @@ function GoogleIcon() {
   );
 }
 
-function SearchOverlay({ open, onClose, picks, nflPicks, savedPicks, onTeamClick }) {
+function SearchOverlay({ open, onClose, picks, nflPicks, savedPicks, onTeamClick, onPlayerClick, getAuthHeaders }) {
   const [query, setQuery] = useState("");
   const [activeId, setActiveId] = useState(null);
+  const [remote, setRemote] = useState({ teams: [], players: [] });
+  const [remoteLoading, setRemoteLoading] = useState(false);
   const inputRef = useRef(null);
 
   useEffect(() => {
-    if (open) { setQuery(""); setActiveId(null); setTimeout(() => inputRef.current?.focus(), 50); }
+    if (open) { setQuery(""); setActiveId(null); setRemote({ teams: [], players: [] }); setTimeout(() => inputRef.current?.focus(), 50); }
   }, [open]);
 
   useEffect(() => {
@@ -3579,6 +3596,29 @@ function SearchOverlay({ open, onClose, picks, nflPicks, savedPicks, onTeamClick
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
+
+  // Global team/player directory search (independent of today's loaded games)
+  // — debounced since it hits the network, unlike the instant local filters below.
+  useEffect(() => {
+    if (!open) return;
+    const q2 = query.trim();
+    if (q2.length < 2) { setRemote({ teams: [], players: [] }); return; }
+    let cancelled = false;
+    setRemoteLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const headers = await getAuthHeaders();
+        const res = await fetch(`/api/search?q=${encodeURIComponent(q2)}`, { headers });
+        const data = await res.json();
+        if (!cancelled) setRemote({ teams: data.teams || [], players: data.players || [] });
+      } catch {
+        if (!cancelled) setRemote({ teams: [], players: [] });
+      } finally {
+        if (!cancelled) setRemoteLoading(false);
+      }
+    }, 250);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [open, query, getAuthHeaders]);
 
   if (!open) return null;
 
@@ -3589,6 +3629,7 @@ function SearchOverlay({ open, onClose, picks, nflPicks, savedPicks, onTeamClick
   const gameResults = q ? (picks || []).filter(matchesGame).slice(0, 20) : [];
   const nflResults = q ? (nflPicks || []).filter(matchesGame).slice(0, 20) : [];
   const trackerResults = q ? (savedPicks || []).filter(matchesTracker).slice(0, 20) : [];
+  const { teams: teamResults, players: playerResults } = remote;
 
   const renderGameRow = (p, prefix, sport = "mlb") => {
     const isOpen = activeId === `${prefix}-${p.id}`;
@@ -3635,8 +3676,8 @@ function SearchOverlay({ open, onClose, picks, nflPicks, savedPicks, onTeamClick
             ref={inputRef}
             value={query}
             onChange={e => { setQuery(e.target.value); setActiveId(null); }}
-            placeholder="Search teams, games, tracker history…"
-            aria-label="Search teams, games, tracker history"
+            placeholder="Search teams, players, games, tracker history…"
+            aria-label="Search teams, players, games, tracker history"
             style={{ flex: 1, background: "none", border: "none", outline: "none", color: "#fff", fontSize: 15 }}
           />
           <button onClick={onClose} aria-label="Close search" style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 18, lineHeight: 1, padding: 4, display: "inline-flex" }}><CloseIcon size={16} /></button>
@@ -3644,12 +3685,49 @@ function SearchOverlay({ open, onClose, picks, nflPicks, savedPicks, onTeamClick
         <div style={{ overflowY: "auto", padding: q ? "6px 0" : "0" }}>
           {!q && (
             <div style={{ padding: "36px 20px", textAlign: "center", color: "#444", fontSize: 13 }}>
-              Type a team name to search MLB/NFL games and your tracker history.
+              Type a team or player name to search MLB/NFL, or your tracker history.
             </div>
           )}
-          {q && !gameResults.length && !nflResults.length && !trackerResults.length && (
+          {q && !remoteLoading && !teamResults.length && !playerResults.length && !gameResults.length && !nflResults.length && !trackerResults.length && (
             <div style={{ padding: "36px 20px", textAlign: "center", color: "#444", fontSize: 13 }}>
               No matches for "{query}"
+            </div>
+          )}
+          {teamResults.length > 0 && (
+            <div>
+              <div style={{ padding: "8px 16px 4px", fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 1.5 }}>TEAMS</div>
+              {teamResults.map(t => (
+                <div
+                  key={`team-${t.sport}-${t.name}`}
+                  onClick={() => { onTeamClick(t.sport, t.name); onClose(); }}
+                  role="button" tabIndex={0}
+                  onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onTeamClick(t.sport, t.name); onClose(); } }}
+                  style={{ padding: "10px 16px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #1c1f26" }}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#eee" }}>{t.name}</div>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: t.sport === "nfl" ? "#D9754A" : "#2FBF71", letterSpacing: 0.5 }}>{t.sport.toUpperCase()}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {playerResults.length > 0 && (
+            <div>
+              <div style={{ padding: "12px 16px 4px", fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 1.5 }}>PLAYERS</div>
+              {playerResults.map(p => (
+                <div
+                  key={`player-${p.sport}-${p.id}`}
+                  onClick={() => { onPlayerClick(p.sport, p.id, p.name); onClose(); }}
+                  role="button" tabIndex={0}
+                  onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPlayerClick(p.sport, p.id, p.name); onClose(); } }}
+                  style={{ padding: "10px 16px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #1c1f26" }}
+                >
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#eee" }}>{p.name}</div>
+                    <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>{p.team}{p.position ? ` · ${p.position}` : ""}</div>
+                  </div>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: p.sport === "nfl" ? "#D9754A" : "#2FBF71", letterSpacing: 0.5 }}>{p.sport.toUpperCase()}</span>
+                </div>
+              ))}
             </div>
           )}
           {gameResults.length > 0 && (
