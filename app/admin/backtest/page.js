@@ -1,17 +1,21 @@
 // app/admin/backtest/page.js
 // Internal backtesting & calibration dashboard — historical replay of the
-// production probability model / filter engine against 2022-2024 games.
+// production probability model / filter engine against 2022-2025 games.
 // Protected: only accessible if logged in as admin email.
 
 "use client";
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 import CalibrationChart from "../../../components/backtest/CalibrationChart.js";
+import EdgeHistogram from "../../../components/backtest/EdgeHistogram.js";
+import EquityCurve from "../../../components/backtest/EquityCurve.js";
 
 const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || process.env.NEXT_PUBLIC_ADMIN_EMAIL || "")
   .split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
 
+const TIERS = ["elo_only", "full_replay", "roi_real_odds"];
 const TIER_LABEL = { elo_only: "Elo + Park (Tier 1)", full_replay: "Full 7-Factor Replay (Tier 2)", roi_real_odds: "ROI / Real Odds (Tier 3)" };
+const TIER_NUM = { elo_only: 1, full_replay: 2, roi_real_odds: 3 };
 
 function fmtDate(d) {
   if (!d) return "—";
@@ -28,11 +32,73 @@ function StatCard({ label, value, color, sub }) {
   );
 }
 
+const fmtBrier = v => v != null ? v.toFixed(4) : "—";
+const brierColor = (v, baseline) => v == null ? "#555" : v < baseline ? "#00FF87" : "#FF4D4D";
+
+function Tier1Overview({ m }) {
+  return (
+    <div>
+      <div style={S.sectionLabel}>PROBABILITY CALIBRATION SUMMARY (BRIER SCORE — LOWER IS BETTER)</div>
+      <div style={S.grid4}>
+        <StatCard label="Always 50%" value={fmtBrier(m.baselines.always50.brier)} sub="baseline" />
+        <StatCard label="Raw Elo" value={fmtBrier(m.baselines.rawElo.brier)} color={brierColor(m.baselines.rawElo.brier, m.baselines.always50.brier)} />
+        <StatCard label="Production Model" value={fmtBrier(m.model.brier)} color={brierColor(m.model.brier, m.baselines.always50.brier)} />
+        <StatCard label="+ Isotonic Recal." value={fmtBrier(m.modelIsotonicRecalibrated.brier)} color={brierColor(m.modelIsotonicRecalibrated.brier, m.model.brier)} sub={m.modelIsotonicRecalibrated.brier < m.model.brier ? "improved" : "no improvement"} />
+      </div>
+      <div style={{ fontSize: 11, color: "#333", marginTop: 16, lineHeight: 1.6 }}>
+        Replays the production model&apos;s Elo+park fallback path (no live stat feed) against walk-forward-reconstructed
+        Elo ratings, so no game&apos;s own outcome ever leaks into its own prediction.
+      </div>
+    </div>
+  );
+}
+
+function Tier2Overview({ m }) {
+  return (
+    <div>
+      <div style={S.sectionLabel}>HELD-OUT SEASON BRIER SCORE (BEFORE / AFTER ISOTONIC RECALIBRATION)</div>
+      <div style={{ fontSize: 11, color: "#444", marginBottom: 10 }}>Isotonic fit on 2022+2023 only ({m.trainCount} games) — never touches 2024/2025.</div>
+      <div style={S.grid4}>
+        <StatCard label="2024 holdout (before)" value={fmtBrier(m.holdout2024.beforeCalibration.brier)} sub={`n=${m.eval2024Count}`} />
+        <StatCard label="2024 holdout (after)" value={fmtBrier(m.holdout2024.afterIsotonicCalibration.brier)} color={brierColor(m.holdout2024.afterIsotonicCalibration.brier, m.holdout2024.beforeCalibration.brier)} />
+        {m.holdout2025 && <StatCard label="2025 holdout (before)" value={fmtBrier(m.holdout2025.beforeCalibration.brier)} sub={`n=${m.eval2025Count} · true out-of-corpus`} />}
+        {m.holdout2025 && <StatCard label="2025 holdout (after)" value={fmtBrier(m.holdout2025.afterIsotonicCalibration.brier)} color={brierColor(m.holdout2025.afterIsotonicCalibration.brier, m.holdout2025.beforeCalibration.brier)} />}
+      </div>
+      <div style={{ fontSize: 11, color: "#333", marginTop: 16, lineHeight: 1.6 }}>
+        2025 wasn&apos;t part of the original archive this backtest was built against — it was added afterward, making it a stronger
+        holdout than 2024. Both showing the same before/after direction is evidence the finding isn&apos;t a fluke of one season.
+      </div>
+    </div>
+  );
+}
+
+function Tier3Overview({ m }) {
+  return (
+    <div>
+      <div style={S.sectionLabel}>2025 REAL-ODDS BACKTEST (STARTING BANKROLL $1,000)</div>
+      <div style={S.grid4}>
+        <StatCard label="Bets Placed" value={m.betsPlaced} sub={`of ${m.gameCount} games`} />
+        <StatCard label="Record" value={`${m.wins}-${m.losses}`} color={m.winPct >= 55 ? "#00FF87" : m.winPct >= 50 ? "#FFD600" : "#FF4D4D"} sub={m.winPct != null ? `${m.winPct.toFixed(1)}%` : "—"} />
+        <StatCard label="ROI" value={m.roiPct != null ? `${m.roiPct > 0 ? "+" : ""}${m.roiPct.toFixed(1)}%` : "—"} color={m.roiPct > 0 ? "#00FF87" : "#FF4D4D"} />
+        <StatCard label="Max Drawdown" value={`${m.maxDrawdownPct}%`} color="#FFD600" />
+      </div>
+      <div style={{ background: "#1a1200", border: "1px solid #FFD600", borderRadius: 10, padding: "10px 14px", marginTop: 14, fontSize: 11, color: "#FFD600", lineHeight: 1.6 }}>
+        Real market odds (consensus, shanemcd.org), full 2025 regular season. {m.excludedNoOddsMatch} game{m.excludedNoOddsMatch === 1 ? "" : "s"} excluded
+        (no matched odds row — not backfilled). {m.betsPlaced} bets is a small sample — the live tracker&apos;s own rule of thumb is
+        100+ for significance. This validates the filter/Kelly pipeline end-to-end against real outcomes; it is not a claim of
+        durable long-run profitability.
+      </div>
+    </div>
+  );
+}
+
 export default function AdminBacktest() {
   const [authorized, setAuthorized] = useState(false);
-  const [run, setRun] = useState(null);
+  const [runsByTier, setRunsByTier] = useState({});
+  const [viewTier, setViewTier] = useState(null);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
+  const [runTierChoice, setRunTierChoice] = useState(1);
   const [tab, setTab] = useState("overview");
   const [error, setError] = useState("");
 
@@ -42,15 +108,19 @@ export default function AdminBacktest() {
     return session?.access_token || "";
   };
 
-  const fetchLatest = async () => {
+  const fetchAll = async () => {
     setLoading(true);
     setError("");
     try {
       const token = await getToken();
-      const res = await fetch("/api/admin/backtest", { headers: { Authorization: `Bearer ${token}` } });
-      const d = await res.json();
-      if (d.error) setError(d.error);
-      setRun(d.run || null);
+      const results = await Promise.all(TIERS.map(t =>
+        fetch(`/api/admin/backtest?tier=${t}`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json())
+      ));
+      const next = {};
+      TIERS.forEach((t, i) => { next[t] = results[i]; });
+      setRunsByTier(next);
+      const firstAvailable = [...TIERS].reverse().find(t => next[t]?.run);
+      setViewTier(prev => prev ?? firstAvailable ?? "elo_only");
     } catch (e) {
       setError("Failed to load");
     }
@@ -68,7 +138,7 @@ export default function AdminBacktest() {
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- standard fetch-on-auth pattern, mirrors app/admin/tracker/page.js
-    if (authorized) fetchLatest();
+    if (authorized) fetchAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authorized]);
 
@@ -80,11 +150,11 @@ export default function AdminBacktest() {
       const res = await fetch("/api/admin/backtest", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ tier: 1 }),
+        body: JSON.stringify({ tier: runTierChoice }),
       });
       const d = await res.json();
       if (d.error) setError(d.error);
-      else setRun(d.run);
+      else await fetchAll();
     } catch (e) {
       setError("Run failed");
     }
@@ -97,9 +167,12 @@ export default function AdminBacktest() {
     </div>
   );
 
+  const current = viewTier ? runsByTier[viewTier] : null;
+  const run = current?.run;
+  const games = current?.games || [];
   const m = run?.metrics;
-  const fmtBrier = v => v != null ? v.toFixed(4) : "—";
-  const brierColor = (v, baseline) => v == null ? "#555" : v < baseline ? "#00FF87" : "#FF4D4D";
+  const isTier3 = run?.tier === "roi_real_odds";
+  const isCalibrationTier = run?.tier === "elo_only" || run?.tier === "full_replay";
 
   return (
     <div style={S.page}>
@@ -112,12 +185,24 @@ export default function AdminBacktest() {
       {loading ? (
         <div style={S.center}><div style={S.spinner} /></div>
       ) : (<>
+        {error && <div style={{ color: "#FF4D4D", fontSize: 12, marginBottom: 12 }}>{error}</div>}
+
+        {/* Tier picker */}
+        <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+          {TIERS.map(t => (
+            <button key={t} onClick={() => setViewTier(t)}
+              style={{ ...S.pill, background: viewTier === t ? "#00FF87" : "transparent", color: viewTier === t ? "#000" : runsByTier[t]?.run ? "#888" : "#333", border: `1px solid ${viewTier === t ? "#00FF87" : "#1a1a1a"}` }}>
+              Tier {TIER_NUM[t]}{!runsByTier[t]?.run ? " (none)" : ""}
+            </button>
+          ))}
+        </div>
+
         {!run && (
           <div style={{ color: "#555", fontSize: 13, marginBottom: 16 }}>
-            No backtest runs yet. Run one from the local script (<code style={{ color: "#00FF87" }}>npm run backtest -- --tier=1</code>) or trigger below.
+            No {TIER_LABEL[viewTier]} runs yet. Run one from the local script
+            (<code style={{ color: "#00FF87" }}>npm run backtest -- --tier={TIER_NUM[viewTier]}</code>) or trigger below.
           </div>
         )}
-        {error && <div style={{ color: "#FF4D4D", fontSize: 12, marginBottom: 12 }}>{error}</div>}
 
         {run && (
           <div style={{ fontSize: 11, color: "#444", marginBottom: 16 }}>
@@ -127,61 +212,86 @@ export default function AdminBacktest() {
 
         {/* Tabs */}
         <div style={S.tabs}>
-          {["overview", "calibration"].map(t => (
-            <button key={t} style={{ ...S.tabBtn, color: tab === t ? "#00FF87" : "#444", borderColor: tab === t ? "#00FF87" : "transparent" }} onClick={() => setTab(t)}>
-              {t.charAt(0).toUpperCase() + t.slice(1)}
-            </button>
-          ))}
-          <button key="run" style={{ ...S.tabBtn, color: tab === "run" ? "#00FF87" : "#444", borderColor: tab === "run" ? "#00FF87" : "transparent" }} onClick={() => setTab("run")}>
-            Run Backtest
-          </button>
+          <button style={{ ...S.tabBtn, color: tab === "overview" ? "#00FF87" : "#444", borderColor: tab === "overview" ? "#00FF87" : "transparent" }} onClick={() => setTab("overview")}>Overview</button>
+          {isCalibrationTier && (
+            <button style={{ ...S.tabBtn, color: tab === "calibration" ? "#00FF87" : "#444", borderColor: tab === "calibration" ? "#00FF87" : "transparent" }} onClick={() => setTab("calibration")}>Calibration</button>
+          )}
+          {isTier3 && (
+            <button style={{ ...S.tabBtn, color: tab === "verdict" ? "#00FF87" : "#444", borderColor: tab === "verdict" ? "#00FF87" : "transparent" }} onClick={() => setTab("verdict")}>Verdict &amp; ROI</button>
+          )}
+          <button style={{ ...S.tabBtn, color: tab === "run" ? "#00FF87" : "#444", borderColor: tab === "run" ? "#00FF87" : "transparent" }} onClick={() => setTab("run")}>Run Backtest</button>
         </div>
 
-        {tab === "overview" && m && (
-          <div>
-            <div style={S.sectionLabel}>PROBABILITY CALIBRATION SUMMARY (BRIER SCORE — LOWER IS BETTER)</div>
-            <div style={S.grid4}>
-              <StatCard label="Always 50%" value={fmtBrier(m.baselines.always50.brier)} sub="baseline" />
-              <StatCard label="Raw Elo" value={fmtBrier(m.baselines.rawElo.brier)} color={brierColor(m.baselines.rawElo.brier, m.baselines.always50.brier)} />
-              <StatCard label="Production Model" value={fmtBrier(m.model.brier)} color={brierColor(m.model.brier, m.baselines.always50.brier)} />
-              <StatCard label="+ Isotonic Recal." value={fmtBrier(m.modelIsotonicRecalibrated.brier)} color={brierColor(m.modelIsotonicRecalibrated.brier, m.model.brier)} sub={m.modelIsotonicRecalibrated.brier < m.model.brier ? "improved" : "no improvement"} />
-            </div>
-            <div style={{ ...S.sectionLabel, marginTop: 20 }}>LOG LOSS</div>
-            <div style={S.grid4}>
-              <StatCard label="Always 50%" value={m.baselines.always50.logLoss?.toFixed(4)} sub="baseline" />
-              <StatCard label="Raw Elo" value={m.baselines.rawElo.logLoss?.toFixed(4)} />
-              <StatCard label="Production Model" value={m.model.logLoss?.toFixed(4)} />
-              <StatCard label="+ Isotonic Recal." value={m.modelIsotonicRecalibrated.logLoss?.toFixed(4)} />
-            </div>
-            <div style={{ fontSize: 11, color: "#333", marginTop: 16, lineHeight: 1.6 }}>
-              Brier score: mean squared error between predicted probability and actual outcome (0 = perfect, 0.25 = &quot;always guess 50%&quot;).
-              This tier replays the production model&apos;s Elo+park fallback path (no live stat feed) against walk-forward-reconstructed
-              Elo ratings, so no game&apos;s own outcome ever leaks into its own prediction.
-            </div>
-          </div>
-        )}
+        {tab === "overview" && m && run.tier === "elo_only" && <Tier1Overview m={m} />}
+        {tab === "overview" && m && run.tier === "full_replay" && <Tier2Overview m={m} />}
+        {tab === "overview" && m && run.tier === "roi_real_odds" && <Tier3Overview m={m} />}
 
-        {tab === "calibration" && m && (
+        {tab === "calibration" && m && run.tier === "elo_only" && (
           <div>
             <div style={S.sectionLabel}>RELIABILITY DIAGRAM</div>
-            <div style={{ fontSize: 11, color: "#444", marginBottom: 14, lineHeight: 1.6 }}>
-              Does a 60% predicted probability actually win 60% of the time? Points on the dashed line = perfectly calibrated.
-            </div>
             <CalibrationChart series={[
               { name: "Production model (Elo+park)", color: "#00FF87", buckets: m.model.calibration },
               { name: "Isotonic-recalibrated", color: "#FFD600", buckets: m.modelIsotonicRecalibrated.calibration },
             ]} />
           </div>
         )}
+        {tab === "calibration" && m && run.tier === "full_replay" && (
+          <div>
+            <div style={S.sectionLabel}>RELIABILITY DIAGRAM — 2024 HOLDOUT</div>
+            <CalibrationChart series={[
+              { name: "2024 holdout (before)", color: "#00FF87", buckets: m.holdout2024.beforeCalibration.calibration },
+              { name: "2024 holdout (after isotonic)", color: "#FFD600", buckets: m.holdout2024.afterIsotonicCalibration.calibration },
+            ]} />
+            {m.holdout2025 && (<>
+              <div style={{ ...S.sectionLabel, marginTop: 24 }}>RELIABILITY DIAGRAM — 2025 TRUE OUT-OF-CORPUS HOLDOUT</div>
+              <CalibrationChart series={[
+                { name: "2025 holdout (before)", color: "#00FF87", buckets: m.holdout2025.beforeCalibration.calibration },
+                { name: "2025 holdout (after isotonic)", color: "#FFD600", buckets: m.holdout2025.afterIsotonicCalibration.calibration },
+              ]} />
+            </>)}
+          </div>
+        )}
+
+        {tab === "verdict" && isTier3 && m && (
+          <div>
+            <div style={S.sectionLabel}>VERDICT BREAKDOWN</div>
+            <div style={S.grid4}>
+              {m.verdictBreakdown.map(v => (
+                <StatCard key={v.verdict} label={v.verdict} value={v.n}
+                  color={v.verdict === "CLEAN" ? "#00FF87" : v.verdict === "BET" ? "#3ddc84" : v.verdict === "TRAP" ? "#FF4D4D" : "#666"}
+                  sub={v.settled > 0 ? `${v.wins}-${v.settled - v.wins} (${v.winPct.toFixed(0)}%)` : "not bet"} />
+              ))}
+            </div>
+
+            <div style={{ ...S.sectionLabel, marginTop: 24 }}>EQUITY CURVE</div>
+            <EquityCurve
+              points={games.filter(g => g.bet_result === "win" || g.bet_result === "loss").map(g => ({ date: g.date, bankroll: g.bankroll_after }))}
+              startingBankroll={run.params?.startingBankroll || 1000}
+            />
+
+            <div style={{ ...S.sectionLabel, marginTop: 24 }}>EDGE DISTRIBUTION</div>
+            <EdgeHistogram rows={games} />
+          </div>
+        )}
 
         {tab === "run" && (
           <div>
             <div style={S.sectionLabel}>RUN A NEW BACKTEST</div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+              {[1, 2, 3].map(t => (
+                <button key={t} onClick={() => setRunTierChoice(t)}
+                  style={{ ...S.pill, background: runTierChoice === t ? "#00FF87" : "transparent", color: runTierChoice === t ? "#000" : "#888", border: `1px solid ${runTierChoice === t ? "#00FF87" : "#1a1a1a"}` }}>
+                  Tier {t}
+                </button>
+              ))}
+            </div>
             <div style={{ fontSize: 12, color: "#444", marginBottom: 16, lineHeight: 1.6 }}>
-              Tier 1 (Elo + park, no stat feed) runs in-process against all 7,289 historical games and completes in seconds.
+              {runTierChoice === 1 && "Elo + park, no stat feed — runs against all historical games, completes in seconds."}
+              {runTierChoice === 2 && "Full 7-factor replay with walk-forward season stats, isotonic recalibration on a 2022-2023 train / 2024+2025 holdout split."}
+              {runTierChoice === 3 && "ROI/Kelly backtest against real 2025 market odds — the only season with real historical odds in this repo."}
             </div>
             <button style={S.runBtn} onClick={runBacktest} disabled={running}>
-              {running ? "Running…" : "Run Tier 1 Backtest"}
+              {running ? "Running…" : `Run Tier ${runTierChoice} Backtest`}
             </button>
           </div>
         )}
@@ -202,6 +312,7 @@ const S = {
   page:       { minHeight: "100vh", background: "#000", padding: "20px 20px 60px" },
   header:     { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, paddingBottom: 16, borderBottom: "1px solid #111" },
   logo:       { fontFamily: "'JetBrains Mono',monospace", fontSize: 18, fontWeight: 700 },
+  pill:       { padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 700 },
   grid4:      { display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 8 },
   statCard:   { background: "#080808", border: "1px solid #1a1a1a", borderRadius: 10, padding: "12px 10px", textAlign: "center" },
   statVal:    { fontSize: 18, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", marginBottom: 4 },
