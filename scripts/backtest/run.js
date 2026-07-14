@@ -13,6 +13,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { runTier1 } from "../../lib/backtest/tier1-runner.js";
 import { runTier2 } from "../../lib/backtest/tier2-runner.js";
+import { runTier3 } from "../../lib/backtest/tier3-runner.js";
 import { persistRun } from "../../lib/backtest/persist.js";
 
 function parseArgs(argv) {
@@ -36,6 +37,8 @@ async function main() {
     result = runTier1({ seasons });
   } else if (tier === 2) {
     result = runTier2({ seasons });
+  } else if (tier === 3) {
+    result = runTier3({ season: seasons?.[0] ? String(seasons[0]) : "2025" });
   } else {
     console.error(`Tier ${tier} is not implemented yet.`);
     process.exit(1);

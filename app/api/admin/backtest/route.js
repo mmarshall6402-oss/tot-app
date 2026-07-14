@@ -7,6 +7,7 @@ import { createClient } from "@supabase/supabase-js";
 import { requireAuth } from "../../../../lib/auth.js";
 import { runTier1 } from "../../../../lib/backtest/tier1-runner.js";
 import { runTier2 } from "../../../../lib/backtest/tier2-runner.js";
+import { runTier3 } from "../../../../lib/backtest/tier3-runner.js";
 import { persistRun } from "../../../../lib/backtest/persist.js";
 
 // Create client lazily — env vars not available at build time
@@ -72,6 +73,8 @@ export async function POST(request) {
     result = runTier1({ seasons });
   } else if (tier === 2) {
     result = runTier2({ seasons });
+  } else if (tier === 3) {
+    result = runTier3({ season: seasons?.[0] ? String(seasons[0]) : "2025" });
   } else {
     return Response.json({ error: `Tier ${tier} is not implemented yet.` }, { status: 400 });
   }
