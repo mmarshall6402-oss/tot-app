@@ -5,6 +5,10 @@
       "schedule": "0 15 * * *"
     },
     {
+      "path": "/api/cron/props",
+      "schedule": "30 15 * * *"
+    },
+    {
       "path": "/api/cron/resolve",
       "schedule": "0 8 * * *"
     },
@@ -36,6 +40,8 @@
   "functions": {
     "app/api/picks/route.js": { "maxDuration": 60 },
     "app/api/cron/picks/route.js": { "maxDuration": 300 },
+    "app/api/cron/props/route.js": { "maxDuration": 300 },
+    "app/api/props/route.js": { "maxDuration": 60 },
     "app/api/cron/resolve/route.js": { "maxDuration": 60 },
     "app/api/cron/email/route.js": { "maxDuration": 60 },
     "app/api/cron/tweet/route.js": { "maxDuration": 60 },
