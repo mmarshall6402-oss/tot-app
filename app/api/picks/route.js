@@ -173,8 +173,8 @@ export async function GET(request) {
   const { error: authError } = await requirePro(request);
   if (authError) return authError;
 
-  const supabase = getSupabase();
   try {
+    const supabase = getSupabase();
     const { searchParams } = new URL(request.url);
     // Use Eastern Time as the canonical "today" — MLB is a US sport and users
     // expect today's picks through midnight ET, not midnight UTC (4 AM ET).
