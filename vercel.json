@@ -39,6 +39,9 @@
   ],
   "functions": {
     "app/api/picks/route.js": { "maxDuration": 60 },
+    "app/api/search/route.js": { "maxDuration": 30 },
+    "app/api/team/route.js": { "maxDuration": 30 },
+    "app/api/player/route.js": { "maxDuration": 30 },
     "app/api/cron/picks/route.js": { "maxDuration": 300 },
     "app/api/cron/props/route.js": { "maxDuration": 300 },
     "app/api/props/route.js": { "maxDuration": 60 },
