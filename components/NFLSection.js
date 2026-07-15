@@ -19,7 +19,7 @@ import { impliedWinPct, oddsMovement } from "../lib/odds-display.js";
 import { TeamMatchupLink } from "./TeamModal.js";
 import { translateReasons } from "../lib/reason-labels.js";
 import { shouldBetNow } from "../lib/fair-odds.js";
-import { accentButtonStyle } from "../lib/ui-theme.js";
+import { accentButtonStyle, tabButtonStyle, tokens } from "../lib/ui-theme.js";
 import { CheckIcon, RefreshIcon } from "./icons.js";
 
 function pickOddsFor(pick) {
@@ -40,7 +40,7 @@ function WinPctRow({ homeTeam, awayTeam, homeOdds, awayOdds, openHomeOdds, openA
   const arrow = move?.direction === "up" ? "▲" : move?.direction === "down" ? "▼" : null;
   const arrowColor = move?.direction === "up" ? "#2FBF71" : move?.direction === "down" ? "#D9645C" : "#555";
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 6, fontSize: 11, fontFamily: "'JetBrains Mono',monospace" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 6, fontSize: 11, fontFamily: tokens.font.mono }}>
       <span style={{ color: "#666" }}>{(awayTeam || "").split(" ").pop()} <b style={{ color: "#bbb" }}>{wp.away}%</b></span>
       <span style={{ color: "#3d424f" }}>·</span>
       <span style={{ color: "#666" }}>{(homeTeam || "").split(" ").pop()} <b style={{ color: "#bbb" }}>{wp.home}%</b></span>
@@ -62,9 +62,9 @@ function fmtDateLabel(dateStr) {
   return d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
 }
 const TIER = {
-  High:   { color: "#2FBF71", bg: "rgba(47,191,113,0.08)", label: "🔥 Value Pick" },
-  Medium: { color: "#D6B23D", bg: "rgba(214,178,61,0.08)",  label: "✅ Solid Pick" },
-  Low:    { color: "#888",    bg: "rgba(136,136,136,0.08)", label: "👀 Lean" },
+  High:   { color: "#2FBF71", bg: "rgba(47,191,113,0.08)", label: "Value Pick" },
+  Medium: { color: "#D6B23D", bg: "rgba(214,178,61,0.08)",  label: "Solid Pick" },
+  Low:    { color: "#888",    bg: "rgba(136,136,136,0.08)", label: "Lean" },
 };
 
 export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgradeModal, savePick, saving, selectedDate, onTeamClick }) {
@@ -208,19 +208,14 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
     <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
 
       {/* Sub-nav */}
-      <div style={{ display: "flex", gap: 6, padding: "10px 20px", borderBottom: "1px solid #242832", overflowX: "auto" }}>
+      <div style={{ display: "flex", gap: 6, padding: "0 20px", borderBottom: `1px solid ${tokens.color.border}`, overflowX: "auto" }}>
         {[
           { id: "fantasy", label: "Fantasy" },
           { id: "picks",   label: "Picks" },
           { id: "record",  label: "Record" },
         ].map(({ id, label }) => (
           <button key={id}
-            style={{
-              flexShrink: 0, padding: "6px 16px", borderRadius: 8, fontSize: 12, fontWeight: 600,
-              background: subTab === id ? "rgba(217,117,74,0.1)" : "#181b22",
-              border: `1px solid ${subTab === id ? NFL_ORANGE : "#3d424f"}`,
-              color: subTab === id ? NFL_ORANGE : "#999", letterSpacing: 0.3,
-            }}
+            style={{ ...tabButtonStyle({ active: subTab === id, accent: NFL_ORANGE }), flexShrink: 0 }}
             onClick={() => setSubTab(id)}>
             {label}
           </button>
@@ -231,14 +226,9 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
 
         {/* Scoring format */}
         {(subTab === "fantasy") && (
-          <div style={{ display: "flex", gap: 6 }}>
+          <div style={{ display: "flex", borderBottom: `1px solid ${tokens.color.border}` }}>
             {["PPR", "Half-PPR", "Standard"].map(fmt => (
-              <button key={fmt} onClick={() => setScoring(fmt)} style={{
-                flex: 1, padding: "8px 6px", borderRadius: 10, fontSize: 11, fontWeight: 700,
-                border: `1px solid ${scoring === fmt ? NFL_ORANGE : "#242832"}`,
-                background: scoring === fmt ? "rgba(217,117,74,0.08)" : "#1c1f26",
-                color: scoring === fmt ? NFL_ORANGE : "#444",
-              }}>{fmt}</button>
+              <button key={fmt} onClick={() => setScoring(fmt)} style={{ ...tabButtonStyle({ active: scoring === fmt, accent: NFL_ORANGE }), flex: 1, textAlign: "center" }}>{fmt}</button>
             ))}
           </div>
         )}
@@ -247,18 +237,13 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
         {subTab === "fantasy" && (
           <>
             {/* Mode selector */}
-            <div style={{ display: "flex", gap: 6 }}>
+            <div style={{ display: "flex", borderBottom: `1px solid ${tokens.color.border}` }}>
               {[
                 { id: "startSit", label: "Start/Sit" },
                 { id: "trade",    label: "Trade" },
                 { id: "ask",      label: "Ask AI" },
               ].map(({ id, label }) => (
-                <button key={id} onClick={() => setFantasyMode(id)} style={{
-                  flex: 1, padding: "10px 6px", borderRadius: 10, fontSize: 13, fontWeight: 700,
-                  border: `1px solid ${fantasyMode === id ? NFL_ORANGE : "#2b2f3a"}`,
-                  background: fantasyMode === id ? "rgba(217,117,74,0.1)" : "#1c1f26",
-                  color: fantasyMode === id ? NFL_ORANGE : "#555",
-                }}>{label}</button>
+                <button key={id} onClick={() => setFantasyMode(id)} style={{ ...tabButtonStyle({ active: fantasyMode === id, accent: NFL_ORANGE }), flex: 1, textAlign: "center" }}>{label}</button>
               ))}
             </div>
 
@@ -354,7 +339,6 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
             {nflMsg && <div style={{ fontSize: 12, color: "#555", textAlign: "center" }}>{nflMsg}</div>}
             {nflGames !== null && nflGames.length === 0 && !nflMsg && (
               <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 14, padding: "28px 16px", textAlign: "center" }}>
-                <div style={{ fontSize: 28, marginBottom: 10 }}>🏈</div>
                 <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>No games on the board</div>
                 <div style={{ fontSize: 13, color: "#555", lineHeight: 1.6 }}>NFL odds will appear here during preseason and the regular season. Check back in August.</div>
               </div>
@@ -362,7 +346,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
             {nflGames?.map(g => (
               <div key={g.id} style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 14, padding: 16, animation: "fadeUp 0.3s ease" }}>
                 <div style={{ fontSize: 11, color: "#555", marginBottom: 8 }}>{fmtGameTime(g.commenceTime)}</div>
-                <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
+                <div style={{ fontFamily: tokens.font.mono, fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
                   <TeamMatchupLink sport="nfl" awayTeam={g.awayTeam} homeTeam={g.homeTeam} onPick={onTeamClick} />
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
@@ -373,8 +357,8 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                   ].map(({ label, away, home }) => (
                     <div key={label} style={{ background: "#10131a", border: "1px solid #242832", borderRadius: 10, padding: "10px 10px" }}>
                       <div style={{ fontSize: 9, color: "#444", fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>{label}</div>
-                      <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: "#888", marginBottom: 2 }}>{away}</div>
-                      <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: "#888" }}>{home}</div>
+                      <div style={{ fontFamily: tokens.font.mono, fontSize: 12, color: "#888", marginBottom: 2 }}>{away}</div>
+                      <div style={{ fontFamily: tokens.font.mono, fontSize: 12, color: "#888" }}>{home}</div>
                     </div>
                   ))}
                 </div>
@@ -402,14 +386,12 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
             </div>
           ) : nflPicksError ? (
             <div style={S.center}>
-              <div style={{ fontSize: 32 }}>⚠️</div>
               <div style={{ color: "#fff", fontWeight: 700, marginTop: 8 }}>Could not load games</div>
               <div style={{ color: "#777", fontSize: 13, marginTop: 4 }}>{nflPicksError}</div>
               <button style={{ ...S.saveBtn, marginTop: 14 }} onClick={() => fetchNflPicks(selectedDate, true)}>Retry</button>
             </div>
           ) : nflPicks.length === 0 ? (
             <div style={S.center}>
-              <div style={{ fontSize: 32 }}>🏈</div>
               <div style={{ color: "#fff", fontWeight: 700, marginTop: 8 }}>No games found</div>
               <div style={{ color: "#777", fontSize: 13, marginTop: 4 }}>Try a different date</div>
             </div>
@@ -464,7 +446,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                           <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 5, background: "#181b22", color: "#888", letterSpacing: 0.5 }}>
                             {pick.marketType === "spread" ? "SPREAD" : pick.marketType === "total" ? "TOTAL" : "MONEYLINE"}
                           </span>
-                          {f && <span style={{ fontSize: 11, color: isBet ? "#555" : "#3d424f", fontFamily: "'JetBrains Mono',monospace" }}>{edge.toFixed(1)}% edge</span>}
+                          {f && <span style={{ fontSize: 11, color: isBet ? "#555" : "#3d424f", fontFamily: tokens.font.mono }}>{edge.toFixed(1)}% edge</span>}
                           {isBet && <span style={{ fontSize: 10, color: t.color, opacity: 0.7 }}>{t.label}</span>}
                         </div>
                         <div style={S.cardMatchup}><TeamMatchupLink sport="nfl" awayTeam={pick.awayTeam} homeTeam={pick.homeTeam} onPick={onTeamClick} /></div>
@@ -477,7 +459,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                               {totalLine != null ? ` ${totalLine}` : ""}
                             </span>
                           </>}
-                          {pickOdds != null && <span style={{ color: "#888", fontFamily: "'JetBrains Mono',monospace" }}> · {fmtOdds(pickOdds)}</span>}
+                          {pickOdds != null && <span style={{ color: "#888", fontFamily: tokens.font.mono }}> · {fmtOdds(pickOdds)}</span>}
                         </div>
                         {(!pick.marketType || pick.marketType === "moneyline") && (
                           <WinPctRow homeTeam={pick.homeTeam} awayTeam={pick.awayTeam} homeOdds={pick.homeOdds} awayOdds={pick.awayOdds} />
@@ -486,7 +468,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                           <div style={{ flex: 1, height: 3, background: "#181b22", borderRadius: 2 }}>
                             <div style={{ height: "100%", borderRadius: 2, width: `${Math.min(100, edge * 6)}%`, background: isBet ? t.color : "#2b2f3a", transition: "width 0.5s ease" }} />
                           </div>
-                          {f && <span style={{ fontSize: 10, color: isBet ? t.color : "#3d424f", fontFamily: "'JetBrains Mono',monospace", flexShrink: 0 }}>{edge.toFixed(1)}%</span>}
+                          {f && <span style={{ fontSize: 10, color: isBet ? t.color : "#3d424f", fontFamily: tokens.font.mono, flexShrink: 0 }}>{edge.toFixed(1)}%</span>}
                         </div>
                       </div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end", flexShrink: 0 }}>
@@ -520,16 +502,16 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                         <div style={S.expDivider} />
                         <div style={S.expSection}>
                           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#888", marginBottom: 4 }}>
-                            <span>Confidence</span><span style={{ color: "#ccc", fontFamily: "'JetBrains Mono',monospace" }}>{f.confidence}/10</span>
+                            <span>Confidence</span><span style={{ color: "#ccc", fontFamily: tokens.font.mono }}>{f.confidence}/10</span>
                           </div>
                           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#888", marginBottom: 4 }}>
-                            <span>Model win prob</span><span style={{ color: "#ccc", fontFamily: "'JetBrains Mono',monospace" }}>{f.trueWinProbPct}%</span>
+                            <span>Model win prob</span><span style={{ color: "#ccc", fontFamily: tokens.font.mono }}>{f.trueWinProbPct}%</span>
                           </div>
                           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#888", marginBottom: 4 }}>
-                            <span>Market implied</span><span style={{ color: "#ccc", fontFamily: "'JetBrains Mono',monospace" }}>{f.marketImpliedPct}%</span>
+                            <span>Market implied</span><span style={{ color: "#ccc", fontFamily: tokens.font.mono }}>{f.marketImpliedPct}%</span>
                           </div>
                           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#888", marginBottom: 4 }}>
-                            <span>Uncertainty</span><span style={{ color: "#ccc", fontFamily: "'JetBrains Mono',monospace" }}>±{f.uncertaintyPct}%</span>
+                            <span>Uncertainty</span><span style={{ color: "#ccc", fontFamily: tokens.font.mono }}>±{f.uncertaintyPct}%</span>
                           </div>
                           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#888" }}>
                             <span>Data variance</span><span style={{ color: "#ccc" }}>{f.variance}</span>
@@ -564,7 +546,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                                       Current <b style={{ color: "#ccc" }}>{fmtOdds(betNow.currentOdds)}</b> · Fair <b style={{ color: "#ccc" }}>{fmtOdds(betNow.fairOdds)}</b>
                                     </div>
                                     <div style={{ fontSize: 11, fontWeight: 700, color: betNow.verdict === "bet" ? "#2FBF71" : "#D6B23D" }}>
-                                      {betNow.verdict === "bet" ? "✅ Bet Now" : "⏳ Wait"}
+                                      {betNow.verdict === "bet" ? "Bet Now" : "Wait"}
                                     </div>
                                   </div>
                                 )}
@@ -585,7 +567,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
         {subTab === "record" && (
           <div style={{ background: "#10131a", border: "1px solid rgba(217,117,74,0.2)", borderRadius: 16, padding: "20px 18px" }}>
             <div style={{ fontSize: 10, color: NFL_ORANGE, fontWeight: 700, letterSpacing: 2, marginBottom: 10 }}>NFL RECORD</div>
-            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 18, fontWeight: 700, marginBottom: 8, lineHeight: 1.2 }}>
+            <div style={{ fontFamily: tokens.font.mono, fontSize: 18, fontWeight: 700, marginBottom: 8, lineHeight: 1.2 }}>
               ATS record tracked<br/><span style={{ color: NFL_ORANGE }}>week by week.</span>
             </div>
             <div style={{ fontSize: 13, color: "#555", lineHeight: 1.65 }}>
@@ -600,7 +582,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                 { label: "Units",      value: nflRecord?.units != null ? `${nflRecord.units >= 0 ? "+" : ""}${nflRecord.units}` : null },
               ].map(({ label, value }) => (
                 <div key={label} style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 10, padding: "14px 10px", textAlign: "center" }}>
-                  <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 18, fontWeight: 700, color: value != null ? "#fff" : "#2b2f3a" }}>{value ?? "—"}</div>
+                  <div style={{ fontFamily: tokens.font.mono, fontSize: 18, fontWeight: 700, color: value != null ? "#fff" : "#2b2f3a" }}>{value ?? "—"}</div>
                   <div style={{ fontSize: 10, color: "#3d424f", marginTop: 4, letterSpacing: 1 }}>{label.toUpperCase()}</div>
                 </div>
               ))}

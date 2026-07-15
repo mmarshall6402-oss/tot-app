@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { SHARED_BUTTON_CSS } from "../../lib/ui-theme.js";
+import { SHARED_BUTTON_CSS, FONT_IMPORT_URL, tokens } from "../../lib/ui-theme.js";
+import { LockIcon } from "../../components/icons.js";
 
 export default function Landing() {
   const [freePick, setFreePick]   = useState(null);
@@ -32,7 +33,7 @@ export default function Landing() {
   };
 
   const verdictColor = { CLEAN: "#2FBF71", BET: "#D6B23D" };
-  const verdictLabel = { CLEAN: "🔥 Value Pick", BET: "✅ Solid Pick" };
+  const verdictLabel = { CLEAN: "Value Pick", BET: "Solid Pick" };
   const fmtOdds = o => o == null ? "" : o > 0 ? `+${o}` : `${o}`;
   const winPct = record?.pct;
   const rateColor = winPct == null ? "#fff" : winPct >= 58 ? "#2FBF71" : winPct >= 52 ? "#D6B23D" : "#fff";
@@ -46,13 +47,14 @@ export default function Landing() {
   ];
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0a0b0f", fontFamily: "'Space Grotesk', sans-serif", color: "#fff", overflowX: "hidden" }}>
+    <div style={{ minHeight: "100vh", background: "#0a0b0f", fontFamily: tokens.font.body, color: "#fff", overflowX: "hidden" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap');
+        @import url('${FONT_IMPORT_URL}');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: radial-gradient(1400px 700px at 50% -15%, rgba(47,191,113,0.07), transparent 60%), #0a0b0f; }
+        body { background: #0a0b0f; }
         input, button, a { font-family: inherit; }
         a { text-decoration: none; }
+        h1, h2, h3 { font-family: ${tokens.font.display}; }
         ::selection { background: rgba(47,191,113,0.2); }
 
         @keyframes fadeUp   { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:translateY(0); } }
@@ -69,14 +71,14 @@ export default function Landing() {
 
         .float     { animation: float    4s ease-in-out infinite; }
 
-        .glow-line   { background: linear-gradient(90deg, transparent, rgba(47,191,113,0.3), transparent); height:1px; width:100%; }
+        .glow-line   { background: ${tokens.color.border}; height:1px; width:100%; }
         .blur-card   { position:relative; overflow:hidden; }
         ${SHARED_BUTTON_CSS}
       `}</style>
 
       {/* ─── NAV ──────────────────────────────────────── */}
       <nav style={{ position: "sticky", top: 0, zIndex: 100, background: "rgba(10,11,15,0.85)", backdropFilter: "blur(20px)", borderBottom: "1px solid #1c1f26", padding: "14px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", maxWidth: 1100, margin: "0 auto" }}>
-        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 18, fontWeight: 700, letterSpacing: -0.5 }}>
+        <div style={{ fontFamily: tokens.font.mono, fontSize: 18, fontWeight: 700, letterSpacing: -0.5 }}>
           T<span style={{ color: "#2FBF71" }}>|</span>T
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
@@ -87,13 +89,9 @@ export default function Landing() {
 
       {/* ─── HERO ─────────────────────────────────────── */}
       <section style={{ padding: "80px 24px 72px", maxWidth: 860, margin: "0 auto", textAlign: "center" }}>
-        {/* Live badge */}
-        <div className="fade-up" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(47,191,113,0.06)", border: "1px solid rgba(47,191,113,0.15)", borderRadius: 40, padding: "6px 14px", marginBottom: 28 }}>
-          <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#2FBF71", animation: "pulse 1.5s ease-in-out infinite", display: "inline-block" }} />
-          <span style={{ fontSize: 11, color: "#2FBF71", fontWeight: 700, letterSpacing: 1.5 }}>LIVE TODAY · MLB & NFL</span>
-        </div>
+        <div className="fade-up" style={{ fontSize: 13, color: "#777", fontWeight: 500, marginBottom: 24 }}>Live today · MLB &amp; NFL</div>
 
-        <h1 className="fade-up-2" style={{ fontSize: "clamp(40px,8vw,76px)", fontWeight: 800, lineHeight: 1.05, letterSpacing: -2, marginBottom: 22 }}>
+        <h1 className="fade-up-2" style={{ fontSize: "clamp(38px,7vw,68px)", fontWeight: 600, lineHeight: 1.12, letterSpacing: -0.5, marginBottom: 22 }}>
           We outperform<br />
           <span style={{ color: "#2FBF71" }}>Vegas odds</span><br />
           with data.
@@ -121,7 +119,7 @@ export default function Landing() {
               { label: "Picks Tracked", value: `${record.total}+`, color: "#fff" },
             ].map(({ label, value, color }) => (
               <div key={label} style={{ textAlign: "center" }}>
-                <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 22, fontWeight: 700, color }}>{value}</div>
+                <div style={{ fontFamily: tokens.font.mono, fontSize: 22, fontWeight: 700, color }}>{value}</div>
                 <div style={{ fontSize: 11, color: "#444", marginTop: 2, letterSpacing: 1 }}>{label.toUpperCase()}</div>
               </div>
             ))}
@@ -134,8 +132,7 @@ export default function Landing() {
       {/* ─── APP MOCKUP ───────────────────────────────── */}
       <section style={{ padding: "80px 24px", maxWidth: 520, margin: "0 auto" }}>
         <div style={{ textAlign: "center", marginBottom: 36 }}>
-          <div style={{ fontSize: 11, color: "#2FBF71", fontWeight: 700, letterSpacing: 2, marginBottom: 10 }}>THE APP</div>
-          <h2 style={{ fontSize: "clamp(26px,5vw,38px)", fontWeight: 800, letterSpacing: -1, lineHeight: 1.2 }}>
+          <h2 style={{ fontSize: "clamp(24px,5vw,34px)", fontWeight: 600, letterSpacing: -0.3, lineHeight: 1.25 }}>
             Every game. Every edge.<br/>Every morning.
           </h2>
           <p style={{ color: "#555", fontSize: 14, marginTop: 12, lineHeight: 1.6 }}>
@@ -147,12 +144,12 @@ export default function Landing() {
         <div className="float" style={{ background: "#10131a", border: "1px solid #242832", borderRadius: 28, padding: "20px 16px", position: "relative", boxShadow: "0 40px 80px rgba(0,0,0,0.6), 0 0 0 1px #111" }}>
           {/* Status bar */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, padding: "0 4px" }}>
-            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 14, fontWeight: 700 }}>
+            <div style={{ fontFamily: tokens.font.mono, fontSize: 14, fontWeight: 700 }}>
               T<span style={{ color: "#2FBF71" }}>|</span>T
             </div>
             <div style={{ display: "flex", gap: 10 }}>
-              {["🏠 Home", "🏟️ Games", "💰 Portfolio"].map(t => (
-                <div key={t} style={{ fontSize: 10, color: t === "🏠 Home" ? "#2FBF71" : "#3d424f", fontWeight: 700 }}>{t}</div>
+              {["Home", "Games", "Portfolio"].map(t => (
+                <div key={t} style={{ fontSize: 10, color: t === "Home" ? "#2FBF71" : "#3d424f", fontWeight: 700 }}>{t}</div>
               ))}
             </div>
           </div>
@@ -162,7 +159,7 @@ export default function Landing() {
             {[
               { label: `${freePick ? "15" : "—"} games`, color: "#555" },
               { label: `${freePick ? "4" : "—"} BET ↑`, color: "#2FBF71" },
-              { label: `⚡ 2 CLEAN`, color: "#2FBF71" },
+              { label: `2 CLEAN`, color: "#2FBF71" },
             ].map(({ label, color }) => (
               <div key={label} style={{ fontSize: 10, color, fontWeight: 700 }}>{label}</div>
             ))}
@@ -174,7 +171,7 @@ export default function Landing() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                 <span style={{ fontSize: 10, color: "#555" }}>7:05 PM CT</span>
                 <span style={{ background: "rgba(47,191,113,0.1)", color: "#2FBF71", fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 5, letterSpacing: 1 }}>
-                  {verdictLabel[freePick.filter?.verdict] || "🔥 Value Pick"}
+                  {verdictLabel[freePick.filter?.verdict] || "Value Pick"}
                 </span>
               </div>
               <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
@@ -183,7 +180,7 @@ export default function Landing() {
                   <div style={{ fontSize: 12, fontWeight: 700, color: freePick.pick === freePick.awayTeam ? "#2FBF71" : "#fff" }}>
                     {freePick.awayTeam?.split(" ").pop()}
                   </div>
-                  <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: "#555", marginTop: 2 }}>
+                  <div style={{ fontFamily: tokens.font.mono, fontSize: 10, color: "#555", marginTop: 2 }}>
                     {freePick.awayOdds != null ? fmtOdds(freePick.awayOdds) : "—"}
                   </div>
                 </div>
@@ -193,7 +190,7 @@ export default function Landing() {
                   <div style={{ fontSize: 12, fontWeight: 700, color: freePick.pick === freePick.homeTeam ? "#2FBF71" : "#fff" }}>
                     {freePick.homeTeam?.split(" ").pop()}
                   </div>
-                  <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: "#555", marginTop: 2 }}>
+                  <div style={{ fontFamily: tokens.font.mono, fontSize: 10, color: "#555", marginTop: 2 }}>
                     {freePick.homeOdds != null ? fmtOdds(freePick.homeOdds) : "—"}
                   </div>
                 </div>
@@ -216,7 +213,7 @@ export default function Landing() {
             <div key={i} className={`pick-card blur-card`} style={{ marginBottom: 8, opacity: p.blur ? 0.7 : 1 }}>
               {p.blur && (
                 <div className="blur-mask">
-                  <div className="lock-badge">🔒 PRO ONLY</div>
+                  <div className="lock-badge" style={{ display: "flex", alignItems: "center", gap: 6 }}><LockIcon size={11} /> PRO ONLY</div>
                 </div>
               )}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
@@ -251,67 +248,61 @@ export default function Landing() {
       <div className="glow-line" style={{ maxWidth: 900, margin: "0 auto" }} />
 
       {/* ─── HOW IT WORKS ─────────────────────────────── */}
-      <section style={{ padding: "80px 24px", maxWidth: 1100, margin: "0 auto" }}>
-        <div style={{ textAlign: "center", marginBottom: 52 }}>
-          <div style={{ fontSize: 11, color: "#2FBF71", fontWeight: 700, letterSpacing: 2, marginBottom: 10 }}>HOW IT WORKS</div>
-          <h2 style={{ fontSize: "clamp(26px,5vw,40px)", fontWeight: 800, letterSpacing: -1 }}>
+      <section style={{ padding: "80px 24px", maxWidth: 760, margin: "0 auto" }}>
+        <div style={{ marginBottom: 40 }}>
+          <h2 style={{ fontSize: "clamp(26px,5vw,40px)", fontWeight: 600, letterSpacing: -0.3 }}>
             Built different from the jump
           </h2>
-          <p style={{ color: "#555", fontSize: 15, marginTop: 12, maxWidth: 480, margin: "12px auto 0" }}>
+          <p style={{ color: "#555", fontSize: 15, marginTop: 12, maxWidth: 480 }}>
             Most pick sites use vibes. We use a multi-layer quantitative filter, tuned per sport, that needs every condition to pass.
           </p>
         </div>
 
-        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+        <div>
           {[
             {
-              icon: "⚾",
               title: "MLB: pitcher-first analysis",
               body: "Starting pitcher ERA, WHIP, innings pitched, and sample size. Plus bullpen ERA, WHIP, and K/9 for the full game picture. Starters get the spotlight; bullpens finish ~40% of outs.",
               tag: "MLB DATA LAYER",
             },
             {
-              icon: "🏈",
               title: "NFL: matchup + EPA",
               body: "Team offensive/defensive efficiency (EPA per play), recent form, and Elo ratings feed the model's win probability for every game and market — moneyline, spread, and total.",
               tag: "NFL DATA LAYER",
             },
             {
-              icon: "📐",
               title: "Market edge scoring",
               body: "We compare our model's win probability to the book's implied probability. Only plays with a verified edge after market calibration pass. No phantom edges.",
               tag: "BOTH SPORTS",
             },
             {
-              icon: "🏟️",
               title: "Park + lineup context",
               body: "Coors isn't Petco. Every MLB pick accounts for park factor, the lineup's OPS vs pitcher hand, and recent form over the last 10 games.",
               tag: "MLB DATA LAYER",
             },
             {
-              icon: "⚡",
               title: "CLEAN / BET / PASS tiers",
               body: "CLEAN picks pass every single condition in the AND-gate. BET passes most. PASS is transparent — the model's honest answer when there's no edge. Some days are zero-bet days and that's correct.",
               tag: "VERDICT SYSTEM",
             },
             {
-              icon: "📊",
               title: "Personal tracker + P&L",
               body: "Every pick you save — MLB or NFL — tracks wins, losses, and ties automatically. Real-time P&L in dollars based on your unit size. See your actual edge over time.",
               tag: "TRACKER",
             },
             {
-              icon: "🤖",
               title: "Claude AI breakdowns",
               body: "Every MLB pick comes with a 2-sentence preview, key deciding factor, main risk, and honest lean from Claude — the same reasoning layer that powers the pick. NFL picks show the same underlying model reasoning as plain-English bullets.",
               tag: "AI LAYER",
             },
-          ].map(({ icon, title, body, tag }) => (
-            <div key={title} className="feature-card" style={{ minWidth: "calc(33% - 12px)", flex: "1 1 280px" }}>
-              <div style={{ fontSize: 11, color: "#2FBF71", fontWeight: 700, letterSpacing: 1.5, marginBottom: 12 }}>{tag}</div>
-              <div style={{ fontSize: 22, marginBottom: 10 }}>{icon}</div>
-              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>{title}</div>
-              <div style={{ fontSize: 13, color: "#555", lineHeight: 1.65 }}>{body}</div>
+          ].map(({ title, body, tag }, i) => (
+            <div key={title} className="feature-card" style={{ display: "flex", gap: 24, textAlign: "left" }}>
+              <div style={{ fontFamily: tokens.font.display, fontSize: 22, color: "#3d424f", flexShrink: 0, width: 36 }}>{String(i + 1).padStart(2, "0")}</div>
+              <div>
+                <div style={{ fontSize: 11, color: "#2FBF71", fontWeight: 700, letterSpacing: 1.5, marginBottom: 8 }}>{tag}</div>
+                <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>{title}</div>
+                <div style={{ fontSize: 13, color: "#555", lineHeight: 1.65 }}>{body}</div>
+              </div>
             </div>
           ))}
         </div>
@@ -322,8 +313,7 @@ export default function Landing() {
       {/* ─── US VS VEGAS ──────────────────────────────── */}
       <section style={{ padding: "80px 24px", maxWidth: 900, margin: "0 auto" }}>
         <div style={{ textAlign: "center", marginBottom: 52 }}>
-          <div style={{ fontSize: 11, color: "#2FBF71", fontWeight: 700, letterSpacing: 2, marginBottom: 10 }}>THE NUMBERS</div>
-          <h2 style={{ fontSize: "clamp(26px,5vw,42px)", fontWeight: 800, letterSpacing: -1.5, lineHeight: 1.1 }}>
+          <h2 style={{ fontSize: "clamp(26px,5vw,40px)", fontWeight: 600, letterSpacing: -0.3, lineHeight: 1.15 }}>
             Us <span style={{ color: "#2FBF71" }}>{'>'}</span> Vegas
           </h2>
           <p style={{ color: "#555", fontSize: 15, marginTop: 14, maxWidth: 500, margin: "14px auto 0" }}>
@@ -344,11 +334,11 @@ export default function Landing() {
               <div style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 10, color: "#2FBF71", fontWeight: 700, letterSpacing: 1, marginBottom: 3 }}>T|T</div>
-                  <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 20, fontWeight: 700, color: "#2FBF71" }}>{us}</div>
+                  <div style={{ fontFamily: tokens.font.mono, fontSize: 20, fontWeight: 700, color: "#2FBF71" }}>{us}</div>
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 10, color: "#444", fontWeight: 700, letterSpacing: 1, marginBottom: 3 }}>VEGAS</div>
-                  <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 20, fontWeight: 700, color: "#3d424f" }}>{them}</div>
+                  <div style={{ fontFamily: tokens.font.mono, fontSize: 20, fontWeight: 700, color: "#3d424f" }}>{them}</div>
                 </div>
               </div>
               <div style={{ fontSize: 11, color: "#3d424f", marginTop: 8 }}>{sub}</div>
@@ -367,15 +357,14 @@ Sports betting carries extreme variance — MLB and NFL alike. Even 60% pickers 
       <div className="glow-line" style={{ maxWidth: 900, margin: "0 auto" }} />
 
       {/* ─── SOCIAL PROOF ─────────────────────────────── */}
-      <section style={{ padding: "80px 24px", maxWidth: 900, margin: "0 auto" }}>
-        <div style={{ textAlign: "center", marginBottom: 48 }}>
-          <div style={{ fontSize: 11, color: "#2FBF71", fontWeight: 700, letterSpacing: 2, marginBottom: 10 }}>WHAT PEOPLE SAY</div>
-          <h2 style={{ fontSize: "clamp(24px,4vw,36px)", fontWeight: 800, letterSpacing: -1 }}>
+      <section style={{ padding: "80px 24px", maxWidth: 640, margin: "0 auto" }}>
+        <div style={{ marginBottom: 32 }}>
+          <h2 style={{ fontSize: "clamp(24px,4vw,34px)", fontWeight: 600, letterSpacing: -0.3 }}>
             Real users. Real results.
           </h2>
         </div>
 
-        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+        <div>
           {[
             {
               quote: "I've tried every pick site. T|T is the only one that actually explains WHY. The CLEAN filter is legit — when it fires I pay attention.",
@@ -393,13 +382,9 @@ Sports betting carries extreme variance — MLB and NFL alike. Even 60% pickers 
               tag: "Free tier",
             },
           ].map(({ quote, name, tag }) => (
-            <div key={name} className="testimonial" style={{ flex: "1 1 240px" }}>
-              <div style={{ fontSize: 28, color: "#2FBF71", marginBottom: 12, lineHeight: 1 }}>"</div>
-              <div style={{ fontSize: 14, color: "#888", lineHeight: 1.7, marginBottom: 16 }}>{quote}</div>
-              <div style={{ borderTop: "1px solid #111", paddingTop: 14 }}>
-                <div style={{ fontSize: 13, fontWeight: 700 }}>{name}</div>
-                <div style={{ fontSize: 11, color: "#444", marginTop: 2 }}>{tag}</div>
-              </div>
+            <div key={name} className="testimonial">
+              <div style={{ fontSize: 15, color: "#aaa", lineHeight: 1.7, marginBottom: 12 }}>{quote}</div>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>{name} <span style={{ fontSize: 11, color: "#444", fontWeight: 400 }}>· {tag}</span></div>
             </div>
           ))}
         </div>
@@ -409,8 +394,7 @@ Sports betting carries extreme variance — MLB and NFL alike. Even 60% pickers 
 
       {/* ─── PRICING + BOTTOM CTA ─────────────────────── */}
       <section style={{ padding: "80px 24px", maxWidth: 860, margin: "0 auto", textAlign: "center" }}>
-        <div style={{ fontSize: 11, color: "#2FBF71", fontWeight: 700, letterSpacing: 2, marginBottom: 14 }}>PRICING</div>
-        <h2 style={{ fontSize: "clamp(28px,5vw,44px)", fontWeight: 800, letterSpacing: -1.5, lineHeight: 1.1, marginBottom: 16 }}>
+        <h2 style={{ fontSize: "clamp(28px,5vw,42px)", fontWeight: 600, letterSpacing: -0.3, lineHeight: 1.15, marginBottom: 16 }}>
           Sharp picks shouldn't<br/>cost sharp money.
         </h2>
         <p style={{ color: "#555", fontSize: 15, marginBottom: 44 }}>Start free. Go pro when you're ready.</p>
@@ -419,7 +403,7 @@ Sports betting carries extreme variance — MLB and NFL alike. Even 60% pickers 
           {/* Free */}
           <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 20, padding: "28px 28px", flex: "1 1 220px", maxWidth: 280, textAlign: "left" }}>
             <div style={{ fontSize: 13, color: "#555", fontWeight: 700, marginBottom: 10, letterSpacing: 1 }}>FREE</div>
-            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 36, fontWeight: 700, marginBottom: 4 }}>$0</div>
+            <div style={{ fontFamily: tokens.font.mono, fontSize: 36, fontWeight: 700, marginBottom: 4 }}>$0</div>
             <div style={{ fontSize: 12, color: "#444", marginBottom: 24 }}>forever</div>
             {["1 free pick daily", "Email digest every morning", "Model record public stats"].map(f => (
               <div key={f} style={{ display: "flex", gap: 8, alignItems: "center", padding: "7px 0", borderBottom: "1px solid #1c1f26", fontSize: 13, color: "#666" }}>
@@ -430,10 +414,12 @@ Sports betting carries extreme variance — MLB and NFL alike. Even 60% pickers 
           </div>
 
           {/* Pro */}
-          <div style={{ background: "rgba(47,191,113,0.04)", border: "1px solid rgba(47,191,113,0.2)", borderRadius: 20, padding: "28px 28px", flex: "1 1 220px", maxWidth: 280, textAlign: "left", position: "relative" }}>
-            <div style={{ position: "absolute", top: -13, left: "50%", transform: "translateX(-50%)", background: "#2FBF71", color: "#000", fontSize: 10, fontWeight: 800, padding: "4px 14px", borderRadius: 20, letterSpacing: 1, whiteSpace: "nowrap" }}>MOST POPULAR</div>
-            <div style={{ fontSize: 13, color: "#2FBF71", fontWeight: 700, marginBottom: 10, letterSpacing: 1 }}>PRO MONTHLY</div>
-            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 36, fontWeight: 700, marginBottom: 4, color: "#2FBF71" }}>$2</div>
+          <div style={{ background: "rgba(47,191,113,0.04)", border: "1px solid rgba(47,191,113,0.35)", borderRadius: 20, padding: "28px 28px", flex: "1 1 220px", maxWidth: 280, textAlign: "left" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <div style={{ fontSize: 13, color: "#2FBF71", fontWeight: 700, letterSpacing: 1 }}>PRO MONTHLY</div>
+              <div style={{ fontSize: 10, color: "#555", fontWeight: 600 }}>Most popular</div>
+            </div>
+            <div style={{ fontFamily: tokens.font.mono, fontSize: 36, fontWeight: 700, marginBottom: 4, color: "#2FBF71" }}>$2</div>
             <div style={{ fontSize: 12, color: "#555", marginBottom: 24 }}>per month</div>
             {["All picks + full breakdowns", "Edge scores + variance data", "CLEAN / BET / PASS filter", "Parlay builder (CLEAN only)", "Personal tracker + P&L", "Access on all devices"].map(f => (
               <div key={f} style={{ display: "flex", gap: 8, alignItems: "center", padding: "7px 0", borderBottom: "1px solid rgba(47,191,113,0.06)", fontSize: 13, color: "#888" }}>
@@ -446,7 +432,7 @@ Sports betting carries extreme variance — MLB and NFL alike. Even 60% pickers 
           {/* Annual */}
           <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 20, padding: "28px 28px", flex: "1 1 220px", maxWidth: 280, textAlign: "left" }}>
             <div style={{ fontSize: 13, color: "#555", fontWeight: 700, marginBottom: 10, letterSpacing: 1 }}>PRO ANNUAL</div>
-            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 36, fontWeight: 700, marginBottom: 4 }}>$19.99</div>
+            <div style={{ fontFamily: tokens.font.mono, fontSize: 36, fontWeight: 700, marginBottom: 4 }}>$19.99</div>
             <div style={{ fontSize: 12, color: "#444", marginBottom: 24 }}>$1.67/mo · 2 months free</div>
             {["Everything in Pro Monthly", "Best value for the season", "Cancel anytime"].map(f => (
               <div key={f} style={{ display: "flex", gap: 8, alignItems: "center", padding: "7px 0", borderBottom: "1px solid #1c1f26", fontSize: 13, color: "#666" }}>
@@ -462,7 +448,7 @@ Sports betting carries extreme variance — MLB and NFL alike. Even 60% pickers 
 
         {/* Email capture */}
         <div ref={heroEmailRef} style={{ maxWidth: 440, margin: "0 auto" }}>
-          <h3 style={{ fontSize: 24, fontWeight: 800, letterSpacing: -0.5, marginBottom: 8 }}>Not ready to pay?</h3>
+          <h3 style={{ fontSize: 24, fontWeight: 600, letterSpacing: -0.3, marginBottom: 8, fontFamily: tokens.font.display }}>Not ready to pay?</h3>
           <p style={{ color: "#555", fontSize: 14, marginBottom: 24, lineHeight: 1.6 }}>
             Get one sharp pick every morning — free. No account needed. Unsubscribe any time.
           </p>
@@ -493,7 +479,7 @@ Sports betting carries extreme variance — MLB and NFL alike. Even 60% pickers 
 
       {/* ─── FOOTER ───────────────────────────────────── */}
       <footer style={{ borderTop: "1px solid #1c1f26", padding: "28px 24px", textAlign: "center" }}>
-        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
+        <div style={{ fontFamily: tokens.font.mono, fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
           T<span style={{ color: "#2FBF71" }}>|</span>T
         </div>
         <div style={{ display: "flex", gap: 20, justifyContent: "center", flexWrap: "wrap", fontSize: 12, color: "#3d424f" }}>

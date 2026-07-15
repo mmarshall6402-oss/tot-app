@@ -7,9 +7,10 @@
 
 import { useState, useEffect } from "react";
 import { TeamMatchupLink } from "./TeamModal.js";
+import { tokens, tabButtonStyle } from "../lib/ui-theme.js";
 
-const MLB_GREEN = "#00FF87";
-const NFL_ORANGE = "#FF6B35";
+const MLB_GREEN = tokens.color.brand;
+const NFL_ORANGE = tokens.color.orange;
 
 const fmtOdds = (o) => (o == null ? "—" : o > 0 ? `+${o}` : `${o}`);
 
@@ -71,19 +72,14 @@ export default function ScheduleSection({ S, getAuthHeaders, onTeamClick }) {
 
   return (
     <div style={{ padding: "16px 20px 84px" }}>
-      <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+      <div style={{ display: "flex", borderBottom: `1px solid ${tokens.color.border}`, marginBottom: 16 }}>
         {[
           { id: "mlb", icon: "⚾", label: "MLB" },
           { id: "nfl", icon: "🏈", label: "NFL" },
         ].map(({ id, icon, label }) => (
           <button
             key={id}
-            style={{
-              ...S.tabBtn,
-              borderColor: sport === id ? accent : "#333",
-              color: sport === id ? accent : "#999",
-              background: sport === id ? `${accent}14` : "#111",
-            }}
+            style={{ ...tabButtonStyle({ active: sport === id, accent: id === "nfl" ? NFL_ORANGE : MLB_GREEN }), flex: 1, textAlign: "center" }}
             onClick={() => setSport(id)}
           >
             {icon} {label}
@@ -123,14 +119,17 @@ export default function ScheduleSection({ S, getAuthHeaders, onTeamClick }) {
                               Final — {g.awayTeam?.split(" ").pop()} {g.awayScore} · {g.homeTeam?.split(" ").pop()} {g.homeScore}
                             </span>
                           ) : g.status === "In Progress" || g.status === "Live" ? (
-                            <span style={{ color: accent }}>🔴 Live — {g.awayScore ?? 0}-{g.homeScore ?? 0}</span>
+                            <span style={{ color: accent, display: "inline-flex", alignItems: "center", gap: 5 }}>
+                              <span style={{ width: 6, height: 6, borderRadius: "50%", background: accent, display: "inline-block" }} />
+                              Live — {g.awayScore ?? 0}-{g.homeScore ?? 0}
+                            </span>
                           ) : (
                             <>{fmtTime(g.commenceTime)}{g.venue ? ` · ${g.venue}` : ""}</>
                           )}
                         </div>
                       </div>
                       {(g.homeOdds != null || g.awayOdds != null) && (
-                        <div style={{ textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontSize: 12 }}>
+                        <div style={{ textAlign: "right", fontFamily: tokens.font.mono, fontSize: 12 }}>
                           <div style={{ color: "#999" }}>{fmtOdds(g.awayOdds)}</div>
                           <div style={{ color: "#999", marginTop: 2 }}>{fmtOdds(g.homeOdds)}</div>
                         </div>

@@ -71,7 +71,7 @@ export default function DecisionCard({ pick, sport = "mlb", S, savePick, saving,
             </span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-            <span style={{ fontSize: 12, fontFamily: "'JetBrains Mono',monospace", color: "#888" }}>{confidence.toFixed(1)}</span>
+            <span style={{ fontSize: 12, fontFamily: tokens.font.mono, color: "#888" }}>{confidence.toFixed(1)}</span>
             <Stars confidence={confidence} />
           </div>
         </div>
@@ -84,7 +84,7 @@ export default function DecisionCard({ pick, sport = "mlb", S, savePick, saving,
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
         <span style={{ fontSize: 22, fontWeight: 800, color: verdict.color, letterSpacing: 0.5 }}>{verdict.label}</span>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 18, fontWeight: 700 }}>{confidence.toFixed(1)}</span>
+          <span style={{ fontFamily: tokens.font.mono, fontSize: 18, fontWeight: 700 }}>{confidence.toFixed(1)}</span>
           <Stars confidence={confidence} />
         </div>
       </div>
@@ -146,7 +146,7 @@ export default function DecisionCard({ pick, sport = "mlb", S, savePick, saving,
                 Current <b style={{ color: "#ccc" }}>{fmtOdds(betNow.currentOdds)}</b> · Fair <b style={{ color: "#ccc" }}>{fmtOdds(betNow.fairOdds)}</b>
               </div>
               <div style={{ fontSize: 12, fontWeight: 700, color: betNow.verdict === "bet" ? "#2FBF71" : "#D6B23D" }}>
-                {betNow.verdict === "bet" ? "✅ Bet Now" : "⏳ Wait — price moved"}
+                {betNow.verdict === "bet" ? "Bet Now" : "Wait — price moved"}
               </div>
             </div>
           )}
