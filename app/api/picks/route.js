@@ -170,7 +170,15 @@ async function fetchOddsWithCache() {
 }
 
 export async function GET(request) {
-  const { error: authError } = await requirePro(request);
+  // requirePro runs before the main try/catch; if IT throws (e.g. a misconfigured
+  // Supabase client), the whole invocation crashes to a platform HTML 500 that the
+  // client can't parse. Guard it so auth failures are always a readable JSON error.
+  let authError;
+  try {
+    ({ error: authError } = await requirePro(request));
+  } catch (e) {
+    return Response.json({ error: `Auth failed: ${e?.message || e?.name || "unknown"}` }, { status: 500 });
+  }
   if (authError) return authError;
 
   try {
@@ -471,7 +479,9 @@ export async function GET(request) {
     }
 
     const [oddsGames, mlbRes] = await Promise.all([
-      fetchOddsWithCache(),
+      // .catch here matches the fast-path guard: a Supabase reject inside
+      // fetchOddsWithCache must degrade to "no odds", not crash the whole route.
+      fetchOddsWithCache().catch((e) => { console.warn("[picks] odds fetch failed:", e?.message); return []; }),
       fetch(`${BASE_URL}/api/mlb?date=${date}`).then(r => r.json()).catch(() => ({ games: [] })),
     ]);
 
@@ -589,6 +599,15 @@ export async function GET(request) {
 
     return Response.json({ picks: results, safeCard, balancedCard, aggressiveCard, cached: false, ...(diagnostic ? { diagnostic } : {}) });
   } catch (e) {
-    return Response.json({ error: e.message }, { status: 500 });
+    // Never return a blank/undefined-message 500 — that renders on the client as
+    // the generic "the picks API crashed" with no clue why. Surface the real
+    // error name/message/cause so it's diagnosable from the UI without log access.
+    console.error("[picks] fatal:", e);
+    const msg = e?.message || e?.cause?.message || (typeof e === "string" ? e : e?.name) || "unknown error";
+    return Response.json({
+      error: msg,
+      name: e?.name,
+      stack: typeof e?.stack === "string" ? e.stack.split("\n").slice(0, 4) : undefined,
+    }, { status: 500 });
   }
 }
