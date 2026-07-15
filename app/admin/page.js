@@ -280,6 +280,7 @@ export default function AdminDash() {
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {busy && <div style={{ width: 14, height: 14, border: "2px solid #222", borderTopColor: "#00FF87", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />}
+          <a href="/admin/backtest" style={{ fontSize: 11, color: "#444" }}>Backtest →</a>
           <a href="/app" style={{ fontSize: 11, color: "#444" }}>← App</a>
         </div>
       </div>
