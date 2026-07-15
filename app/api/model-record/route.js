@@ -6,6 +6,7 @@ const getSupabase = () => createClient(
 );
 
 export async function GET() {
+  try {
   const supabase = getSupabase();
 
   const { data } = await supabase
@@ -67,4 +68,8 @@ export async function GET() {
   });
 
   return Response.json({ wins, losses, pushes, pct, total, byTier, avgEdge, avgClv, pctPositiveClv, clvSampleSize: clvData.length, edgeBuckets });
+  } catch (e) {
+    console.error("[model-record] fatal:", e);
+    return Response.json({ error: e?.message || e?.name || "unknown error" }, { status: 500 });
+  }
 }

@@ -12,6 +12,7 @@ export async function GET(request) {
   const { error: authError } = await requirePro(request);
   if (authError) return authError;
 
+  try {
   const supabase = getSupabase();
   const now = new Date();
 
@@ -117,4 +118,8 @@ export async function GET(request) {
   const deduped = events.slice(0, 40);
 
   return Response.json({ events: deduped, topPicks, today });
+  } catch (e) {
+    console.error("[activity] fatal:", e);
+    return Response.json({ error: e?.message || e?.name || "unknown error" }, { status: 500 });
+  }
 }
