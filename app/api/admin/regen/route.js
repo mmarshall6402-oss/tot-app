@@ -19,6 +19,14 @@ export async function POST(request) {
 
   const body = await request.json().catch(() => ({}));
 
+  if (body.type === "player-index") {
+    const res = await fetch(`${BASE_URL}/api/cron/player-index`, {
+      headers: { Authorization: `Bearer ${CRON_SECRET}` },
+    });
+    const data = await res.json().catch(() => ({}));
+    return Response.json(data, { status: res.status });
+  }
+
   if (body.sport === "nfl") {
     const nflParams = new URLSearchParams();
     if (body.date) nflParams.set("date", body.date);

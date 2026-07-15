@@ -86,6 +86,7 @@ export default function AdminDash() {
 
   // action state
   const [regenS, setRegenS]     = useState(null);
+  const [playerIdxS, setPlayerIdxS] = useState(null);
   const [resolveS, setResolveS] = useState(null);
   const [createS, setCreateS]   = useState(null);
   const [testS, setTestS]       = useState(null);
@@ -193,6 +194,22 @@ export default function AdminDash() {
       if (r.ok) setTimeout(() => load(token), 5000);
     } catch { setRegenS("err"); }
     setTimeout(() => setRegenS(null), 8000);
+  }
+
+  // Rebuilds the player_index table (see sql/008_player_index.sql) that
+  // app/api/search reads player results from. Needed once right after this
+  // feature deploys — the cron that keeps it fresh otherwise runs every 6h.
+  async function regenPlayerIndex() {
+    setPlayerIdxS("loading");
+    try {
+      const r = await fetch("/api/admin/regen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ type: "player-index" }),
+      });
+      setPlayerIdxS(r.ok ? "ok" : "err");
+    } catch { setPlayerIdxS("err"); }
+    setTimeout(() => setPlayerIdxS(null), 8000);
   }
 
   async function resolveYesterday() {
@@ -335,6 +352,8 @@ export default function AdminDash() {
               labels={{ loading: "⏳ Generating…", ok: "✓ Done", err: "✗ Failed", default: "⚡ Regen Picks" }} />
             <button onClick={() => setTab("email")}  style={{ ...S.btn, flex: 1 }}>✉️ Test Email</button>
             <button onClick={resolveYesterday}        style={{ ...S.btn, flex: 1 }}>{resolveLabel}</button>
+            <Btn onClick={regenPlayerIndex} state={playerIdxS} style={{ flex: 1 }}
+              labels={{ loading: "⏳ Crawling rosters…", ok: "✓ Done", err: "✗ Failed", default: "🔎 Rebuild Search Index" }} />
           </div>
         </>
       )}
