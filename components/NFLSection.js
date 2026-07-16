@@ -411,6 +411,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                   >{nflGenerating ? "…" : "Gen"}</button>
                 )}
               </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, alignItems: "start" }}>
               {nflPicks.map(pick => {
                 const isBet = pick.isBet;
                 const edge = pick.edge || 0;
@@ -431,7 +432,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                 const cardBorder = isOpen ? (isBet ? "#2FBF71" : "#333947") : (isBet ? "rgba(47,191,113,0.25)" : "#242832");
 
                 return (
-                  <div key={pick.id} style={{ ...S.card, borderColor: cardBorder }}>
+                  <div key={pick.id} style={{ ...S.card, borderColor: cardBorder, gridColumn: isOpen ? "1 / -1" : undefined }}>
                     <div style={S.cardTop}>
                       <div style={{ flex: 1 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
@@ -447,12 +448,12 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                             {pick.marketType === "spread" ? "SPREAD" : pick.marketType === "total" ? "TOTAL" : "MONEYLINE"}
                           </span>
                         </div>
-                        <div style={S.cardMatchup}><TeamMatchupLink sport="nfl" awayTeam={pick.awayTeam} homeTeam={pick.homeTeam} onPick={onTeamClick} /></div>
+                        <div style={S.cardMatchup}><TeamMatchupLink sport="nfl" awayTeam={pick.awayTeam} homeTeam={pick.homeTeam} awayLabel={pick.awayTeam?.split(" ").pop()} homeLabel={pick.homeTeam?.split(" ").pop()} onPick={onTeamClick} /></div>
                         <div style={S.cardMeta}>
                           {fmtGameTime(pick.commenceTime)}
                           {pick.pick && <> · Take{" "}
                             <span style={{ color: isBet ? "#2FBF71" : "#aaa", fontWeight: 700 }}>
-                              {pick.pick}
+                              {pick.pick?.split(" ").pop()}
                               {spreadLine != null ? ` ${spreadLine > 0 ? "+" : ""}${spreadLine}` : ""}
                               {totalLine != null ? ` ${totalLine}` : ""}
                             </span>
@@ -484,19 +485,19 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                         </button>
                       </div>
                     </div>
-                    <div style={S.pitchRow}>
-                      <div style={S.pitchBox}>
-                        <div style={S.pitchLabel}>{pick.awayTeam?.toUpperCase()}</div>
-                        <div style={S.pitchName}>{pick.matchup?.away || "stats unavailable"}</div>
-                      </div>
-                      <div style={S.pitchVs}>VS</div>
-                      <div style={{ ...S.pitchBox, textAlign: "right" }}>
-                        <div style={S.pitchLabel}>{pick.homeTeam?.toUpperCase()}</div>
-                        <div style={S.pitchName}>{pick.matchup?.home || "stats unavailable"}</div>
-                      </div>
-                    </div>
                     {isOpen && f && (
                       <div style={{ animation: "fadeUp 0.2s ease" }}>
+                        <div style={S.pitchRow}>
+                          <div style={S.pitchBox}>
+                            <div style={S.pitchLabel}>{pick.awayTeam?.toUpperCase()}</div>
+                            <div style={S.pitchName}>{pick.matchup?.away || "stats unavailable"}</div>
+                          </div>
+                          <div style={S.pitchVs}>VS</div>
+                          <div style={{ ...S.pitchBox, textAlign: "right" }}>
+                            <div style={S.pitchLabel}>{pick.homeTeam?.toUpperCase()}</div>
+                            <div style={S.pitchName}>{pick.matchup?.home || "stats unavailable"}</div>
+                          </div>
+                        </div>
                         <div style={S.expDivider} />
                         <div style={S.expSection}>
                           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#888", marginBottom: 4 }}>
@@ -557,6 +558,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                   </div>
                 );
               })}
+              </div>
             </>
           )
         )}

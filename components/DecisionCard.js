@@ -63,17 +63,15 @@ export default function DecisionCard({ pick, sport = "mlb", S, savePick, saving,
         onClick={() => setFull(true)}
         aria-label={`${pick.pick}${sport === "nfl" ? "" : " ML"} — tap for details`}
       >
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-            <span style={{ fontSize: 11, fontWeight: 800, color: verdict.color, letterSpacing: 0.5, flexShrink: 0 }}>{verdict.label}</span>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#eee", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {pick.pick} {sport === "nfl" ? "" : "ML"}
-            </span>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <span style={{ fontSize: 11, fontWeight: 800, color: verdict.color, letterSpacing: 0.5 }}>{verdict.label}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
             <span style={{ fontSize: 12, fontFamily: tokens.font.mono, color: "#888" }}>{confidence.toFixed(1)}</span>
             <Stars confidence={confidence} />
           </div>
+        </div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#eee", marginTop: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {pick.pick} {sport === "nfl" ? "" : "ML"}
         </div>
       </button>
     );

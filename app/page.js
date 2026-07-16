@@ -1476,7 +1476,9 @@ export default function ToT() {
                 </div>
               )}
             </div>
-          ) : sorted.map(pick => {
+          ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, alignItems: "start" }}>
+          {sorted.map(pick => {
             const isBet   = pick.isBet;
             const isLock  = pick.isLock === true;
             const edge    = pick.edge || 0;
@@ -1505,7 +1507,7 @@ export default function ToT() {
             const cardBorder = resultBorderColor || (isOpen ? (isBet ? betColor : "#333947") : (isBet ? "rgba(47,191,113,0.25)" : isScheduled ? "rgba(79,195,247,0.15)" : "#242832"));
 
             return (
-              <div key={pick.id} style={{ ...S.card, borderColor: cardBorder }}>
+              <div key={pick.id} style={{ ...S.card, borderColor: cardBorder, gridColumn: isOpen ? "1 / -1" : undefined }}>
                 <div style={S.cardTop}>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
@@ -1543,13 +1545,13 @@ export default function ToT() {
                       <TeamMatchupLink
                         sport="mlb" onPick={openTeam}
                         awayTeam={pick.awayTeam} homeTeam={pick.homeTeam}
-                        awayLabel={<>{pick.awayTeam}{pick.awayRecord && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 4 }}>({pick.awayRecord})</span>}</>}
-                        homeLabel={<>{pick.homeTeam}{pick.homeRecord && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 4 }}>({pick.homeRecord})</span>}</>}
+                        awayLabel={<>{pick.awayTeam?.split(" ").pop()}{pick.awayRecord && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 4 }}>({pick.awayRecord})</span>}</>}
+                        homeLabel={<>{pick.homeTeam?.split(" ").pop()}{pick.homeRecord && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 4 }}>({pick.homeRecord})</span>}</>}
                       />
                     </div>
                     <div style={S.cardMeta}>
                       {fmtGameTime(pick.commenceTime)}
-                      {pick.pick && <> · {isScheduled ? <span style={{ color: "#4FC3F7" }}>Preview</span> : pick.homeOdds == null && !pick.filter ? "Lean" : "Take"} <span style={{ color: isBet ? betColor : isScheduled ? "#4FC3F7" : "#aaa", fontWeight: 700 }}>{pick.pick}</span></>}
+                      {pick.pick && <> · {isScheduled ? <span style={{ color: "#4FC3F7" }}>Preview</span> : pick.homeOdds == null && !pick.filter ? "Lean" : "Take"} <span style={{ color: isBet ? betColor : isScheduled ? "#4FC3F7" : "#aaa", fontWeight: 700 }}>{pick.pick?.split(" ").pop()}</span></>}
                       {!pick.pick && <span style={{ color: "#444" }}> · No line posted</span>}
                       {isBet && pick.homeOdds != null && <span style={{ color: "#888", fontFamily: "'JetBrains Mono',monospace" }}> · {fmtOdds(pick.pick === pick.homeTeam ? pick.homeOdds : pick.awayOdds)}</span>}
                     </div>
@@ -1620,20 +1622,20 @@ export default function ToT() {
                     </button>
                   </div>
                 </div>
-                <div style={S.pitchRow}>
-                  <div style={S.pitchBox}>
-                    <div style={S.pitchLabel}>HOME SP</div>
-                    <div style={S.pitchName}>{b.pitcher_home || "TBD"}</div>
-                  </div>
-                  <div style={S.pitchVs}>VS</div>
-                  <div style={{ ...S.pitchBox, textAlign: "right" }}>
-                    <div style={S.pitchLabel}>AWAY SP</div>
-                    <div style={S.pitchName}>{b.pitcher_away || "TBD"}</div>
-                  </div>
-                </div>
-                {b.preview && <div style={S.preview}>{b.preview}</div>}
                 {isOpen && (
                   <div style={{ animation: "fadeUp 0.2s ease" }}>
+                    <div style={S.pitchRow}>
+                      <div style={S.pitchBox}>
+                        <div style={S.pitchLabel}>HOME SP</div>
+                        <div style={S.pitchName}>{b.pitcher_home || "TBD"}</div>
+                      </div>
+                      <div style={S.pitchVs}>VS</div>
+                      <div style={{ ...S.pitchBox, textAlign: "right" }}>
+                        <div style={S.pitchLabel}>AWAY SP</div>
+                        <div style={S.pitchName}>{b.pitcher_away || "TBD"}</div>
+                      </div>
+                    </div>
+                    {b.preview && <div style={S.preview}>{b.preview}</div>}
                     <div style={S.expDivider} />
                     {pick.filter && (() => {
                       const f = pick.filter;
@@ -1819,7 +1821,9 @@ export default function ToT() {
                 )}
               </div>
             );
-          })
+          })}
+          </div>
+          )
         )}
 
         {activeTab === "picks" && isPro && parlayLegs.size >= 2 && (
@@ -2702,9 +2706,11 @@ export default function ToT() {
             top3.length > 0 && (
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: "#999", letterSpacing: 0.5, marginBottom: 10 }}>TOP 3 TODAY</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 2 }}>
                   {top3.map(({ p, sport }) => (
-                    <DecisionCard key={`${sport}-${p.id}`} pick={p} sport={sport} S={S} savePick={savePick} saving={saving} compact />
+                    <div key={`${sport}-${p.id}`} style={{ width: 220, flexShrink: 0 }}>
+                      <DecisionCard pick={p} sport={sport} S={S} savePick={savePick} saving={saving} compact />
+                    </div>
                   ))}
                 </div>
               </div>
