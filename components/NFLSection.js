@@ -19,7 +19,7 @@ import { impliedWinPct, oddsMovement } from "../lib/odds-display.js";
 import { TeamMatchupLink } from "./TeamModal.js";
 import { translateReasons } from "../lib/reason-labels.js";
 import { shouldBetNow } from "../lib/fair-odds.js";
-import { accentButtonStyle, tabButtonStyle, tokens } from "../lib/ui-theme.js";
+import { accentButtonStyle, tabButtonStyle, tokens, iconButtonStyle } from "../lib/ui-theme.js";
 import { CheckIcon, RefreshIcon } from "./icons.js";
 
 function pickOddsFor(pick) {
@@ -401,10 +401,10 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                 <span style={{ fontSize: 11, color: "#777" }}>{nflPicks.length} picks</span>
                 <span style={{ fontSize: 11, color: "#2FBF71" }}>{nflPicks.filter(p => p.isBet).length} BET</span>
                 <span style={{ fontSize: 11, color: "#555" }}>{nflPicks.filter(p => !p.isBet).length} PASS</span>
-                <button style={{ ...S.sortBtn, marginLeft: "auto", fontSize: 13 }} onClick={() => fetchNflPicks(selectedDate, true)} title="Refresh picks"><RefreshIcon size={14} /></button>
+                <button style={{ ...iconButtonStyle({}), marginLeft: "auto" }} onClick={() => fetchNflPicks(selectedDate, true)} title="Refresh picks"><RefreshIcon size={14} /></button>
                 {isAdmin && (
                   <button
-                    style={{ ...S.sortBtn, fontSize: 11, background: nflGenerating ? "rgba(47,191,113,0.1)" : "#181b22", color: nflGenerating ? "#2FBF71" : "#555", borderColor: nflGenerating ? "#2FBF71" : "#3d424f" }}
+                    style={{ ...iconButtonStyle({ active: nflGenerating }), fontSize: 11 }}
                     onClick={generateNflPicks}
                     disabled={nflGenerating}
                     title="Force-generate NFL picks for this date"
@@ -446,8 +446,6 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                           <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 5, background: "#181b22", color: "#888", letterSpacing: 0.5 }}>
                             {pick.marketType === "spread" ? "SPREAD" : pick.marketType === "total" ? "TOTAL" : "MONEYLINE"}
                           </span>
-                          {f && <span style={{ fontSize: 11, color: isBet ? "#555" : "#3d424f", fontFamily: tokens.font.mono }}>{edge.toFixed(1)}% edge</span>}
-                          {isBet && <span style={{ fontSize: 10, color: t.color, opacity: 0.7 }}>{t.label}</span>}
                         </div>
                         <div style={S.cardMatchup}><TeamMatchupLink sport="nfl" awayTeam={pick.awayTeam} homeTeam={pick.homeTeam} onPick={onTeamClick} /></div>
                         <div style={S.cardMeta}>

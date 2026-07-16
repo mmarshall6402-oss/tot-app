@@ -10,7 +10,7 @@ import DecisionCard from "../components/DecisionCard.js";
 import { impliedWinPct, oddsMovement } from "../lib/odds-display.js";
 import { translateReasons } from "../lib/reason-labels.js";
 import { shouldBetNow } from "../lib/fair-odds.js";
-import { S, tokens, SHARED_BUTTON_CSS, FONT_IMPORT_URL, tabButtonStyle, statTileStyle } from "../lib/ui-theme.js";
+import { S, tokens, SHARED_BUTTON_CSS, FONT_IMPORT_URL, tabButtonStyle, statTileStyle, iconButtonStyle } from "../lib/ui-theme.js";
 import { CheckIcon, XIcon, TrashIcon, RefreshIcon, ChevronLeftIcon, CloseIcon, HomeIcon, GamesIcon, WalletIcon, UserIcon, TrendingUpIcon, ClockIcon, LockIcon, SearchIcon } from "../components/icons.js";
 
 // Single shared instance — sign-out and auth listeners must share the same client
@@ -1285,7 +1285,7 @@ export default function ToT() {
             {["edge", "time"].map(s2 => (
               <button
                 key={s2}
-                style={{ ...S.sortBtn, background: sortBy === s2 ? "#2FBF71" : "#181b22", color: sortBy === s2 ? "#000" : "#999", border: `1px solid ${sortBy === s2 ? "#2FBF71" : "#3d424f"}` }}
+                style={iconButtonStyle({ active: sortBy === s2 })}
                 onClick={() => setSortBy(s2)}
                 title={s2 === "edge" ? "Sort by edge" : "Sort by time"}
               >
@@ -1293,13 +1293,13 @@ export default function ToT() {
               </button>
             ))}
             <button
-              style={{ ...S.sortBtn, fontSize: 13 }}
+              style={iconButtonStyle({})}
               onClick={() => fetchPicks(selectedDate, true)}
               title="Refresh picks"
             ><RefreshIcon size={14} /></button>
             {isAdmin && (
               <button
-                style={{ ...S.sortBtn, fontSize: 11, background: generating ? "rgba(47,191,113,0.1)" : "#181b22", color: generating ? "#2FBF71" : "#555", borderColor: generating ? "#2FBF71" : "#3d424f" }}
+                style={{ ...iconButtonStyle({ active: generating }), fontSize: 11 }}
                 onClick={generatePicks}
                 disabled={generating}
                 title="Force-generate picks for today + tomorrow"
@@ -1536,14 +1536,6 @@ export default function ToT() {
                           border: `1px solid ${isBet ? "rgba(47,191,113,0.2)" : "#2b2f3a"}`,
                         }}>
                           {isBet ? "BET" : "PASS"}
-                        </span>
-                      )}
-                      {pick.filter && <span style={{ fontSize: 11, color: isBet ? "#555" : "#3d424f", fontFamily: "'JetBrains Mono',monospace" }}>
-                        {edge.toFixed(1)}% edge
-                      </span>}
-                      {isBet && (
-                        <span style={{ fontSize: 10, color: t.color, opacity: 0.7 }}>
-                          {t.label}
                         </span>
                       )}
                     </div>
