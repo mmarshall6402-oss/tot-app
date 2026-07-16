@@ -1,12 +1,10 @@
 import { requireAuth } from "../../../lib/auth.js";
+import { getMLBTeams, getNFLTeams, matchMLBTeam, matchNFLTeam } from "../../../lib/team-list.js";
 
 const MLB_API = "https://statsapi.mlb.com/api/v1";
 const ESPN_NFL = "https://site.api.espn.com/apis/site/v2/sports/football/nfl";
 const ESPN_NFL_STANDINGS = "https://site.api.espn.com/apis/v2/sports/football/nfl/standings";
 const CURRENT_SEASON = new Date().getFullYear();
-
-const norm = (s) => (s || "").toLowerCase().trim();
-const lastWord = (s) => norm(s).split(" ").pop();
 
 function ctDateStr(d) {
   const p = new Intl.DateTimeFormat("en-US", {
@@ -17,23 +15,8 @@ function ctDateStr(d) {
 
 // ── MLB ──────────────────────────────────────────────────────────────────
 
-async function fetchMLBTeams() {
-  const res = await fetch(`${MLB_API}/teams?sportId=1&hydrate=division`);
-  if (!res.ok) throw new Error(`MLB teams ${res.status}`);
-  const json = await res.json();
-  return json?.teams || [];
-}
-
-function matchMLBTeam(teams, name) {
-  const n = norm(name);
-  return teams.find(t => norm(t.name) === n)
-      || teams.find(t => norm(t.teamName) === n)
-      || teams.find(t => lastWord(t.name) === lastWord(n))
-      || null;
-}
-
 async function buildMLBTeam(name) {
-  const teams = await fetchMLBTeams();
+  const teams = await getMLBTeams();
   const team = matchMLBTeam(teams, name);
   if (!team) return null;
 
@@ -120,22 +103,6 @@ async function buildMLBTeam(name) {
 
 // ── NFL ──────────────────────────────────────────────────────────────────
 
-async function fetchNFLTeams() {
-  const res = await fetch(`${ESPN_NFL}/teams?limit=40`);
-  if (!res.ok) throw new Error(`ESPN teams ${res.status}`);
-  const json = await res.json();
-  const list = json?.sports?.[0]?.leagues?.[0]?.teams || [];
-  return list.map(t => t.team).filter(Boolean);
-}
-
-function matchNFLTeam(teams, name) {
-  const n = norm(name);
-  return teams.find(t => norm(t.displayName) === n)
-      || teams.find(t => norm(t.shortDisplayName) === n)
-      || teams.find(t => lastWord(t.name) === lastWord(n))
-      || null;
-}
-
 function extractAthletes(rosterJson) {
   const groups = rosterJson?.athletes || rosterJson?.team?.athletes || [];
   const flat = [];
@@ -147,7 +114,7 @@ function extractAthletes(rosterJson) {
 }
 
 async function buildNFLTeam(name) {
-  const teams = await fetchNFLTeams();
+  const teams = await getNFLTeams();
   const team = matchNFLTeam(teams, name);
   if (!team) return null;
 

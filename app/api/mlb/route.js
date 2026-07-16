@@ -38,7 +38,10 @@ function advancedPitcherMetrics(stat) {
     ? parseFloat(((13 * fb * 0.105 + 3 * (bb + hbp) - 2 * k) / ip + 3.10).toFixed(2))
     : null;
 
-  return { kBBPct, xFip, fb, ip };
+  // HR/9 — used by the batter HR-prop model as a pitcher power-suppression factor
+  const hr9 = ip > 0 ? parseFloat((hr * 9 / ip).toFixed(2)) : null;
+
+  return { kBBPct, xFip, fb, ip, hr9 };
 }
 
 // ─── Fetchers ─────────────────────────────────────────────────────────────────
@@ -158,6 +161,10 @@ async function fetchPitcherRecentStarts(pitcherId, numStarts = 5) {
       era:    parseFloat(((tot.er / tot.ip) * 9).toFixed(2)),
       whip:   parseFloat(((tot.h + tot.bb) / tot.ip).toFixed(2)),
       kBBPct: tot.bf > 0 ? parseFloat(((tot.k - tot.bb) / tot.bf * 100).toFixed(1)) : null,
+      // Recent-start K rate per batter faced and IP/start — inputs to the pitcher
+      // strikeout-prop projection (lib/prop-probability.js), more current than season kPerBF.
+      kPerBF: tot.bf > 0 ? parseFloat((tot.k / tot.bf).toFixed(4)) : null,
+      avgIpPerStart: parseFloat((tot.ip / starts.length).toFixed(2)),
       ip:     parseFloat(tot.ip.toFixed(1)),
       numStarts: starts.length,
     };
@@ -270,6 +277,15 @@ export async function GET(request) {
           hardHitPct:     savant?.hardHitPct  ?? null,
           barrelPct:      savant?.barrelPct   ?? null,
           avgExitVelo:    savant?.avgExitVelo ?? null,
+          // Season K-rate/HR-rate inputs for the strikeout/HR prop model
+          // (lib/prop-probability.js) — pulled from the same season stat object
+          // the win model already fetches, just not previously exposed.
+          battersFaced:     stats?.battersFaced ?? null,
+          strikeOuts:       stats?.strikeOuts   ?? null,
+          gamesStarted:     stats?.gamesStarted ?? null,
+          homeRunsAllowed:  stats?.homeRuns     ?? null,
+          kPerBF:           stats?.battersFaced > 0 ? parseFloat((stats.strikeOuts / stats.battersFaced).toFixed(4)) : null,
+          hr9:              adv.hr9,
           // Recent starts (last 5): more predictive than season avg alone
           recentStarts:   recentStarts ?? null,
         };
@@ -352,6 +368,10 @@ export async function GET(request) {
         // Lineup quality from Savant (wOBA, ISO, barrel% — when lineup posted)
         homeLineupSavant: buildLineupSavant(homeLineupIds),
         awayLineupSavant: buildLineupSavant(awayLineupIds),
+        // Raw batter IDs in batting-order (when lineup posted ~90 min pre-game) —
+        // used by the batter home-run prop model (lib/mlb-batters.js) to fetch
+        // per-batter season stats without re-deriving lineups from the schedule.
+        homeLineupIds, awayLineupIds,
       };
     }));
 

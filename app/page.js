@@ -471,8 +471,12 @@ export default function ToT() {
     try {
       const headers = await getAuthHeaders();
       const res = await fetch(`/api/picks?date=${date}${bust ? "&bust=1" : ""}`, { headers });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
+      // A crashed serverless function returns an HTML error page, not JSON —
+      // parse defensively so the user sees the HTTP status instead of
+      // "Unexpected token '<'".
+      let data = null;
+      try { data = await res.json(); } catch {}
+      if (!res.ok || !data) throw new Error(data?.error || `Server error (${res.status}) — the picks API crashed; check Vercel logs`);
       if (date !== selectedDateRef.current) return; // stale — user navigated away
       const next = data.picks || [];
       setPicksError(null);

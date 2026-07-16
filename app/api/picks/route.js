@@ -170,11 +170,19 @@ async function fetchOddsWithCache() {
 }
 
 export async function GET(request) {
-  const { error: authError } = await requirePro(request);
+  // requirePro runs before the main try/catch; if IT throws (e.g. a misconfigured
+  // Supabase client), the whole invocation crashes to a platform HTML 500 that the
+  // client can't parse. Guard it so auth failures are always a readable JSON error.
+  let authError;
+  try {
+    ({ error: authError } = await requirePro(request));
+  } catch (e) {
+    return Response.json({ error: `Auth failed: ${e?.message || e?.name || "unknown"}` }, { status: 500 });
+  }
   if (authError) return authError;
 
-  const supabase = getSupabase();
   try {
+    const supabase = getSupabase();
     const { searchParams } = new URL(request.url);
     // Use Eastern Time as the canonical "today" — MLB is a US sport and users
     // expect today's picks through midnight ET, not midnight UTC (4 AM ET).
@@ -348,7 +356,16 @@ export async function GET(request) {
               },
             };
           }).filter(Boolean)
-        : cached.picks;
+        // mlbGames is empty — MLB's own schedule says zero games today (e.g. the
+        // All-Star break). A cached pick can only be legitimate here if its own
+        // commence time actually falls on `date`; otherwise it's a leftover entry
+        // (e.g. a next-day game whose odds line had already posted) that would
+        // otherwise render forever since there's no live schedule to invalidate it.
+        : cached.picks.filter(pick => {
+            if (!pick.commenceTime) return false;
+            const utcDate = new Date(pick.commenceTime).toISOString().split("T")[0];
+            return utcDate === date || ctPartsOf(pick.commenceTime) === date;
+          });
 
       // Add any MLB games that have no odds line and weren't in the cache
       if (mlbGames.length) {
@@ -462,11 +479,28 @@ export async function GET(request) {
     }
 
     const [oddsGames, mlbRes] = await Promise.all([
-      fetchOddsWithCache(),
+      // .catch here matches the fast-path guard: a Supabase reject inside
+      // fetchOddsWithCache must degrade to "no odds", not crash the whole route.
+      fetchOddsWithCache().catch((e) => { console.warn("[picks] odds fetch failed:", e?.message); return []; }),
       fetch(`${BASE_URL}/api/mlb?date=${date}`).then(r => r.json()).catch(() => ({ games: [] })),
     ]);
 
     const mlbGames = mlbRes?.games || [];
+
+    // fetchOddsWithCache() intentionally returns BOTH today's and tomorrow's lines
+    // (sportsbooks post next-day odds early). Scope it down to `date` here so an
+    // off day (All-Star break, rainout, etc. — zero games in the MLB schedule) can't
+    // fall back to tomorrow's odds and render them as if they were today's games.
+    const oddsForDate = oddsGames.filter(g => {
+      if (!g.commenceTime) return false;
+      const t = new Date(g.commenceTime);
+      const utcDate = t.toISOString().split("T")[0];
+      const ctParts = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit",
+      }).formatToParts(t);
+      const ctD = `${ctParts.find(x => x.type === "year").value}-${ctParts.find(x => x.type === "month").value}-${ctParts.find(x => x.type === "day").value}`;
+      return utcDate === date || ctD === date;
+    });
 
     // MLB schedule is the date-authoritative source — iterate it so we always show
     // the right games for the date. Odds supplement each game where lines are posted.
@@ -486,7 +520,7 @@ export async function GET(request) {
       const mWords = mn.split(" ").filter(w => w.length > 3 && !skip.has(w));
       return mWords.some(w => on.includes(w));
     };
-    const findOdds = (mlbGame) => oddsGames.find(g =>
+    const findOdds = (mlbGame) => oddsForDate.find(g =>
       matchTeams(g.homeTeam, mlbGame.homeTeam) &&
       matchTeams(g.awayTeam, mlbGame.awayTeam)
     ) || null;
@@ -520,7 +554,7 @@ export async function GET(request) {
             liveScore: { status: mlbGame.status, homeScore: mlbGame.homeScore, awayScore: mlbGame.awayScore, inning: mlbGame.inning, inningHalf: mlbGame.inningHalf },
           };
         }).filter(Boolean)
-      : oddsGames.map(game => buildPick(game, null, null)).filter(Boolean);
+      : oddsForDate.map(game => buildPick(game, null, null)).filter(Boolean);
 
     results = dedupeByMatchup(results);
 
@@ -565,6 +599,15 @@ export async function GET(request) {
 
     return Response.json({ picks: results, safeCard, balancedCard, aggressiveCard, cached: false, ...(diagnostic ? { diagnostic } : {}) });
   } catch (e) {
-    return Response.json({ error: e.message }, { status: 500 });
+    // Never return a blank/undefined-message 500 — that renders on the client as
+    // the generic "the picks API crashed" with no clue why. Surface the real
+    // error name/message/cause so it's diagnosable from the UI without log access.
+    console.error("[picks] fatal:", e);
+    const msg = e?.message || e?.cause?.message || (typeof e === "string" ? e : e?.name) || "unknown error";
+    return Response.json({
+      error: msg,
+      name: e?.name,
+      stack: typeof e?.stack === "string" ? e.stack.split("\n").slice(0, 4) : undefined,
+    }, { status: 500 });
   }
 }

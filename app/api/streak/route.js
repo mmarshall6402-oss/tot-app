@@ -7,6 +7,7 @@ const getSupabase = () => createClient(
 
 // Returns the model's current consecutive daily W/L streak and last 7 days summary.
 export async function GET() {
+  try {
   const supabase = getSupabase();
 
   const { data } = await supabase
@@ -40,4 +41,8 @@ export async function GET() {
   };
 
   return Response.json({ streak, streakType, last7 });
+  } catch (e) {
+    console.error("[streak] fatal:", e);
+    return Response.json({ error: e?.message || e?.name || "unknown error" }, { status: 500 });
+  }
 }

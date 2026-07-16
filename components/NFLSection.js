@@ -172,8 +172,10 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
     try {
       const headers = await getAuthHeaders();
       const res = await fetch(`/api/nfl/picks?date=${date}${bust ? "&bust=1" : ""}`, { headers });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
+      // Crashed function = HTML error page, not JSON — parse defensively.
+      let data = null;
+      try { data = await res.json(); } catch {}
+      if (!res.ok || !data) throw new Error(data?.error || `Server error (${res.status})`);
       setNflPicksError(null);
       setNflPicks(data.picks || []);
     } catch (e) {

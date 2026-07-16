@@ -29,6 +29,7 @@ function bucket(rows, field, ranges, clvRows) {
 }
 
 export async function GET() {
+  try {
   const supabase = getSupabase();
 
   const { data, error } = await supabase
@@ -103,4 +104,8 @@ export async function GET() {
     total: decided.length,
     avgDelta,
   });
+  } catch (e) {
+    console.error("[calibration] fatal:", e);
+    return Response.json({ error: e?.message || e?.name || "unknown error" }, { status: 500 });
+  }
 }

@@ -29,6 +29,7 @@ export async function GET(request) {
     dates.push(d.toISOString().slice(0, 10));
   }
 
+  try {
   const supabase = getSupabase();
   const { data: rows } = await supabase
     .from("picks_cache")
@@ -82,4 +83,8 @@ export async function GET(request) {
   });
 
   return Response.json({ team, games: deduped });
+  } catch (e) {
+    console.error("[team-schedule] fatal:", e);
+    return Response.json({ error: e?.message || e?.name || "unknown error" }, { status: 500 });
+  }
 }

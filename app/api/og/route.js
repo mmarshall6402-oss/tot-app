@@ -75,7 +75,7 @@ export async function GET() {
 
           {/* Footer */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ display: "flex", fontSize: 13, color: "#222" }}>thisorthatpicks.com</div>
+            <div style={{ display: "flex", fontSize: 13, color: "#222" }}>thisthatpicks.com</div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <div style={{ display: "flex", width: 8, height: 8, borderRadius: 4, background: "#00FF87" }} />
               <div style={{ display: "flex", fontSize: 12, color: "#333" }}>Model-backed · No guessing</div>

@@ -30,6 +30,7 @@ function liveResolve(pick, games) {
 }
 
 export async function GET() {
+  try {
   const supabase = getSupabase();
   const ctParts = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit",
@@ -129,4 +130,8 @@ export async function GET() {
   }
 
   return Response.json(byDate);
+  } catch (e) {
+    console.error("[daily-record] fatal:", e);
+    return Response.json({ error: e?.message || e?.name || "unknown error" }, { status: 500 });
+  }
 }
