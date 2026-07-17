@@ -434,23 +434,46 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                 const cardBorder = isOpen ? (isBet ? "#2FBF71" : "#333947") : (isBet ? "rgba(47,191,113,0.25)" : "#242832");
 
                 return (
-                  <div key={pick.id} style={{ ...S.card, borderColor: cardBorder, gridColumn: isOpen ? "1 / -1" : undefined }}>
+                  <div key={pick.id} style={{ ...S.card, borderColor: cardBorder, gridColumn: isOpen ? "1 / -1" : undefined, cursor: isOpen ? "default" : "pointer" }} onClick={isOpen ? undefined : () => setNflExpanded(pick.id)}>
+                  {(() => {
+                    const badgeRow = (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+                        <span style={{
+                          fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5,
+                          background: verdict === "TRAP" ? "rgba(217,100,92,0.1)" : isBet ? "rgba(47,191,113,0.08)" : "rgba(50,50,50,0.5)",
+                          color: verdict === "TRAP" ? "#D9645C" : isBet ? "#2FBF71" : "#3d424f",
+                          border: `1px solid ${verdict === "TRAP" ? "rgba(217,100,92,0.3)" : isBet ? "rgba(47,191,113,0.2)" : "#2b2f3a"}`,
+                        }}>
+                          {verdict === "TRAP" ? "TRAP" : isBet ? "BET" : "PASS"}
+                        </span>
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 5, background: "#181b22", color: "#888", letterSpacing: 0.5 }}>
+                          {pick.marketType === "spread" ? "SPREAD" : pick.marketType === "total" ? "TOTAL" : "MONEYLINE"}
+                        </span>
+                      </div>
+                    );
+                    const matchupEl = <TeamMatchupLink sport="nfl" awayTeam={pick.awayTeam} homeTeam={pick.homeTeam} awayLabel={pick.awayTeam?.split(" ").pop()} homeLabel={pick.homeTeam?.split(" ").pop()} onPick={onTeamClick} />;
+                    const saveBtnEl = (
+                      <button
+                        style={{ ...S.saveBtn, background: isNflSaved ? "#2FBF71" : "transparent", color: isNflSaved ? "#000" : "#2FBF71", borderColor: "#2FBF71", flexShrink: 0 }}
+                        onClick={(e) => { e.stopPropagation(); savePick(pick, "nfl"); }}
+                      >
+                        {isNflSaved ? <><CheckIcon size={12} /> Saved</> : "+ Save"}
+                      </button>
+                    );
+
+                    return !isOpen ? (
+                      <>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                          {badgeRow}
+                          {saveBtnEl}
+                        </div>
+                        <div style={{ ...S.cardMatchup, marginTop: 6 }}>{matchupEl}</div>
+                      </>
+                    ) : (
                     <div style={S.cardTop}>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
-                          <span style={{
-                            fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5,
-                            background: verdict === "TRAP" ? "rgba(217,100,92,0.1)" : isBet ? "rgba(47,191,113,0.08)" : "rgba(50,50,50,0.5)",
-                            color: verdict === "TRAP" ? "#D9645C" : isBet ? "#2FBF71" : "#3d424f",
-                            border: `1px solid ${verdict === "TRAP" ? "rgba(217,100,92,0.3)" : isBet ? "rgba(47,191,113,0.2)" : "#2b2f3a"}`,
-                          }}>
-                            {verdict === "TRAP" ? "TRAP" : isBet ? "BET" : "PASS"}
-                          </span>
-                          <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 5, background: "#181b22", color: "#888", letterSpacing: 0.5 }}>
-                            {pick.marketType === "spread" ? "SPREAD" : pick.marketType === "total" ? "TOTAL" : "MONEYLINE"}
-                          </span>
-                        </div>
-                        <div style={S.cardMatchup}><TeamMatchupLink sport="nfl" awayTeam={pick.awayTeam} homeTeam={pick.homeTeam} awayLabel={pick.awayTeam?.split(" ").pop()} homeLabel={pick.homeTeam?.split(" ").pop()} onPick={onTeamClick} /></div>
+                        {badgeRow}
+                        <div style={S.cardMatchup}>{matchupEl}</div>
                         <div style={S.cardMeta}>
                           {fmtGameTime(pick.commenceTime)}
                           {pick.pick && <> · Take{" "}
@@ -473,12 +496,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                         </div>
                       </div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end", flexShrink: 0 }}>
-                        <button
-                          style={{ ...S.saveBtn, background: isNflSaved ? "#2FBF71" : "transparent", color: isNflSaved ? "#000" : "#2FBF71", borderColor: "#2FBF71" }}
-                          onClick={() => savePick(pick, "nfl")}
-                        >
-                          {isNflSaved ? <><CheckIcon size={12} /> Saved</> : "+ Save"}
-                        </button>
+                        {saveBtnEl}
                         <button
                           style={{ ...S.expandBtn, borderColor: isOpen ? (isBet ? "#2FBF71" : "#444") : "#2b2f3a", color: isOpen ? (isBet ? "#2FBF71" : "#444") : "#3d424f" }}
                           onClick={() => setNflExpanded(isOpen ? null : pick.id)}
@@ -487,6 +505,8 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                         </button>
                       </div>
                     </div>
+                    );
+                  })()}
                     {isOpen && f && (
                       <div style={{ animation: "fadeUp 0.2s ease" }}>
                         <div style={S.pitchRow}>

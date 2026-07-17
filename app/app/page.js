@@ -1822,41 +1822,70 @@ export default function ToT() {
             const cardBorder = resultBorderColor || (isOpen ? (isBet ? betColor : "#333947") : (isBet ? "rgba(47,191,113,0.25)" : isScheduled ? "rgba(79,195,247,0.15)" : "#242832"));
 
             return (
-              <div key={pick.id} style={{ ...S.card, borderColor: cardBorder, gridColumn: isOpen ? "1 / -1" : undefined }}>
-                <div style={S.cardTop}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
-                      {isLock && (
-                        <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, background: "rgba(214,178,61,0.15)", color: "#D6B23D", border: "1px solid rgba(214,178,61,0.5)" }}>
-                          LOCK
-                        </span>
-                      )}
-                      {pick.homeOdds == null && !pick.filter ? (
-                        isScheduled ? (
-                          <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, background: "rgba(79,195,247,0.1)", color: "#4FC3F7", border: "1px solid rgba(79,195,247,0.3)" }}>
-                            SCHEDULED
-                          </span>
-                        ) : (
-                          <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, background: "rgba(60,60,60,0.4)", color: "#555", border: "1px solid #2b2f3a" }}>
-                            NO LINE
-                          </span>
-                        )
-                      ) : pick.filter?.verdict === "CLEAN" ? (
-                        <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, background: "rgba(47,191,113,0.15)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.5)" }}>
-                          CLEAN
+              <div key={pick.id} style={{ ...S.card, borderColor: cardBorder, gridColumn: isOpen ? "1 / -1" : undefined, cursor: isOpen ? "default" : "pointer" }} onClick={isOpen ? undefined : () => setExpanded(pick.id)}>
+              {(() => {
+                const badgeRow = (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+                    {isLock && (
+                      <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, background: "rgba(214,178,61,0.15)", color: "#D6B23D", border: "1px solid rgba(214,178,61,0.5)" }}>
+                        LOCK
+                      </span>
+                    )}
+                    {pick.homeOdds == null && !pick.filter ? (
+                      isScheduled ? (
+                        <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, background: "rgba(79,195,247,0.1)", color: "#4FC3F7", border: "1px solid rgba(79,195,247,0.3)" }}>
+                          SCHEDULED
                         </span>
                       ) : (
-                        <span style={{
-                          fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5,
-                          background: isBet ? "rgba(47,191,113,0.08)" : "rgba(50,50,50,0.5)",
-                          color: isBet ? betColor : passColor,
-                          border: `1px solid ${isBet ? "rgba(47,191,113,0.2)" : "#2b2f3a"}`,
-                        }}>
-                          {isBet ? "BET" : "PASS"}
+                        <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, background: "rgba(60,60,60,0.4)", color: "#555", border: "1px solid #2b2f3a" }}>
+                          NO LINE
                         </span>
-                      )}
+                      )
+                    ) : pick.filter?.verdict === "CLEAN" ? (
+                      <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, background: "rgba(47,191,113,0.15)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.5)" }}>
+                        CLEAN
+                      </span>
+                    ) : (
+                      <span style={{
+                        fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5,
+                        background: isBet ? "rgba(47,191,113,0.08)" : "rgba(50,50,50,0.5)",
+                        color: isBet ? betColor : passColor,
+                        border: `1px solid ${isBet ? "rgba(47,191,113,0.2)" : "#2b2f3a"}`,
+                      }}>
+                        {isBet ? "BET" : "PASS"}
+                      </span>
+                    )}
+                  </div>
+                );
+                const matchupEl = (
+                  <TeamMatchupLink
+                    sport="mlb" awayTeam={pick.awayTeam} homeTeam={pick.homeTeam} onPick={openTeam}
+                    awayLabel={<>{pick.awayTeam?.split(" ").pop()}{pick.awayRecord && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 4, whiteSpace: "nowrap" }}>({pick.awayRecord})</span>}</>}
+                    homeLabel={<>{pick.homeTeam?.split(" ").pop()}{pick.homeRecord && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 4, whiteSpace: "nowrap" }}>({pick.homeRecord})</span>}</>}
+                  />
+                );
+                const saveBtnEl = (
+                  <button
+                    style={{ ...S.saveBtn, background: isSaved ? "#2FBF71" : "transparent", color: isSaved ? "#000" : "#2FBF71", borderColor: "#2FBF71", flexShrink: 0 }}
+                    onClick={(e) => { e.stopPropagation(); savePick(pick); }}
+                  >
+                    {isSaved ? <><CheckIcon size={12} /> Saved</> : "+ Save"}
+                  </button>
+                );
+
+                return !isOpen ? (
+                  <>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                      {badgeRow}
+                      {saveBtnEl}
                     </div>
-                    <div style={S.cardMatchup}><TeamMatchupLink sport="mlb" awayTeam={pick.awayTeam} homeTeam={pick.homeTeam} awayLabel={pick.awayTeam?.split(" ").pop()} homeLabel={pick.homeTeam?.split(" ").pop()} onPick={openTeam} /></div>
+                    <div style={{ ...S.cardMatchup, marginTop: 6 }}>{matchupEl}</div>
+                  </>
+                ) : (
+                <div style={S.cardTop}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    {badgeRow}
+                    <div style={S.cardMatchup}>{matchupEl}</div>
                     <div style={S.cardMeta}>
                       {fmtGameTime(pick.commenceTime)}
                       {pick.pick && <> · {isScheduled ? <span style={{ color: "#4FC3F7" }}>Preview</span> : pick.homeOdds == null && !pick.filter ? "Lean" : "Take"} <span style={{ color: isBet ? betColor : isScheduled ? "#4FC3F7" : "#aaa", fontWeight: 700 }}>{pick.pick?.split(" ").pop()}</span></>}
@@ -1897,12 +1926,7 @@ export default function ToT() {
                     )}
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end", flexShrink: 0 }}>
-                    <button
-                      style={{ ...S.saveBtn, background: isSaved ? "#2FBF71" : "transparent", color: isSaved ? "#000" : "#2FBF71", borderColor: "#2FBF71" }}
-                      onClick={() => savePick(pick)}
-                    >
-                      {isSaved ? <><CheckIcon size={12} /> Saved</> : "+ Save"}
-                    </button>
+                    {saveBtnEl}
                     {pick.homeOdds != null && (() => {
                       const inParlay = parlayLegs.has(pick.id);
                       return (
@@ -1922,6 +1946,8 @@ export default function ToT() {
                     </button>
                   </div>
                 </div>
+                );
+              })()}
                 {isOpen && (
                   <div style={{ animation: "fadeUp 0.2s ease" }}>
                     <div style={S.pitchRow}>
