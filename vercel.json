@@ -38,7 +38,7 @@
     },
     {
       "path": "/api/cron/player-index",
-      "schedule": "0 */6 * * *"
+      "schedule": "0 5 * * *"
     }
   ],
   "functions": {
