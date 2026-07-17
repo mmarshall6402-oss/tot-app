@@ -413,7 +413,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                   >{nflGenerating ? "…" : "Gen"}</button>
                 )}
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, alignItems: "start" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 10, alignItems: "start" }}>
               {nflPicks.map(pick => {
                 const isBet = pick.isBet;
                 const edge = pick.edge || 0;
@@ -436,7 +436,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                 return (
                   <div key={pick.id} style={{ ...S.card, borderColor: cardBorder, gridColumn: isOpen ? "1 / -1" : undefined }}>
                     <div style={S.cardTop}>
-                      <div style={{ flex: 1 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
                           <span style={{
                             fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5,

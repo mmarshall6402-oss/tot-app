@@ -1397,8 +1397,8 @@ export default function ToT() {
                     <TeamMatchupLink
                       sport="mlb" onPick={openTeam}
                       awayTeam={freePick.awayTeam} homeTeam={freePick.homeTeam}
-                      awayLabel={<>{freePick.awayTeam}{freePick.awayRecord && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 4 }}>({freePick.awayRecord})</span>}</>}
-                      homeLabel={<>{freePick.homeTeam}{freePick.homeRecord && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 4 }}>({freePick.homeRecord})</span>}</>}
+                      awayLabel={<>{freePick.awayTeam}{freePick.awayRecord && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 4, whiteSpace: "nowrap" }}>({freePick.awayRecord})</span>}</>}
+                      homeLabel={<>{freePick.homeTeam}{freePick.homeRecord && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 4, whiteSpace: "nowrap" }}>({freePick.homeRecord})</span>}</>}
                     />
                   </div>
                   <div style={S.cardMeta}>
@@ -1481,7 +1481,7 @@ export default function ToT() {
               )}
             </div>
           ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, alignItems: "start" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 10, alignItems: "start" }}>
           {sorted.map(pick => {
             const isBet   = pick.isBet;
             const isLock  = pick.isLock === true;
@@ -1513,8 +1513,8 @@ export default function ToT() {
             return (
               <div key={pick.id} style={{ ...S.card, borderColor: cardBorder, gridColumn: isOpen ? "1 / -1" : undefined }}>
                 <div style={S.cardTop}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
                       {isLock && (
                         <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, background: "rgba(214,178,61,0.15)", color: "#D6B23D", border: "1px solid rgba(214,178,61,0.5)" }}>
                           LOCK
@@ -1549,8 +1549,8 @@ export default function ToT() {
                       <TeamMatchupLink
                         sport="mlb" onPick={openTeam}
                         awayTeam={pick.awayTeam} homeTeam={pick.homeTeam}
-                        awayLabel={<>{pick.awayTeam?.split(" ").pop()}{pick.awayRecord && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 4 }}>({pick.awayRecord})</span>}</>}
-                        homeLabel={<>{pick.homeTeam?.split(" ").pop()}{pick.homeRecord && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 4 }}>({pick.homeRecord})</span>}</>}
+                        awayLabel={<>{pick.awayTeam?.split(" ").pop()}{pick.awayRecord && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 4, whiteSpace: "nowrap" }}>({pick.awayRecord})</span>}</>}
+                        homeLabel={<>{pick.homeTeam?.split(" ").pop()}{pick.homeRecord && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 4, whiteSpace: "nowrap" }}>({pick.homeRecord})</span>}</>}
                       />
                     </div>
                     <div style={S.cardMeta}>
@@ -1893,8 +1893,8 @@ export default function ToT() {
                           <TeamMatchupLink
                             sport="mlb" onPick={openTeam}
                             awayTeam={pick.awayTeam} homeTeam={pick.homeTeam}
-                            awayLabel={<>{pick.awayTeam}{pick.awayRecord && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 4 }}>({pick.awayRecord})</span>}</>}
-                            homeLabel={<>{pick.homeTeam}{pick.homeRecord && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 4 }}>({pick.homeRecord})</span>}</>}
+                            awayLabel={<>{pick.awayTeam}{pick.awayRecord && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 4, whiteSpace: "nowrap" }}>({pick.awayRecord})</span>}</>}
+                            homeLabel={<>{pick.homeTeam}{pick.homeRecord && <span style={{ fontSize: 11, color: "#555", fontWeight: 400, marginLeft: 4, whiteSpace: "nowrap" }}>({pick.homeRecord})</span>}</>}
                           />
                         </div>
                         <div style={S.cardMeta}>
