@@ -42,3 +42,4 @@ yarn-error.log*
 next-env.d.ts
 
 .env.local
+scripts/backtest/.filter-refactor-snapshot.json
