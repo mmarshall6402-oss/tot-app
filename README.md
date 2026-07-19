@@ -60,17 +60,17 @@ The model produces a win probability for each team and compares it against the v
 
 ### Probability factors
 
-Seven independent signals are combined into a single home-win probability. No single factor dominates — the largest weight is 22%.
+Six independent signals are combined into a single home-win probability. Starting pitcher is the largest single factor at 35%; season standings are folded into Elo rather than counted separately.
 
 | Factor | Weight | Source |
 |---|---|---|
-| Lineup quality vs pitcher handedness | 22% | Team OPS splits + Baseball Savant wOBA |
-| Starting pitcher quality | 20% | xFIP > K-BB% > ERA; hard-hit% when available |
-| Bullpen quality | 20% | 14-day rolling ERA/WHIP/K9; fatigue penalty applied |
-| Season standings | 15% | Win percentage |
-| Recent form | 13% | 10-game OPS (70%) blended with 7-day OPS (30%) |
-| Park factor | 10% | Per-ballpark run environment and HR skew |
-| Elo rating | 5% | Updated from historical game logs; capped to prevent overriding live data |
+| Starting pitcher quality | 35% | xFIP > K-BB% > ERA; hard-hit% when available |
+| Lineup quality vs pitcher handedness | 25% | Team OPS splits + Baseball Savant wOBA |
+| Bullpen quality | 25% | 14-day rolling ERA/WHIP/K9; fatigue penalty applied |
+| Elo rating | 11% | Updated from historical game logs; capped to prevent overriding live data |
+| Park factor | 5% | Per-ballpark run environment and HR skew |
+| Recent form | 4% | 10-game OPS (70%) blended with 7-day OPS (30%) |
+| Season standings | 0% | Folded into Elo (season W% is Elo's long-run signal); omitted to prevent double-counting |
 
 **Pitcher scoring** uses xFIP over ERA where available (xFIP strips out park effects and BABIP luck). All stats are stabilized by sample size — a starter with 10 IP gets regressed heavily toward the league average. Recent starts (last 5) are blended in at 60% weight when a meaningful sample exists.
 
