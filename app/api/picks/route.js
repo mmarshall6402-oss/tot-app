@@ -1,9 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
-import { fetchMLBOdds, getOddsDiagnostics } from "../../../lib/odds.js";
+import { getOddsDiagnostics } from "../../../lib/odds.js";
 import { calculateEdge, americanToDecimal, decimalToImplied, removeVig } from "../../../lib/edge.js";
 import { getCalibratedModelProbability } from "../../../lib/probability.js";
 import { applyFilterLayer, buildParlayCards } from "../../../lib/filter.js";
 import { requirePro } from "../../../lib/auth.js";
+import { buildPick, matchMLBGame, dedupeByMatchup, fetchOddsWithCache } from "../../../lib/mlb-picks.js";
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ||
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
@@ -12,162 +13,6 @@ const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
-
-function buildPick(game, mlb, breakdown) {
-  const modelProbRaw = getCalibratedModelProbability(game, mlb);
-
-  // Market calibration determines pick DIRECTION only.
-  // Displayed edge comes from filter.trueEdgePct — the filter already applies
-  // shrinkFactor, compression, and decay. The 20% factor collapses edges to 1-3%.
-  const homeImplied  = game.homeImplied || 0.5;
-  const modelProb    = homeImplied + (modelProbRaw - homeImplied) * 0.20;
-  const rawEdge      = calculateEdge(modelProb, homeImplied);
-  const pick         = rawEdge >= 0 ? game.homeTeam : game.awayTeam;
-  const homePitcher = mlb?.homePitcher;
-  const awayPitcher = mlb?.awayPitcher;
-  // Filter uses RAW model probability — it has its own shrinkFactor calibration
-  const filter        = applyFilterLayer(pick, { ...game, source: game.source }, mlb, modelProbRaw);
-  const filteredIsBet = ["CLEAN", "BET"].includes(filter.verdict);
-  const edgePct       = filter.trueEdgePct;
-
-  // Tier from Claude breakdown if available; otherwise derive from filter verdict.
-  const verdictTier = filteredIsBet
-    ? (filter?.verdict === "CLEAN" || (filter?.confidence || 0) >= 7.5)
-      ? { level: "High",   label: "🔥 Value Pick", emoji: "🔥" }
-      : (filter?.confidence || 0) >= 6.5
-      ? { level: "Medium", label: "✅ Solid Pick",  emoji: "✅" }
-      : { level: "Low",    label: "👀 Lean",         emoji: "👀" }
-    : { level: "Low", label: "👀 Lean", emoji: "👀" };
-
-  const tier = breakdown?.tier?.level
-    ? {
-        label: breakdown.tier.level === "High" ? "🔥 Value Pick" : breakdown.tier.level === "Medium" ? "✅ Solid Pick" : "👀 Lean",
-        level: breakdown.tier.level,
-        emoji: breakdown.tier.level === "High" ? "🔥" : breakdown.tier.level === "Medium" ? "✅" : "👀",
-      }
-    : verdictTier;
-
-  const ipStr = (p) => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";
-  const homePStr = homePitcher ? `${homePitcher.name} (${homePitcher.wins}-${homePitcher.losses}, ${homePitcher.era} ERA, ${homePitcher.whip} WHIP${ipStr(homePitcher)})` : "TBD";
-  const awayPStr = awayPitcher ? `${awayPitcher.name} (${awayPitcher.wins}-${awayPitcher.losses}, ${awayPitcher.era} ERA, ${awayPitcher.whip} WHIP${ipStr(awayPitcher)})` : "N/A";
-
-  const fmtRecord = (s) => s ? `${s.wins}-${s.losses}` : null;
-  // Model's own win probability for the picked side, as a 0-100 percentage —
-  // lets the client show "Our Model: 63%" and run the "Should I Bet Now?"
-  // fair-price check without recomputing modelProb from scratch.
-  const pickModelProb = pick === game.homeTeam ? modelProb : 1 - modelProb;
-  return {
-    id: game.id, homeTeam: game.homeTeam, awayTeam: game.awayTeam,
-    homeRecord: fmtRecord(mlb?.homeStandings), awayRecord: fmtRecord(mlb?.awayStandings),
-    // Prefer MLB API commenceTime (trusted UTC from mlb.com) over odds API which
-    // may return Eastern times without proper UTC conversion.
-    commenceTime: mlb?.commenceTime || game.commenceTime,
-    homeOdds: game.homeOdds, awayOdds: game.awayOdds,
-    modelProb: Math.round(pickModelProb * 100),
-    pick, edge: edgePct, isBet: filteredIsBet, tier,
-    breakdown: { ...(breakdown || {}), pitcher_home: homePStr, pitcher_away: awayPStr },
-    filter,
-    liveScore: mlb ? { status: mlb.status, homeScore: mlb.homeScore, awayScore: mlb.awayScore, inning: mlb.inning, inningHalf: mlb.inningHalf } : null,
-  };
-}
-
-function matchMLBGame(game, mlbGames) {
-  const norm = s => (s || "").toLowerCase().trim();
-  const lastWord = s => norm(s).split(" ").pop();
-  // Reject matches where game times differ by more than 12 hours (prevents
-  // cross-game contamination when last-word matching is ambiguous).
-  const timeClose = (t1, t2) => {
-    if (!t1 || !t2) return true;
-    return Math.abs(new Date(t1) - new Date(t2)) < 12 * 3_600_000;
-  };
-
-  // 1. Exact normalized full name — most reliable when both APIs use official names
-  let match = mlbGames.find(g =>
-    norm(g.homeTeam) === norm(game.homeTeam) &&
-    norm(g.awayTeam) === norm(game.awayTeam) &&
-    timeClose(g.commenceTime, game.commenceTime)
-  );
-  if (match) return match;
-
-  // 2. Last-word substring with time guard
-  match = mlbGames.find(g =>
-    norm(g.homeTeam).includes(lastWord(game.homeTeam)) &&
-    norm(g.awayTeam).includes(lastWord(game.awayTeam)) &&
-    timeClose(g.commenceTime, game.commenceTime)
-  );
-  if (match) return match;
-
-  // 3. Two-word suffix (Red Sox / White Sox / Blue Jays) with time guard
-  match = mlbGames.find(g => {
-    const hw = norm(game.homeTeam).split(" ").slice(-2).join(" ");
-    const aw = norm(game.awayTeam).split(" ").slice(-2).join(" ");
-    return norm(g.homeTeam).includes(hw) && norm(g.awayTeam).includes(aw) &&
-      timeClose(g.commenceTime, game.commenceTime);
-  });
-
-  return match || null;
-}
-
-// The cache-hit path can add a second entry for the same real-world game when
-// the "uncovered MLB games" merge fails to recognize a cached pick as already
-// covering it (e.g. a team-name mismatch between the odds source and the MLB
-// schedule). Collapse by matchup so the same game never renders twice.
-function dedupeByMatchup(list) {
-  const norm = s => (s || "").toLowerCase().trim();
-  const score = p => (p.homeOdds != null ? 2 : 0) + (p.breakdown?.preview ? 1 : 0);
-  const byKey = new Map();
-  for (const p of list) {
-    const key = `${norm(p.homeTeam)}|${norm(p.awayTeam)}`;
-    const existing = byKey.get(key);
-    if (!existing || score(p) > score(existing)) byKey.set(key, p);
-  }
-  return [...byKey.values()];
-}
-
-const ODDS_CACHE_KEY = "__odds__";
-const ODDS_TTL_MS = 1000 * 60 * 15; // 15 min
-
-async function fetchOddsWithCache() {
-  const supabase = getSupabase();
-
-  // 1. Check Supabase cross-instance cache first — avoids redundant TOA calls on cold starts
-  const { data: sbCached } = await supabase
-    .from("picks_cache")
-    .select("picks, generated_at")
-    .eq("date", ODDS_CACHE_KEY)
-    .single();
-
-  if (sbCached?.picks?.length) {
-    const age = Date.now() - new Date(sbCached.generated_at).getTime();
-    if (age < ODDS_TTL_MS) {
-      console.log("[odds] Supabase cache hit, age:", Math.round(age / 60000) + "m");
-      return sbCached.picks;
-    }
-  }
-
-  // 2. Fetch live odds
-  try {
-    const games = await fetchMLBOdds();
-    if (games?.length) {
-      supabase
-        .from("picks_cache")
-        .upsert({ date: ODDS_CACHE_KEY, picks: games, generated_at: new Date().toISOString() }, { onConflict: "date" })
-        .then(() => {}).catch(e => console.warn("[odds] Supabase write failed:", e.message));
-      return games;
-    }
-  } catch (e) {
-    console.warn("[odds] live fetch failed:", e.message);
-  }
-
-  // 3. Stale Supabase cache — better than nothing
-  if (sbCached?.picks?.length) {
-    const age = Date.now() - new Date(sbCached.generated_at).getTime();
-    console.warn("[odds] serving stale Supabase cache, age:", Math.round(age / 60000) + "m");
-    return sbCached.picks;
-  }
-
-  return [];
-}
 
 export async function GET(request) {
   // requirePro runs before the main try/catch; if IT throws (e.g. a misconfigured
