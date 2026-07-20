@@ -3,11 +3,13 @@
 // isotonic calibration curve on the cached historical replay
 // (data/calibration/historical-rows.json, refreshed by
 // scripts/backtest/recalibrate.js) blended with today's freshly resolved
-// model_picks, and publishes it as the new active curve — the same
-// prediction-vs-outcome data the calibration dashboard
-// (app/api/calibration/route.js) already reads, now closing the loop back
-// into the live model automatically instead of sitting in a dashboard only
-// a human checks.
+// model_picks — the same prediction-vs-outcome data the calibration
+// dashboard (app/api/calibration/route.js) already reads — records it as a
+// history row, and activates whichever curve (today's new fit or a past
+// one) actually scores best against live picks. See
+// lib/backtest/run-recalibration.js for the selection logic: daily variance
+// in a single fit can only ever improve what's live, never regress it,
+// without anyone having to compare dates by hand.
 //
 // Respects model_recalibration_settings.auto_enabled: an admin who's rolled
 // back to a specific day's curve (app/api/admin/calibration/route.js) needs
@@ -50,13 +52,12 @@ export async function GET(request) {
 
     return Response.json({
       written: result.written,
-      skippedReason: result.skippedReason ?? null,
       calibrationId: result.calibrationId ?? null,
+      selection: result.selection ?? null,
       gameCount: result.curve.gameCount,
       historicalCount: result.historicalCount,
       liveCount: result.liveCount,
-      currentActiveBrier: result.currentActiveBrier ?? null,
-      newCurveBrier: result.newCurveBrier ?? null,
+      bestLiveBrier: result.bestLiveBrier ?? null,
     });
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });

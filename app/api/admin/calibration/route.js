@@ -3,14 +3,18 @@
 // app/api/admin/tracker/route.js).
 //
 // Lets an admin see the full history of fitted calibration curves (one per
-// recalibration run, cron or manual — see lib/calibration-db.js), roll back
-// to a specific past curve, and pause/resume the daily automated
-// recalibration cron (app/api/cron/recalibrate/route.js).
+// recalibration run, cron or manual — see lib/calibration-db.js), each
+// scored against live picks so it's visible which one is actually
+// performing best (not just eyeballing dates), roll back to a specific past
+// curve or snap straight to the best-scoring one, and pause/resume the
+// daily automated recalibration cron (app/api/cron/recalibrate/route.js).
 
 import { createClient } from "@supabase/supabase-js";
 import { requireAuth } from "../../../../lib/auth.js";
+import { fetchLiveCalibrationRows } from "../../../../lib/backtest/live-picks.js";
+import { scoreCurvesOnLiveData, pickBestCurve } from "../../../../lib/backtest/score-curves.js";
 import {
-  listCalibrationCurves,
+  listCalibrationCurvesWithPoints,
   activateCalibrationCurveById,
   isAutoRecalibrationEnabled,
   setAutoRecalibrationEnabled,
@@ -35,11 +39,28 @@ export async function GET(request) {
 
   const supabase = getSupabase();
   try {
-    const [history, autoEnabled] = await Promise.all([
-      listCalibrationCurves(supabase),
+    const [curves, liveRows, autoEnabled] = await Promise.all([
+      listCalibrationCurvesWithPoints(supabase),
+      fetchLiveCalibrationRows(supabase),
       isAutoRecalibrationEnabled(supabase),
     ]);
-    return Response.json({ history, autoEnabled });
+
+    const scored = liveRows.length
+      ? scoreCurvesOnLiveData(curves, liveRows)
+      : curves.map(c => ({ ...c, liveBrier: null, liveN: 0 }));
+    const best = liveRows.length ? pickBestCurve(scored) : null;
+
+    const history = scored.map(c => ({
+      id: c.id,
+      fitted_at: c.fittedAt,
+      game_count: c.gameCount,
+      notes: c.notes,
+      active: c.active,
+      live_brier: c.liveBrier,
+      is_best: best ? c.id === best.id : false,
+    }));
+
+    return Response.json({ history, autoEnabled, liveN: liveRows.length });
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });
   }
@@ -60,6 +81,22 @@ export async function POST(request) {
       // can't immediately refit and overwrite it tomorrow morning.
       await setAutoRecalibrationEnabled(supabase, false, "mlb", user.email);
       return Response.json({ activated: row, autoEnabled: false });
+    }
+
+    // Same scoring the daily cron uses, run on demand — for when
+    // auto-recalibration is paused and an admin wants "just activate
+    // whichever curve is actually working" without hunting through dates.
+    if (body.action === "activate-best") {
+      const [curves, liveRows] = await Promise.all([
+        listCalibrationCurvesWithPoints(supabase),
+        fetchLiveCalibrationRows(supabase),
+      ]);
+      if (!liveRows.length) {
+        return Response.json({ error: "No resolved live picks yet to score curves against" }, { status: 400 });
+      }
+      const best = pickBestCurve(scoreCurvesOnLiveData(curves, liveRows));
+      const row = await activateCalibrationCurveById(supabase, best.id);
+      return Response.json({ activated: row, bestLiveBrier: best.liveBrier });
     }
 
     if (body.action === "set-auto") {

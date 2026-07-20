@@ -64,10 +64,12 @@ async function main() {
 
     if (!write) {
       console.log("\n--write not passed: not persisted to Supabase.");
-    } else if (result.skippedReason) {
-      console.log(`\nSkipped write: ${result.skippedReason}`);
+    } else if (result.selection === "new-fit-is-best") {
+      console.log(`\nToday's fit is the best-scoring curve on live data (Brier=${result.bestLiveBrier.toFixed(4)}) — activated as id=${result.calibrationId}.`);
+    } else if (result.selection === "kept-past-curve") {
+      console.log(`\nA past curve still outscores today's fit on live data (Brier=${result.bestLiveBrier.toFixed(4)}) — kept id=${result.calibrationId} active instead.`);
     } else if (result.written) {
-      console.log(`\nWrote model_calibration row id=${result.calibrationId} (now active).`);
+      console.log(`\nWrote model_calibration row id=${result.calibrationId} (now active — not enough live data yet to compare curves).`);
     }
   } catch (err) {
     console.error("\nLive recalibration step failed (historical-rows.json cache was still refreshed above):", err.message);

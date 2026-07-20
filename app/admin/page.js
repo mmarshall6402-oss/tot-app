@@ -108,6 +108,8 @@ export default function AdminDash() {
   const [copied, setCopied]     = useState({});
   const [autoToggleS, setAutoToggleS] = useState(null);
   const [activateS, setActivateS]     = useState(null); // { id, state: "loading"|"ok"|"err" }
+  const [activateBestS, setActivateBestS] = useState(null);
+  const [calLiveN, setCalLiveN] = useState(0);
 
   useEffect(() => {
     getSB().auth.getSession().then(async ({ data: { session } }) => {
@@ -148,6 +150,7 @@ export default function AdminDash() {
     setCal(calR ?? null);
     setCalHistory(calAdminR?.history ?? []);
     setAutoEnabled(calAdminR?.autoEnabled ?? true);
+    setCalLiveN(calAdminR?.liveN ?? 0);
     setBusy(false);
 
     // Auto-regen if no picks for today yet
@@ -265,6 +268,20 @@ export default function AdminDash() {
       }
     } catch { setActivateS({ id, state: "err" }); }
     setTimeout(() => setActivateS(null), 3000);
+  }
+
+  async function activateBestCurve() {
+    setActivateBestS("loading");
+    try {
+      const r = await fetch("/api/admin/calibration", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: "activate-best" }),
+      });
+      setActivateBestS(r.ok ? "ok" : "err");
+      if (r.ok) load(token);
+    } catch { setActivateBestS("err"); }
+    setTimeout(() => setActivateBestS(null), 3000);
   }
 
   async function resolveYesterday() {
@@ -765,7 +782,7 @@ export default function AdminDash() {
               </div>
               <div style={{ fontSize: 11, color: "#555", marginTop: 3, lineHeight: 1.5 }}>
                 {autoEnabled
-                  ? "Refits and publishes a new curve every morning after resolve."
+                  ? "Fits a new curve every morning and automatically keeps whichever curve — new or past — scores best on live picks. You don't have to pick."
                   : "Pinned to a specific curve below — the daily cron won't touch it until you resume."}
               </div>
             </div>
@@ -773,9 +790,15 @@ export default function AdminDash() {
               labels={{ default: autoEnabled ? "Pause" : "Resume", loading: "…", ok: "✓ Done", err: "✗ Failed" }} />
           </div>
 
-          <span style={{ ...S.lbl, display: "block" }}>CALIBRATION HISTORY</span>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+            <span style={{ ...S.lbl, marginBottom: 0 }}>CALIBRATION HISTORY</span>
+            <Btn onClick={activateBestCurve} state={activateBestS} disabled={!calLiveN}
+              labels={{ default: "⚡ Use best now", loading: "Scoring…", ok: "✓ Activated", err: "✗ Failed" }}
+              style={{ padding: "6px 10px", fontSize: 11 }} />
+          </div>
           <div style={{ fontSize: 11, color: "#444", marginBottom: 10, lineHeight: 1.6 }}>
-            Every past recalibration, cron or manual. If a day&apos;s fit looks worse, go back to one that worked — that also pauses auto-recalibration above.
+            Every past recalibration, cron or manual, ranked by Brier score against {calLiveN || "—"} live picks — lower is better. The
+            system already knows which one that is (marked BEST); &quot;Use best now&quot; jumps straight to it without waiting for tomorrow&apos;s cron.
           </div>
           <div style={{ ...S.card, marginBottom: 14 }}>
             {!calHistory.length && <div style={{ color: "#555", fontSize: 12 }}>No recalibration history yet</div>}
@@ -789,15 +812,21 @@ export default function AdminDash() {
                     </div>
                     <div style={{ fontSize: 10, color: "#555", marginTop: 2 }}>
                       {row.game_count != null ? row.game_count.toLocaleString() : "—"} games{row.notes ? ` · ${row.notes}` : ""}
+                      {row.live_brier != null ? ` · Brier ${row.live_brier.toFixed(4)}` : ""}
                     </div>
                   </div>
-                  {row.active ? (
-                    <span style={{ fontSize: 10, fontWeight: 700, color: "#00FF87", background: "rgba(0,255,135,0.1)", borderRadius: 6, padding: "5px 9px" }}>ACTIVE</span>
-                  ) : (
-                    <Btn onClick={() => activateCurve(row.id)} state={rowBusy}
-                      labels={{ default: "Use this", loading: "…", ok: "✓ Active", err: "✗ Failed" }}
-                      style={{ padding: "6px 10px", fontSize: 11 }} />
-                  )}
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    {row.is_best && (
+                      <span style={{ fontSize: 10, fontWeight: 700, color: "#FFD600", background: "rgba(255,214,0,0.1)", borderRadius: 6, padding: "5px 9px" }}>BEST</span>
+                    )}
+                    {row.active ? (
+                      <span style={{ fontSize: 10, fontWeight: 700, color: "#00FF87", background: "rgba(0,255,135,0.1)", borderRadius: 6, padding: "5px 9px" }}>ACTIVE</span>
+                    ) : (
+                      <Btn onClick={() => activateCurve(row.id)} state={rowBusy}
+                        labels={{ default: "Use this", loading: "…", ok: "✓ Active", err: "✗ Failed" }}
+                        style={{ padding: "6px 10px", fontSize: 11 }} />
+                    )}
+                  </div>
                 </div>
               );
             })}
