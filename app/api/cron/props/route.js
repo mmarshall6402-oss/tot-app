@@ -148,8 +148,11 @@ async function generatePropsForDate(date, oddsGames, supabase) {
     .sort((a, b) => b.edgePct - a.edgePct)
     .slice(0, MAX_PICKS);
 
+  // all_picks keeps every projection computed above (no edge floor, no cap)
+  // so the Props tab's "All Props" section can list any player with a
+  // posted line today, not just the top-edge "Star Players" subset.
   await supabase.from("prop_picks_cache")
-    .upsert({ date, picks: trending, generated_at: new Date().toISOString() }, { onConflict: "date" });
+    .upsert({ date, picks: trending, all_picks: picks, generated_at: new Date().toISOString() }, { onConflict: "date" });
 
   const { data: existingSettled } = await supabase.from("prop_model_picks")
     .select("id").eq("date", date).in("result", ["win", "loss"]).limit(1);

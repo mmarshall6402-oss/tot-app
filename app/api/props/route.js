@@ -52,13 +52,14 @@ export async function GET(request) {
 
     const { data: cached } = await supabase
       .from("prop_picks_cache")
-      .select("picks, generated_at")
+      .select("picks, all_picks, generated_at")
       .eq("date", date)
       .single();
 
     let picks = cached?.picks || [];
+    let allProps = cached?.all_picks || [];
     if (!cached) {
-      return Response.json({ picks: [], cached: false, notice: "prop picks not yet generated for this date" });
+      return Response.json({ picks: [], allProps: [], cached: false, notice: "prop picks not yet generated for this date" });
     }
 
     // Only refresh live for today/future dates — past dates are settled.
@@ -66,8 +67,12 @@ export async function GET(request) {
       const mlbRes = await fetch(`${BASE_URL}/api/mlb?date=${date}`).then(r => r.json()).catch(() => ({ games: [] }));
       const mlbGames = mlbRes?.games || [];
 
-      const haveHrForGame = new Set(picks.filter(p => p.marketType === "batter_hr").map(p => p.gameId));
-      const eventIdByGameId = new Map(picks.filter(p => p.gameId && p.eventId).map(p => [p.gameId, p.eventId]));
+      // Checked against allProps (the full set), not just picks (the
+      // edge-filtered trending subset) — a game whose HR props were already
+      // computed by cron but didn't clear the edge floor shouldn't be
+      // treated as "needing" a live recompute.
+      const haveHrForGame = new Set(allProps.filter(p => p.marketType === "batter_hr").map(p => p.gameId));
+      const eventIdByGameId = new Map(allProps.filter(p => p.gameId && p.eventId).map(p => [p.gameId, p.eventId]));
 
       const gamesNeedingHr = mlbGames.filter(g =>
         !haveHrForGame.has(String(g.gameId)) &&
@@ -107,18 +112,22 @@ export async function GET(request) {
         }));
 
         if (newPicks.length) {
+          // allProps gets every newly computed pick, unfiltered — mirrors
+          // cron's all_picks (no edge floor, no cap) so late-posted lineups
+          // still show up in the Props tab's "All Props" list.
+          allProps = [...allProps, ...newPicks];
           picks = [...picks, ...newPicks]
             .filter(p => p.edgePct >= EDGE_FLOOR_PCT)
             .sort((a, b) => b.edgePct - a.edgePct)
             .slice(0, MAX_PICKS);
           supabase.from("prop_picks_cache")
-            .upsert({ date, picks, generated_at: new Date().toISOString() }, { onConflict: "date" })
+            .upsert({ date, picks, all_picks: allProps, generated_at: new Date().toISOString() }, { onConflict: "date" })
             .then(() => {}).catch(e => console.warn("[props] cache write failed:", e.message));
         }
       }
     }
 
-    return Response.json({ picks, cached: true, generated_at: cached.generated_at });
+    return Response.json({ picks, allProps, cached: true, generated_at: cached.generated_at });
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });
   }

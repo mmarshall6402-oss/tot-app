@@ -198,6 +198,8 @@ export default function ToT() {
   const todayBtnRef = useRef(null);
   const [steals, setSteals] = useState(null);
   const [trendingProps, setTrendingProps] = useState(null);
+  const [allProps, setAllProps] = useState(null);
+  const [propsFilter, setPropsFilter] = useState("");
   const [parlayLegs, setParlayLegs] = useState(new Map()); // id -> { game, teamPick }
   const [parlayStake, setParlayStake] = useState(10);
   const [picksDate, setPicksDate] = useState(null); // tracks which date picks were loaded for
@@ -357,7 +359,7 @@ export default function ToT() {
     if (activeTab === "picks" || activeTab === "home") fetchPicks(selectedDate);
     if (activeTab === "parlay" && picksDate !== selectedDate) fetchPicks(selectedDate);
     if (activeTab === "steals") fetchSteals(selectedDate);
-    if ((activeTab === "props" || activeTab === "home") && isBeta) fetchProps(selectedDate);
+    if (activeTab === "props" || activeTab === "home") fetchProps(selectedDate);
     if (activeTab === "tracker") fetchSaved();
   }, [user, isPro, isBeta, activeTab, selectedDate]);
 
@@ -613,7 +615,13 @@ export default function ToT() {
       const data = await res.json();
       if (date !== selectedDateRef.current) return; // stale — user navigated away
       setTrendingProps(data.picks || []);
-    } catch (e) { if (date === selectedDateRef.current) setTrendingProps(prev => prev ?? []); }
+      setAllProps(data.allProps || []);
+    } catch (e) {
+      if (date === selectedDateRef.current) {
+        setTrendingProps(prev => prev ?? []);
+        setAllProps(prev => prev ?? []);
+      }
+    }
   };
 
   const fetchPicks = async (date, bust = false) => {
@@ -1402,15 +1410,13 @@ export default function ToT() {
       <div style={S.subNav}>
         <div style={{ display: "flex", gap: 6, overflowX: "auto" }}>
           {[
-            { id: "picks", label: "Picks" },
+            { id: "picks", label: "Moneyline" },
+            { id: "props", label: "Props" },
             { id: "live", label: "Live" },
             { id: "feed", label: "Feed" },
             { id: "steals", label: "Steals" },
             { id: "schedule", label: "Schedule" },
             { id: "chat", label: "Ask AI" },
-            ...(isBeta ? [
-              { id: "props", label: "Trending" },
-            ] : []),
           ].map(({ id, label }) => (
             <button
               key={id}
@@ -3187,7 +3193,7 @@ export default function ToT() {
 
             {isPro && <SkipSummary picks={skipped} />}
 
-            {isBeta && isPro && trendingProps && trendingProps.length > 0 && (
+            {isPro && trendingProps && trendingProps.length > 0 && (
               <div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: "#999", letterSpacing: 0.5 }}>⚾ MLB TRENDING PROPS</div>
@@ -3300,28 +3306,77 @@ export default function ToT() {
           </div>
         )}
 
-        {activeTab === "props" && isBeta && (
-          trendingProps === null ? (
+        {activeTab === "props" && (
+          trendingProps === null || allProps === null ? (
             <div style={S.center}>
               <div style={S.spinner} />
               <div style={{ color: "#777", fontSize: 13, marginTop: 12 }}>Scanning K's and HR's for edges…</div>
             </div>
-          ) : trendingProps.length === 0 ? (
+          ) : trendingProps.length === 0 && allProps.length === 0 ? (
             <div style={S.center}>
               <div style={{ fontSize: 32 }}>📈</div>
-              <div style={{ color: "#fff", fontWeight: 700, marginTop: 8 }}>No trending props {fmtDateLabel(selectedDate)}</div>
+              <div style={{ color: "#fff", fontWeight: 700, marginTop: 8 }}>No props {fmtDateLabel(selectedDate)}</div>
               <div style={{ color: "#777", fontSize: 13, marginTop: 4 }}>Check back closer to game time — lines and lineups are still posting</div>
             </div>
-          ) : (
-            <>
-              <div style={{ fontSize: 10, fontWeight: 700, color: "#2FBF71", letterSpacing: 2, marginBottom: 4 }}>
-                {trendingProps.length} TRENDING PICK{trendingProps.length !== 1 ? "S" : ""} — SORTED BY EDGE
-              </div>
-              {trendingProps.map((pick, i) => (
-                <PropCard key={`${pick.marketType}-${pick.playerId ?? pick.player}-${i}`} pick={pick} S={S} />
-              ))}
-            </>
-          )
+          ) : (() => {
+            // allProps is a superset that already includes the Star Players
+            // picks — exclude those so nobody appears twice.
+            const starKeys = new Set(trendingProps.map(p => `${p.marketType}-${p.playerId ?? p.player}`));
+            const rest = allProps.filter(p => !starKeys.has(`${p.marketType}-${p.playerId ?? p.player}`));
+            const q = propsFilter.trim().toLowerCase();
+            const filteredRest = q
+              ? rest.filter(p => (p.player || "").toLowerCase().includes(q) || (p.team || "").toLowerCase().includes(q))
+              : rest;
+            return (
+              <>
+                {trendingProps.length > 0 && (
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "#2FBF71", letterSpacing: 2, marginBottom: 4 }}>
+                      STAR PLAYERS — {trendingProps.length} TOP EDGE PICK{trendingProps.length !== 1 ? "S" : ""}
+                    </div>
+                    {trendingProps.map((pick, i) => (
+                      <div key={`star-${pick.marketType}-${pick.playerId ?? pick.player}-${i}`}
+                        onClick={() => openPlayer("mlb", pick.playerId, pick.player)}
+                        role="button" tabIndex={0}
+                        onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openPlayer("mlb", pick.playerId, pick.player); } }}
+                        style={{ cursor: pick.playerId ? "pointer" : "default" }}>
+                        <PropCard pick={pick} S={S} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div style={{ fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 2, marginBottom: 8 }}>
+                  ALL PROPS TODAY — {rest.length}
+                </div>
+                {rest.length > 3 && (
+                  <input
+                    type="text"
+                    value={propsFilter}
+                    onChange={e => setPropsFilter(e.target.value)}
+                    placeholder="Filter by player or team…"
+                    aria-label="Filter all props by player or team"
+                    style={{ ...S.input, marginBottom: 10 }}
+                  />
+                )}
+                {filteredRest.length === 0 ? (
+                  <div style={{ color: "#777", fontSize: 13, textAlign: "center", padding: 24 }}>
+                    {q ? `No props match "${propsFilter}"` : "No other props posted yet today."}
+                  </div>
+                ) : (
+                  filteredRest.map((pick, i) => (
+                    <div key={`all-${pick.marketType}-${pick.playerId ?? pick.player}-${i}`}
+                      onClick={() => openPlayer("mlb", pick.playerId, pick.player)}
+                      role="button" tabIndex={0}
+                      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openPlayer("mlb", pick.playerId, pick.player); } }}
+                      style={{ cursor: pick.playerId ? "pointer" : "default" }}>
+                      <PropCard pick={pick} S={S} />
+                    </div>
+                  ))
+                )}
+              </>
+            );
+          })()
         )}
 
       </div>
