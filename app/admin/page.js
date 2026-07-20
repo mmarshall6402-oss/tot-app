@@ -650,7 +650,62 @@ export default function AdminDash() {
       {/* ── CALIBRATION ── */}
       {tab === "cal" && (
         <>
+          {(() => {
+            const clean = calData?.verdictBuckets?.find(b => b.label === "CLEAN");
+            const total = calData?.total ?? 0;
+            const delta = calData?.avgDelta;
+            const thin  = total < 30;
+
+            if (!total) {
+              return (
+                <div style={{ ...S.card, marginBottom: 14, textAlign: "center", padding: "22px 16px" }}>
+                  <div style={{ fontSize: 30, marginBottom: 6 }}>⏳</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: "#ccc" }}>No settled bets yet</div>
+                  <div style={{ fontSize: 12, color: "#555", marginTop: 4 }}>
+                    Come back once some picks have actually finished — there&apos;s nothing to check yet.
+                  </div>
+                </div>
+              );
+            }
+
+            const magnitude = delta == null ? 0 : Math.abs(delta);
+            const good  = magnitude <= 2;
+            const okish = magnitude > 2 && magnitude <= 5;
+            const bad   = magnitude > 5;
+            const direction = delta > 0 ? "sandbagging a little (actual results are better than predicted)"
+                             : "a bit overconfident (actual results are coming in worse than predicted)";
+
+            const status = good
+              ? { emoji: "🟢", color: "#00FF87", headline: "Looking good" }
+              : okish
+              ? { emoji: "🟡", color: "#FFD600", headline: "A little off" }
+              : { emoji: "🔴", color: "#FF4D4D", headline: "Worth a look" };
+
+            return (
+              <div style={{ ...S.card, marginBottom: 14, padding: "18px 16px" }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                  <span style={{ fontSize: 24 }}>{status.emoji}</span>
+                  <span style={{ fontSize: 17, fontWeight: 700, color: status.color }}>{status.headline}</span>
+                </div>
+                <div style={{ fontSize: 13, color: "#aaa", marginTop: 8, lineHeight: 1.6 }}>
+                  {good && "When the model says a team has, say, a 60% chance to win, that's holding up pretty close to reality."}
+                  {!good && `The model's win-probability estimates are ${direction}, by about ${magnitude.toFixed(1)} points on average.`}
+                </div>
+                {clean?.n > 0 && (
+                  <div style={{ fontSize: 13, color: "#aaa", marginTop: 6, lineHeight: 1.6 }}>
+                    Your top-tier (CLEAN) picks have won <b style={{ color: clean.actual >= 55 ? "#00FF87" : clean.actual >= 50 ? "#FFD600" : "#FF4D4D" }}>{clean.actual}%</b> of {clean.n} bets so far.
+                  </div>
+                )}
+                <div style={{ fontSize: 11, color: "#444", marginTop: 10 }}>
+                  Based on {total} settled bet{total === 1 ? "" : "s"} total.
+                  {thin && " That's a small sample — treat this as an early read, not a final verdict."}
+                </div>
+              </div>
+            );
+          })()}
+
           <span style={S.lbl}>PROBABILITY CALIBRATION</span>
+          <div style={{ fontSize: 10, color: "#333", marginBottom: 6 }}>Detail below — the summary above is the short version.</div>
           <div style={{ fontSize: 11, color: "#444", marginBottom: 14, lineHeight: 1.6 }}>
             Does a 57% predicted probability actually win 57% of the time?
             Delta = actual − predicted. Negative = model overconfident. Positive = underconfident.
