@@ -1144,6 +1144,29 @@ export default function ToT() {
 
       <div style={S.nav}>
         <div style={S.navLogo}>T<span style={{ color: "#2FBF71" }}>|</span>T</div>
+        <div style={{ display: "flex", gap: 4 }}>
+          {[
+            { id: "mlb", icon: "⚾", label: "MLB", color: "#2FBF71", tab: "picks" },
+            { id: "nfl", icon: "🏈", label: "NFL", color: "#D9754A", tab: "nfl" },
+          ].map(({ id, icon, label, color, tab }) => {
+            const active = currentSport === id;
+            return (
+              <button
+                key={id}
+                onClick={() => setActiveTab(tab)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 4,
+                  padding: "5px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700,
+                  background: active ? `${color}1a` : "transparent",
+                  border: `1px solid ${active ? color : "#3d424f"}`,
+                  color: active ? color : "#888", cursor: "pointer",
+                }}
+              >
+                <span style={{ fontSize: 12 }}>{icon}</span>{label}
+              </button>
+            );
+          })}
+        </div>
         <button
           onClick={() => setSearchOpen(true)}
           aria-label="Search"
@@ -1237,30 +1260,6 @@ export default function ToT() {
               {fmtDateLabel(date)}
             </button>
           ))}
-        </div>
-      )}
-
-      {navGroup(activeTab) === "games" && (
-        <div style={{ display: "flex", padding: "8px 20px 0", borderBottom: `1px solid ${tokens.color.border}` }}>
-          {[
-            { id: "mlb", icon: "⚾", label: "MLB", color: "#2FBF71", tab: "picks" },
-            { id: "nfl", icon: "🏈", label: "NFL", color: "#D9754A", tab: "nfl" },
-          ].map(({ id, icon, label, color, tab }) => {
-            const active = id === "nfl" ? activeTab === "nfl" : activeTab !== "nfl";
-            return (
-              <button
-                key={id}
-                onClick={() => setActiveTab(tab)}
-                style={{
-                  ...tabButtonStyle({ active, accent: color }),
-                  flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 4px",
-                }}
-              >
-                <span style={{ fontSize: 14 }}>{icon}</span>
-                {label}
-              </button>
-            );
-          })}
         </div>
       )}
 
