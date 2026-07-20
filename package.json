@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "backtest": "node --env-file=.env.local scripts/backtest/run.js"
+    "backtest": "node --env-file=.env.local scripts/backtest/run.js",
+    "recalibrate": "node --env-file=.env.local scripts/backtest/recalibrate.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.91.1",
