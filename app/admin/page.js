@@ -72,8 +72,8 @@ function Btn({ onClick, disabled, state, labels, style = {} }) {
   );
 }
 
-const NAVS = ["overview", "picks", "clv", "cal", "codes", "email", "tweet", "system"];
-const NAV_LABELS = { overview: "📊 Overview", picks: "⚾ Picks", clv: "📈 CLV", cal: "📐 Calibration", codes: "🔑 Codes", email: "✉️ Email", tweet: "𝕏 Tweet", system: "⚙️ System" };
+const NAVS = ["overview", "picks", "clv", "cal", "weights", "codes", "email", "tweet", "system"];
+const NAV_LABELS = { overview: "📊 Overview", picks: "⚾ Picks", clv: "📈 CLV", cal: "📐 Calibration", weights: "🎛️ Weights", codes: "🔑 Codes", email: "✉️ Email", tweet: "𝕏 Tweet", system: "⚙️ System" };
 
 export default function AdminDash() {
   const [auth, setAuth]   = useState(false);
@@ -93,6 +93,9 @@ export default function AdminDash() {
   const [calData, setCal] = useState(null);
   const [calHistory, setCalHistory] = useState([]);
   const [autoEnabled, setAutoEnabled] = useState(true);
+  const [wHistory, setWHistory] = useState([]);
+  const [wAutoEnabled, setWAutoEnabled] = useState(true);
+  const [wLiveN, setWLiveN] = useState(0);
 
   // form state
   const [codeLabel, setCL]      = useState("");
@@ -110,6 +113,9 @@ export default function AdminDash() {
   const [activateS, setActivateS]     = useState(null); // { id, state: "loading"|"ok"|"err" }
   const [activateBestS, setActivateBestS] = useState(null);
   const [calLiveN, setCalLiveN] = useState(0);
+  const [wAutoToggleS, setWAutoToggleS] = useState(null);
+  const [wActivateS, setWActivateS] = useState(null);
+  const [wActivateBestS, setWActivateBestS] = useState(null);
 
   useEffect(() => {
     getSB().auth.getSession().then(async ({ data: { session } }) => {
@@ -129,13 +135,14 @@ export default function AdminDash() {
     setBusy(true);
     const h = { Authorization: `Bearer ${tok}` };
 
-    const [statsR, codesR, pendR, recR, calR, calAdminR] = await Promise.all([
+    const [statsR, codesR, pendR, recR, calR, calAdminR, wAdminR] = await Promise.all([
       fetch("/api/admin/tracker?action=stats&days=30", { headers: h }).then(r => r.json()).catch(() => null),
       fetch("/api/admin/codes", { headers: h }).then(r => r.json()).catch(() => ({ codes: [] })),
       fetch("/api/admin/tracker?action=pending", { headers: h }).then(r => r.json()).catch(() => ({ pending: [] })),
       fetch("/api/model-record").then(r => r.json()).catch(() => null),
       fetch("/api/calibration").then(r => r.json()).catch(() => null),
       fetch("/api/admin/calibration", { headers: h }).then(r => r.json()).catch(() => null),
+      fetch("/api/admin/weights", { headers: h }).then(r => r.json()).catch(() => null),
     ]);
 
     const todayPicks = statsR?.todayPicks || [];
@@ -151,6 +158,9 @@ export default function AdminDash() {
     setCalHistory(calAdminR?.history ?? []);
     setAutoEnabled(calAdminR?.autoEnabled ?? true);
     setCalLiveN(calAdminR?.liveN ?? 0);
+    setWHistory(wAdminR?.history ?? []);
+    setWAutoEnabled(wAdminR?.autoEnabled ?? true);
+    setWLiveN(wAdminR?.liveN ?? 0);
     setBusy(false);
 
     // Auto-regen if no picks for today yet
@@ -282,6 +292,55 @@ export default function AdminDash() {
       if (r.ok) load(token);
     } catch { setActivateBestS("err"); }
     setTimeout(() => setActivateBestS(null), 3000);
+  }
+
+  async function toggleAutoWeightTuning() {
+    setWAutoToggleS("loading");
+    try {
+      const r = await fetch("/api/admin/weights", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: "set-auto", enabled: !wAutoEnabled }),
+      });
+      const d = await r.json();
+      if (r.ok) { setWAutoEnabled(d.autoEnabled); setWAutoToggleS("ok"); }
+      else setWAutoToggleS("err");
+    } catch { setWAutoToggleS("err"); }
+    setTimeout(() => setWAutoToggleS(null), 3000);
+  }
+
+  async function activateWeights(id) {
+    setWActivateS({ id, state: "loading" });
+    try {
+      const r = await fetch("/api/admin/weights", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: "activate", id }),
+      });
+      const d = await r.json();
+      if (r.ok) {
+        setWAutoEnabled(d.autoEnabled);
+        setWActivateS({ id, state: "ok" });
+        load(token);
+      } else {
+        setWActivateS({ id, state: "err" });
+      }
+    } catch { setWActivateS({ id, state: "err" }); }
+    setTimeout(() => setWActivateS(null), 3000);
+  }
+
+  async function activateBestWeights() {
+    setWActivateBestS("loading");
+    try {
+      const r = await fetch("/api/admin/weights", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: "activate-best" }),
+      });
+      setWActivateBestS(r.ok ? "ok" : "err");
+      if (r.ok) load(token);
+    } catch { setWActivateBestS("err"); }
+    setTimeout(() => setWActivateBestS(null), 3000);
   }
 
   async function resolveYesterday() {
@@ -1002,6 +1061,78 @@ export default function AdminDash() {
               ))}
             </div>
           )}
+        </>
+      )}
+
+      {/* ── WEIGHTS ── */}
+      {tab === "weights" && (
+        <>
+          <div style={{ ...S.card, marginBottom: 14, padding: "14px 16px", border: "1px solid rgba(255,214,0,0.2)" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#FFD600" }}>These decide which team gets picked</div>
+            <div style={{ fontSize: 12, color: "#aaa", marginTop: 6, lineHeight: 1.6 }}>
+              Calibration only rescales confidence. This tunes the actual pitcher/lineup/bullpen/elo/form
+              blend — a change here can flip the pick, not just how sure the model sounds about it.
+            </div>
+          </div>
+
+          <span style={{ ...S.lbl, display: "block" }}>AUTO WEIGHT-TUNING</span>
+          <div style={{ ...S.card, marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: wAutoEnabled ? "#00FF87" : "#FFD600" }}>
+                {wAutoEnabled ? "Running weekly" : "Paused"}
+              </div>
+              <div style={{ fontSize: 11, color: "#555", marginTop: 3, lineHeight: 1.5 }}>
+                {wAutoEnabled
+                  ? "Searches weekly against historical + live picks. Below 50 live picks with data, it only records a candidate — never auto-activates a change that could flip a pick."
+                  : "Pinned to a specific vector below — the weekly cron won't touch it until you resume."}
+              </div>
+            </div>
+            <Btn onClick={toggleAutoWeightTuning} state={wAutoToggleS}
+              labels={{ default: wAutoEnabled ? "Pause" : "Resume", loading: "…", ok: "✓ Done", err: "✗ Failed" }} />
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+            <span style={{ ...S.lbl, marginBottom: 0 }}>WEIGHT HISTORY</span>
+            <Btn onClick={activateBestWeights} state={wActivateBestS} disabled={!wLiveN}
+              labels={{ default: "⚡ Use best now", loading: "Scoring…", ok: "✓ Activated", err: "✗ Failed" }}
+              style={{ padding: "6px 10px", fontSize: 11 }} />
+          </div>
+          <div style={{ fontSize: 11, color: "#444", marginBottom: 10, lineHeight: 1.6 }}>
+            Every fitted vector, ranked by Brier score against {wLiveN || "—"} live picks with stored components — lower
+            is better. Picks generated before this shipped don&apos;t carry that data, so the live count starts at 0 and
+            grows only from here.
+          </div>
+          <div style={{ ...S.card, marginBottom: 14 }}>
+            {!wHistory.length && <div style={{ color: "#555", fontSize: 12 }}>No weight-tuning history yet</div>}
+            {wHistory.map(row => {
+              const rowBusy = wActivateS?.id === row.id ? wActivateS.state : null;
+              return (
+                <div key={row.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #0d0d0d" }}>
+                  <div>
+                    <div style={{ fontSize: 12, color: "#ccc" }}>
+                      {new Date(row.fitted_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "America/Chicago" })} CT
+                    </div>
+                    <div style={{ fontSize: 10, color: "#555", marginTop: 2 }}>
+                      {row.game_count != null ? row.game_count.toLocaleString() : "—"} rows{row.notes ? ` · ${row.notes}` : ""}
+                      {row.live_brier != null ? ` · Brier ${row.live_brier.toFixed(4)}` : ""}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    {row.is_best && (
+                      <span style={{ fontSize: 10, fontWeight: 700, color: "#FFD600", background: "rgba(255,214,0,0.1)", borderRadius: 6, padding: "5px 9px" }}>BEST</span>
+                    )}
+                    {row.active ? (
+                      <span style={{ fontSize: 10, fontWeight: 700, color: "#00FF87", background: "rgba(0,255,135,0.1)", borderRadius: 6, padding: "5px 9px" }}>ACTIVE</span>
+                    ) : (
+                      <Btn onClick={() => activateWeights(row.id)} state={rowBusy}
+                        labels={{ default: "Use this", loading: "…", ok: "✓ Active", err: "✗ Failed" }}
+                        style={{ padding: "6px 10px", fontSize: 11 }} />
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </>
       )}
 

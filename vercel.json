@@ -41,6 +41,10 @@
       "schedule": "0 15 * * 0"
     },
     {
+      "path": "/api/cron/tune-weights",
+      "schedule": "45 8 * * 0"
+    },
+    {
       "path": "/api/cron/player-index",
       "schedule": "0 5 * * *"
     }
@@ -61,6 +65,7 @@
     "app/api/cron/nfl-picks/route.js": { "maxDuration": 300 },
     "app/api/cron/nfl-resolve/route.js": { "maxDuration": 60 },
     "app/api/cron/weekly/route.js": { "maxDuration": 60 },
+    "app/api/cron/tune-weights/route.js": { "maxDuration": 60 },
     "app/api/admin/backtest/route.js": { "maxDuration": 300 },
     "app/api/cron/player-index/route.js": { "maxDuration": 120 }
   }

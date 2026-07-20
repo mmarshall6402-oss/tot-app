@@ -4,9 +4,11 @@
 import { createClient } from "@supabase/supabase-js";
 import { fetchMLBOdds } from "../../../../lib/odds.js";
 import { calculateEdge, getConfidenceTier } from "../../../../lib/edge.js";
-import { getCalibratedModelProbability, setEloRatings } from "../../../../lib/probability.js";
+import { getCalibratedModelProbability, getModelProbabilityComponents, setEloRatings, setCalibrationCurve, setWeights } from "../../../../lib/probability.js";
 import { applyFilterLayer, buildParlayCards } from "../../../../lib/filter.js";
 import { getEloRatings } from "../../../../lib/elo-db.js";
+import { getCalibrationCurve } from "../../../../lib/calibration-db.js";
+import { getActiveWeights } from "../../../../lib/weights-db.js";
 import { timingSafeEqual } from "../../../../lib/auth.js";
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ||
@@ -362,6 +364,12 @@ async function generateForDate(date, oddsGames, supabase, force = false, isToday
       const pickBullpen = pickIsHome ? mlb.homeBullpen : mlb.awayBullpen;
       const pickForm    = pickIsHome ? mlb.homeForm    : mlb.awayForm;
       const pickLineup  = pickIsHome ? mlb.homeLineupOpsVsPitcher : mlb.awayLineupOpsVsPitcher;
+      // Raw per-factor differentials behind this game's probability — lets
+      // weight-tuning replay this exact pick under a candidate WEIGHTS vector
+      // once it's resolved, without needing to refetch MLB stats for that date.
+      // See lib/probability.js's getModelProbabilityComponents/
+      // computeProbabilityFromComponents and lib/backtest/live-weight-rows.js.
+      const weightComponents = getModelProbabilityComponents(ctx.game, ctx.mlb);
       const features = {
         confidence:        f.confidence         ?? null,
         variance:          f.variance           ?? null,
@@ -382,6 +390,7 @@ async function generateForDate(date, oddsGames, supabase, force = false, isToday
         // CLV tracking — opening odds captured at cron generation time
         open_home_odds:    result.homeOdds ?? null,
         open_away_odds:    result.awayOdds ?? null,
+        weight_components: weightComponents,
       };
 
       return {
@@ -451,11 +460,15 @@ export async function GET(request) {
     const tomorrow = etDate(1);
 
     const supabase = getSupabase();
-    const [oddsGames, liveElo] = await Promise.all([
+    const [oddsGames, liveElo, liveCurve, liveWeights] = await Promise.all([
       fetchMLBOdds(),
       getEloRatings(supabase),
+      getCalibrationCurve(supabase),
+      getActiveWeights(supabase),
     ]);
     setEloRatings(liveElo);
+    setCalibrationCurve(liveCurve);
+    setWeights(liveWeights);
 
     const force = new URL(request.url).searchParams.get("force") === "1";
     // Generate today then tomorrow sequentially — each Claude call needs its own context
