@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { fetchMLBOdds, getOddsDiagnostics } from "../../../lib/odds.js";
 import { calculateEdge, americanToDecimal, decimalToImplied, removeVig } from "../../../lib/edge.js";
-import { getModelProbability } from "../../../lib/probability.js";
+import { getCalibratedModelProbability } from "../../../lib/probability.js";
 import { applyFilterLayer, buildParlayCards } from "../../../lib/filter.js";
 import { requirePro } from "../../../lib/auth.js";
 
@@ -14,7 +14,7 @@ const getSupabase = () => createClient(
 );
 
 function buildPick(game, mlb, breakdown) {
-  const modelProbRaw = getModelProbability(game, mlb);
+  const modelProbRaw = getCalibratedModelProbability(game, mlb);
 
   // Market calibration determines pick DIRECTION only.
   // Displayed edge comes from filter.trueEdgePct — the filter already applies
@@ -311,7 +311,7 @@ export async function GET(request) {
               };
             }
 
-            const modelProbRaw  = getModelProbability(gameWithImplied, mlb);
+            const modelProbRaw  = getCalibratedModelProbability(gameWithImplied, mlb);
             const homeImplied   = gameWithImplied.homeImplied || 0.5;
             const modelProb     = homeImplied + (modelProbRaw - homeImplied) * 0.20;
             const rawEdge       = calculateEdge(modelProb, homeImplied);
@@ -396,7 +396,7 @@ export async function GET(request) {
             if (built) { picks.push(built); continue; }
           }
           // No odds anywhere — show as informational only
-          const modelProb = getModelProbability({ homeTeam: g.homeTeam, awayTeam: g.awayTeam, homeImplied: 0.5, commenceTime: g.commenceTime }, g);
+          const modelProb = getCalibratedModelProbability({ homeTeam: g.homeTeam, awayTeam: g.awayTeam, homeImplied: 0.5, commenceTime: g.commenceTime }, g);
           const rawPick = modelProb >= 0.5 ? g.homeTeam : g.awayTeam;
           const fmtR = (s) => s ? `${s.wins}-${s.losses}` : null;
           picks.push({
@@ -453,7 +453,7 @@ export async function GET(request) {
       if (mlbGames.length) {
         const ipStr = (p) => p?.inningsPitched ? ` ${p.inningsPitched} IP` : "";
         const results = mlbGames.map(g => {
-          const modelProb = getModelProbability({ homeTeam: g.homeTeam, awayTeam: g.awayTeam, homeImplied: 0.5, commenceTime: g.commenceTime }, g);
+          const modelProb = getCalibratedModelProbability({ homeTeam: g.homeTeam, awayTeam: g.awayTeam, homeImplied: 0.5, commenceTime: g.commenceTime }, g);
           const pick = modelProb >= 0.5 ? g.homeTeam : g.awayTeam;
           const fmtRec = (s) => s ? `${s.wins}-${s.losses}` : null;
           return {
@@ -534,7 +534,7 @@ export async function GET(request) {
             return buildPick({ ...oddsGame, commenceTime: mlbGame.commenceTime }, mlbGame, null);
           }
           // No odds yet — show the game card with pitcher matchup but no pick/edge.
-          const modelProb = getModelProbability({ homeTeam: mlbGame.homeTeam, awayTeam: mlbGame.awayTeam, homeImplied: 0.5, commenceTime: mlbGame.commenceTime }, mlbGame);
+          const modelProb = getCalibratedModelProbability({ homeTeam: mlbGame.homeTeam, awayTeam: mlbGame.awayTeam, homeImplied: 0.5, commenceTime: mlbGame.commenceTime }, mlbGame);
           const pick = modelProb >= 0.5 ? mlbGame.homeTeam : mlbGame.awayTeam;
           const isStarted = mlbGame.status === "Live" || mlbGame.status === "Final" || mlbGame.status === "Completed";
           const fmtRec2 = (s) => s ? `${s.wins}-${s.losses}` : null;

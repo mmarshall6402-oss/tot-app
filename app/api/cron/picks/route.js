@@ -4,7 +4,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { fetchMLBOdds } from "../../../../lib/odds.js";
 import { calculateEdge, getConfidenceTier } from "../../../../lib/edge.js";
-import { getModelProbability, setEloRatings } from "../../../../lib/probability.js";
+import { getCalibratedModelProbability, setEloRatings } from "../../../../lib/probability.js";
 import { applyFilterLayer, buildParlayCards } from "../../../../lib/filter.js";
 import { getEloRatings } from "../../../../lib/elo-db.js";
 import { timingSafeEqual } from "../../../../lib/auth.js";
@@ -149,7 +149,7 @@ Return ONLY a JSON array, no markdown. Each element:
 }
 
 function buildPick(game, mlb, breakdown, precomputedFilter) {
-  const modelProbRaw = getModelProbability(game, mlb);
+  const modelProbRaw = getCalibratedModelProbability(game, mlb);
 
   // Market calibration determines pick DIRECTION only — used to decide home vs away.
   // Edge displayed to users comes from filter.trueEdgePct, which already applies
@@ -305,7 +305,7 @@ async function generateForDate(date, oddsGames, supabase, force = false, isToday
   const gameContexts = dedupedOdds.map(game => {
     const { match: mlb, idx: mlbIdx } = matchMLBGame(game, mlbGames, usedMLBIndices);
     if (mlbIdx >= 0) usedMLBIndices.add(mlbIdx);
-    const modelProbRaw = getModelProbability(game, mlb);
+    const modelProbRaw = getCalibratedModelProbability(game, mlb);
     const homeImplied  = game.homeImplied || 0.5;
     const modelProb    = homeImplied + (modelProbRaw - homeImplied) * 0.20;
     const rawEdge      = calculateEdge(modelProb, homeImplied);

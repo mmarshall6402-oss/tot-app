@@ -4,7 +4,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { fetchMLBOdds } from "../../../lib/odds.js";
-import { getModelProbability } from "../../../lib/probability.js";
+import { getCalibratedModelProbability } from "../../../lib/probability.js";
 import { calculateEdge } from "../../../lib/edge.js";
 import { applyFilterLayer } from "../../../lib/filter.js";
 import { requirePro } from "../../../lib/auth.js";
@@ -63,7 +63,7 @@ export async function GET(request) {
     const steals = games
       .map(game => {
         const mlb = matchMLBGame(game, mlbGames);
-        const modelProbRaw = getModelProbability(game, mlb);
+        const modelProbRaw = getCalibratedModelProbability(game, mlb);
         const homeImplied  = game.homeImplied || 0.5;
         const modelProb    = homeImplied + (modelProbRaw - homeImplied) * 0.20;
         const rawEdge  = calculateEdge(modelProb, homeImplied);
