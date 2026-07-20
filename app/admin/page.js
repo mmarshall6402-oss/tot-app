@@ -91,6 +91,8 @@ export default function AdminDash() {
   const [allTimePicks, setATP] = useState([]);
   const [modelRec, setModelRec] = useState(null);
   const [calData, setCal] = useState(null);
+  const [calHistory, setCalHistory] = useState([]);
+  const [autoEnabled, setAutoEnabled] = useState(true);
 
   // form state
   const [codeLabel, setCL]      = useState("");
@@ -104,6 +106,8 @@ export default function AdminDash() {
   const [createS, setCreateS]   = useState(null);
   const [testS, setTestS]       = useState(null);
   const [copied, setCopied]     = useState({});
+  const [autoToggleS, setAutoToggleS] = useState(null);
+  const [activateS, setActivateS]     = useState(null); // { id, state: "loading"|"ok"|"err" }
 
   useEffect(() => {
     getSB().auth.getSession().then(async ({ data: { session } }) => {
@@ -123,12 +127,13 @@ export default function AdminDash() {
     setBusy(true);
     const h = { Authorization: `Bearer ${tok}` };
 
-    const [statsR, codesR, pendR, recR, calR] = await Promise.all([
+    const [statsR, codesR, pendR, recR, calR, calAdminR] = await Promise.all([
       fetch("/api/admin/tracker?action=stats&days=30", { headers: h }).then(r => r.json()).catch(() => null),
       fetch("/api/admin/codes", { headers: h }).then(r => r.json()).catch(() => ({ codes: [] })),
       fetch("/api/admin/tracker?action=pending", { headers: h }).then(r => r.json()).catch(() => ({ pending: [] })),
       fetch("/api/model-record").then(r => r.json()).catch(() => null),
       fetch("/api/calibration").then(r => r.json()).catch(() => null),
+      fetch("/api/admin/calibration", { headers: h }).then(r => r.json()).catch(() => null),
     ]);
 
     const todayPicks = statsR?.todayPicks || [];
@@ -141,6 +146,8 @@ export default function AdminDash() {
     setATP(statsR?.recent || []);
     setModelRec(recR ?? null);
     setCal(calR ?? null);
+    setCalHistory(calAdminR?.history ?? []);
+    setAutoEnabled(calAdminR?.autoEnabled ?? true);
     setBusy(false);
 
     // Auto-regen if no picks for today yet
@@ -223,6 +230,41 @@ export default function AdminDash() {
       setPlayerIdxS(r.ok ? "ok" : "err");
     } catch { setPlayerIdxS("err"); }
     setTimeout(() => setPlayerIdxS(null), 8000);
+  }
+
+  async function toggleAutoRecalibration() {
+    setAutoToggleS("loading");
+    try {
+      const r = await fetch("/api/admin/calibration", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: "set-auto", enabled: !autoEnabled }),
+      });
+      const d = await r.json();
+      if (r.ok) { setAutoEnabled(d.autoEnabled); setAutoToggleS("ok"); }
+      else setAutoToggleS("err");
+    } catch { setAutoToggleS("err"); }
+    setTimeout(() => setAutoToggleS(null), 3000);
+  }
+
+  async function activateCurve(id) {
+    setActivateS({ id, state: "loading" });
+    try {
+      const r = await fetch("/api/admin/calibration", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: "activate", id }),
+      });
+      const d = await r.json();
+      if (r.ok) {
+        setAutoEnabled(d.autoEnabled);
+        setActivateS({ id, state: "ok" });
+        load(token);
+      } else {
+        setActivateS({ id, state: "err" });
+      }
+    } catch { setActivateS({ id, state: "err" }); }
+    setTimeout(() => setActivateS(null), 3000);
   }
 
   async function resolveYesterday() {
@@ -714,6 +756,52 @@ export default function AdminDash() {
               </>
             );
           })()}
+
+          <span style={{ ...S.lbl, marginTop: 4, display: "block" }}>AUTO-RECALIBRATION</span>
+          <div style={{ ...S.card, marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: autoEnabled ? "#00FF87" : "#FFD600" }}>
+                {autoEnabled ? "Running daily" : "Paused"}
+              </div>
+              <div style={{ fontSize: 11, color: "#555", marginTop: 3, lineHeight: 1.5 }}>
+                {autoEnabled
+                  ? "Refits and publishes a new curve every morning after resolve."
+                  : "Pinned to a specific curve below — the daily cron won't touch it until you resume."}
+              </div>
+            </div>
+            <Btn onClick={toggleAutoRecalibration} state={autoToggleS}
+              labels={{ default: autoEnabled ? "Pause" : "Resume", loading: "…", ok: "✓ Done", err: "✗ Failed" }} />
+          </div>
+
+          <span style={{ ...S.lbl, display: "block" }}>CALIBRATION HISTORY</span>
+          <div style={{ fontSize: 11, color: "#444", marginBottom: 10, lineHeight: 1.6 }}>
+            Every past recalibration, cron or manual. If a day&apos;s fit looks worse, go back to one that worked — that also pauses auto-recalibration above.
+          </div>
+          <div style={{ ...S.card, marginBottom: 14 }}>
+            {!calHistory.length && <div style={{ color: "#555", fontSize: 12 }}>No recalibration history yet</div>}
+            {calHistory.map(row => {
+              const rowBusy = activateS?.id === row.id ? activateS.state : null;
+              return (
+                <div key={row.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #0d0d0d" }}>
+                  <div>
+                    <div style={{ fontSize: 12, color: "#ccc" }}>
+                      {new Date(row.fitted_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "America/Chicago" })} CT
+                    </div>
+                    <div style={{ fontSize: 10, color: "#555", marginTop: 2 }}>
+                      {row.game_count != null ? row.game_count.toLocaleString() : "—"} games{row.notes ? ` · ${row.notes}` : ""}
+                    </div>
+                  </div>
+                  {row.active ? (
+                    <span style={{ fontSize: 10, fontWeight: 700, color: "#00FF87", background: "rgba(0,255,135,0.1)", borderRadius: 6, padding: "5px 9px" }}>ACTIVE</span>
+                  ) : (
+                    <Btn onClick={() => activateCurve(row.id)} state={rowBusy}
+                      labels={{ default: "Use this", loading: "…", ok: "✓ Active", err: "✗ Failed" }}
+                      style={{ padding: "6px 10px", fontSize: 11 }} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
 
           {(() => {
             const clean = calData?.verdictBuckets?.find(b => b.label === "CLEAN");

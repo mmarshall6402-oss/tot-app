@@ -8,12 +8,17 @@
 // (app/api/calibration/route.js) already reads, now closing the loop back
 // into the live model automatically instead of sitting in a dashboard only
 // a human checks.
+//
+// Respects model_recalibration_settings.auto_enabled: an admin who's rolled
+// back to a specific day's curve (app/api/admin/calibration/route.js) needs
+// this to actually stay off tomorrow morning, not get silently overwritten.
 
 import { createClient } from "@supabase/supabase-js";
 import { timingSafeEqual } from "../../../../lib/auth.js";
 import { loadHistoricalCalibrationRows } from "../../../../lib/backtest/historical-rows.js";
 import { fetchLiveCalibrationRows } from "../../../../lib/backtest/live-picks.js";
 import { runRecalibration } from "../../../../lib/backtest/run-recalibration.js";
+import { isAutoRecalibrationEnabled } from "../../../../lib/calibration-db.js";
 
 const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -29,6 +34,10 @@ export async function GET(request) {
   const supabase = getSupabase();
 
   try {
+    if (!(await isAutoRecalibrationEnabled(supabase))) {
+      return Response.json({ written: false, skippedReason: "auto-recalibration is paused (an admin pinned a specific curve)" });
+    }
+
     const historicalRows = loadHistoricalCalibrationRows();
     const liveRows = await fetchLiveCalibrationRows(supabase);
 
