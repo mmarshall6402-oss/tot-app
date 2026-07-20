@@ -1411,9 +1411,9 @@ export default function ToT() {
         <div style={{ display: "flex", gap: 6, overflowX: "auto" }}>
           {[
             { id: "picks", label: "Moneyline" },
-            { id: "props", label: "Props" },
             { id: "live", label: "Live" },
             { id: "feed", label: "Feed" },
+            { id: "props", label: "Props" },
             { id: "steals", label: "Steals" },
             { id: "schedule", label: "Schedule" },
             { id: "chat", label: "Ask AI" },

@@ -20,15 +20,6 @@ const fmtDate = (iso) => {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 };
 
-// Hit-rate-implied lean, colored red (fades under)->yellow (toss-up)->green
-// (fades over), mirroring PropCard's confidenceColor but keyed to actual
-// hit rate rather than a model's confidence.
-function lineColor(pct) {
-  if (pct >= 65) return "#2FBF71";
-  if (pct <= 35) return "#D9645C";
-  return "#D6B23D";
-}
-
 // Which market a player's Prop Lines tab covers, derived from which stat
 // group actually has their season stats (same signal fetchMLBPlayerDetail
 // already uses to decide hitting vs pitching).
@@ -94,10 +85,16 @@ export default function PlayerModal({ open, sport, playerId, playerName, onClose
   const statField = market ? PROP_STAT_FIELD[market] : null;
   const breakdown = statField ? computeHitRateBreakdown(data?.gameLog, statField) : { games: 0, avg: null, lines: [] };
   const showPropLines = breakdown.games > 0;
-  const activeLine = customLine != null ? customLine : Math.round(breakdown.avg ?? 0);
-  const customResult = statField ? hitRateAtLine(data?.gameLog, statField, activeLine) : null;
   const marketPick = data?.trendingPick && data.trendingPick.marketType === market ? data.trendingPick : null;
-  const marketResult = marketPick?.line != null && statField ? hitRateAtLine(data.gameLog, statField, marketPick.line) : null;
+  // Defaults to today's real sportsbook line (e.g. 8.5) when one's posted,
+  // same as Underdog's picker opening on the live line — the stepper still
+  // moves off it a half-point at a time either way.
+  const activeLine = customLine != null ? customLine : (marketPick?.line ?? Math.round(breakdown.avg ?? 0));
+  const customResult = statField ? hitRateAtLine(data?.gameLog, statField, activeLine) : null;
+  const chartGames = (data?.gameLog || []).slice(0, 5).reverse();
+  const chartMax = statField
+    ? Math.max(activeLine, 1, ...chartGames.map(g => Number(g.stat?.[statField]) || 0))
+    : 1;
 
   return (
     <div role="dialog" aria-modal="true" aria-label={`${playerName || "Player"} details`} style={{ position: "fixed", inset: 0, zIndex: 9997, background: "#0a0b0f", display: "flex", flexDirection: "column", animation: "fadeUp 0.2s ease" }}>
@@ -203,85 +200,82 @@ export default function PlayerModal({ open, sport, playerId, playerName, onClose
             </div>
           )}
 
-          {subTab === "proplines" && showPropLines && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <div style={{ fontSize: 12, color: "#777" }}>
-                {breakdown.games} game{breakdown.games !== 1 ? "s" : ""} this season · averaging <span style={{ color: "#ddd", fontWeight: 600 }}>{breakdown.avg}</span> {MARKET_STAT_LABEL[market].toLowerCase()}/game
+          {subTab === "proplines" && showPropLines && customResult && (
+            <div style={{ ...S.card, borderColor: "#242832" }}>
+              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
+                <div style={{ fontSize: 16, fontWeight: 700 }}>{MARKET_STAT_LABEL[market]}</div>
+                <div style={{ fontSize: 11, color: "#666" }}>{breakdown.games} game{breakdown.games !== 1 ? "s" : ""} · avg {breakdown.avg}</div>
               </div>
 
-              {marketPick && marketResult && (
-                <div style={{ ...S.card, borderColor: `${lineColor(marketResult.hitRatePct)}44` }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 1.5, marginBottom: 4 }}>VS TODAY&apos;S {marketPick.line} LINE</div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: lineColor(marketResult.hitRatePct) }}>
-                    History leans {marketResult.lean === "over" ? "OVER" : marketResult.lean === "under" ? "UNDER" : "TOSS-UP"}
+              <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 18 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    <button
+                      onClick={() => setCustomLine(activeLine + 1)}
+                      aria-label="Increase line"
+                      style={{ width: 22, height: 16, borderRadius: 4, background: "#181b22", border: "1px solid #333947", color: "#999", fontSize: 10, lineHeight: 1, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                    >▲</button>
+                    <button
+                      onClick={() => setCustomLine(Math.max(0, activeLine - 1))}
+                      aria-label="Decrease line"
+                      style={{ width: 22, height: 16, borderRadius: 4, background: "#181b22", border: "1px solid #333947", color: "#999", fontSize: 10, lineHeight: 1, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                    >▼</button>
                   </div>
-                  <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>
-                    Hit {marketPick.line}+ in {marketResult.hits} of {marketResult.total} games ({marketResult.hitRatePct}%)
+                  <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 26, fontWeight: 700 }}>{activeLine}</div>
+                </div>
+
+                <div style={{ display: "flex", gap: 8, flex: 1 }}>
+                  <div style={{ flex: 1, textAlign: "center", padding: "8px 6px", borderRadius: 10, background: "#181b22", border: `1px solid ${customResult.lean === "over" ? "#2FBF7166" : "#333947"}` }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: customResult.lean === "over" ? "#2FBF71" : "#eee" }}>Higher</div>
+                    <div style={{ fontSize: 11, color: "#888", marginTop: 1 }}>{customResult.hitRatePct}%</div>
+                  </div>
+                  <div style={{ flex: 1, textAlign: "center", padding: "8px 6px", borderRadius: 10, background: "#181b22", border: `1px solid ${customResult.lean === "under" ? "#D9645C66" : "#333947"}` }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: customResult.lean === "under" ? "#D9645C" : "#eee" }}>Lower</div>
+                    <div style={{ fontSize: 11, color: "#888", marginTop: 1 }}>{100 - customResult.hitRatePct}%</div>
                   </div>
                 </div>
+              </div>
+
+              {marketPick?.line != null && marketPick.line !== activeLine && (
+                <button
+                  onClick={() => setCustomLine(marketPick.line)}
+                  style={{ background: "none", border: "none", color: "#2FBF71", fontSize: 11, padding: 0, marginBottom: 14, cursor: "pointer" }}
+                >Jump to today&apos;s line ({marketPick.line})</button>
               )}
 
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 1.5, marginBottom: 8 }}>HIT RATE BY LINE</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {breakdown.lines.map(l => (
-                    <div key={l.line}>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#999", marginBottom: 3 }}>
-                        <span>{l.line}+ {MARKET_STAT_LABEL[market]}</span>
-                        <span style={{ color: lineColor(l.hitRatePct), fontWeight: 700 }}>{l.hits}/{l.total} · {l.hitRatePct}%</span>
-                      </div>
-                      <div style={{ height: 6, borderRadius: 3, background: "#181b22", overflow: "hidden" }}>
-                        <div style={{ height: "100%", width: `${Math.max(2, l.hitRatePct)}%`, background: lineColor(l.hitRatePct), transition: "width .3s ease" }} />
-                      </div>
+              {chartGames.length > 0 && (
+                <>
+                  <div style={{ position: "relative", height: 130 }}>
+                    <div style={{ position: "absolute", left: 0, right: 0, bottom: `${(activeLine / chartMax) * 100}%`, borderTop: "1px dashed #3d424f" }} />
+                    <div style={{ display: "flex", alignItems: "flex-end", height: "100%", gap: 6 }}>
+                      {chartGames.map((g, i) => {
+                        const val = Number(g.stat?.[statField]);
+                        const hit = !Number.isNaN(val) && val >= activeLine;
+                        const heightPct = Math.max(6, ((Number.isNaN(val) ? 0 : val) / chartMax) * 100);
+                        return (
+                          <div key={i} style={{ flex: 1, display: "flex", alignItems: "flex-end", justifyContent: "center", height: "100%" }}>
+                            <div style={{
+                              width: "100%", maxWidth: 46, height: `${heightPct}%`, borderRadius: 6,
+                              background: hit ? "#2FBF71" : "#242832",
+                              display: "flex", justifyContent: "center", paddingTop: 4,
+                            }}>
+                              <span style={{ fontSize: 12, fontWeight: 800, color: hit ? "#06170e" : "#999" }}>{Number.isNaN(val) ? "—" : val}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 1.5, marginBottom: 8 }}>TRY YOUR OWN LINE</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <button
-                    onClick={() => setCustomLine(Math.max(0, activeLine - 1))}
-                    aria-label="Decrease line"
-                    style={{ width: 36, height: 36, borderRadius: 8, background: "#181b22", border: "1px solid #333947", color: "#eee", fontSize: 18, fontWeight: 700, cursor: "pointer" }}
-                  >−</button>
-                  <div style={{ minWidth: 90, textAlign: "center" }}>
-                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 20, fontWeight: 700 }}>{activeLine}+</div>
-                    <div style={{ fontSize: 10, color: "#666" }}>{MARKET_STAT_LABEL[market]}</div>
                   </div>
-                  <button
-                    onClick={() => setCustomLine(activeLine + 1)}
-                    aria-label="Increase line"
-                    style={{ width: 36, height: 36, borderRadius: 8, background: "#181b22", border: "1px solid #333947", color: "#eee", fontSize: 18, fontWeight: 700, cursor: "pointer" }}
-                  >+</button>
-                  {customResult && (
-                    <div style={{ flex: 1, textAlign: "right" }}>
-                      <div style={{ fontSize: 18, fontWeight: 800, color: lineColor(customResult.hitRatePct) }}>{customResult.hitRatePct}%</div>
-                      <div style={{ fontSize: 11, color: "#666" }}>hit in {customResult.hits}/{customResult.total}</div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 1.5, marginBottom: 8 }}>GAME BY GAME</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  {data.gameLog.map((g, i) => {
-                    const val = Number(g.stat?.[statField]);
-                    const hit = !Number.isNaN(val) && val >= activeLine;
-                    return (
-                      <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", borderRadius: 6, background: "#12141a" }}>
-                        <div style={{ fontSize: 12, color: "#999" }}>{fmtDate(g.date)} {g.opponent ? `${g.isHome === false ? "@" : "vs"} ${g.opponent}` : ""}</div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ fontSize: 12, color: "#ddd", fontWeight: 600 }}>{Number.isNaN(val) ? "—" : val}</span>
-                          <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", background: hit ? "#2FBF71" : "#333947", flexShrink: 0 }} />
-                        </div>
+                  <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                    {chartGames.map((g, i) => (
+                      <div key={i} style={{ flex: 1, textAlign: "center" }}>
+                        <div style={{ fontSize: 10, color: "#999", fontWeight: 600 }}>{fmtDate(g.date)}</div>
+                        <div style={{ fontSize: 9, color: "#555" }}>{g.opponent ? `${g.isHome === false ? "@" : "vs"}${g.opponent}` : ""}</div>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
