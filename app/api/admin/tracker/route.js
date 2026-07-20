@@ -45,15 +45,25 @@ export async function GET(request) {
     const today = `${ctParts.find(x=>x.type==="year").value}-${ctParts.find(x=>x.type==="month").value}-${ctParts.find(x=>x.type==="day").value}`;
 
     const sb = getSupabase();
-    const [dailyRes, tierRes, recentRes, allTimeRes, cacheRes, emailRes, subRes] = await Promise.all([
+    const [dailyRes, tierRes, recentRes, allTimeRes, cacheRes, historicalCacheRes, emailRes, subRes] = await Promise.all([
       sb.from("model_daily_stats").select("*").gte("date", sinceStr),
       sb.from("model_tier_stats").select("*"),
       sb.from("model_picks").select("*").gte("date", sinceStr).order("date", { ascending: false }).order("edge", { ascending: false }).limit(500),
       sb.from("model_picks").select("result"),
       sb.from("picks_cache").select("picks").eq("date", today).single(),
+      sb.from("picks_cache").select("date, picks").gte("date", sinceStr).neq("date", "__odds__"),
       sb.from("email_list").select("id", { count: "exact", head: true }),
       sb.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "active"),
     ]);
+
+    // Bet vs. pass volume per day — how many games the model actually took a
+    // position on vs. sat out, alongside model_daily_stats' win/loss record.
+    const dailyVolume = {};
+    for (const row of historicalCacheRes.data || []) {
+      if (!Array.isArray(row.picks)) continue;
+      const bets = row.picks.filter(p => p.isBet).length;
+      dailyVolume[row.date] = { bets, passed: row.picks.length - bets, total: row.picks.length };
+    }
 
     // Overall stats (last N days)
     const picks   = recentRes.data || [];
@@ -75,6 +85,7 @@ export async function GET(request) {
       allTime:    { wins: atWins, losses: atLosses, winPct: atWinPct, settled: atSettled.length },
       overall:    { picks: picks.length, wins, losses, pending: picks.length - settled.length, winPct, avgEdge, roi },
       daily:      dailyRes.data || [],
+      dailyVolume,
       byTier:     tierRes.data  || [],
       recent:     picks,
       todayPicks: cacheRes.data?.picks || [],

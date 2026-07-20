@@ -5,64 +5,73 @@
 // the same production prediction-vs-outcome data behind the calibration
 // dashboard (app/api/calibration/route.js) and the per-game recap endpoint
 // (app/api/tracker/game-recap/route.js pulls its `result` from the same
-// resolved picks) — blended with the offline historical replay that
-// fit-calibration-seed.js uses. Unlike that script, this one writes the
-// result as the new ACTIVE production curve (lib/calibration-db.js), so
-// real prediction errors actually feed back into the live model.
+// resolved picks) — blended with the offline historical replay. Unlike the
+// old fit-calibration-seed.js, this writes the result as the new ACTIVE
+// production curve (lib/calibration-db.js), so real prediction errors
+// actually feed back into the live model.
 //
-// Diagnostic: before writing, checks how a curve fit on historical data
-// ALONE performs on live picks it never saw — a genuine holdout, since
-// live picks are this season's real bets. The curve that actually gets
-// written trains on historical + live combined.
+// Also refreshes data/calibration/historical-rows.json — a cached dump of
+// the historical replay rows that app/api/cron/recalibrate/route.js (the
+// automated daily version of this script) reads instead of redoing the full
+// walk-forward replay on every cron tick. Run this after data/games.json
+// changes (new season data, retrosheet updates) to keep that cache current.
 //
 // Usage:
 //   node --env-file=.env.local scripts/backtest/recalibrate.js
-//   node --env-file=.env.local scripts/backtest/recalibrate.js --write   (writes the new active model_calibration row)
+//   node --env-file=.env.local scripts/backtest/recalibrate.js --write   (publishes as the new active curve)
 
+import { writeFileSync } from "fs";
+import { join } from "path";
 import { createClient } from "@supabase/supabase-js";
 import { runTier2 } from "../../lib/backtest/tier2-runner.js";
 import { fetchLiveCalibrationRows } from "../../lib/backtest/live-picks.js";
-import { fitCalibrationCurve } from "../../lib/backtest/calibration-fit.js";
-import { setActiveCalibrationCurve } from "../../lib/calibration-db.js";
-import { brierScore, logLoss, isotonicPredict } from "../../lib/backtest/metrics.js";
+import { runRecalibration } from "../../lib/backtest/run-recalibration.js";
 
 const write = process.argv.includes("--write");
 
 async function main() {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-  );
-
   const historicalRows = runTier2({}).rows.map(r => ({
     modelProb: r.model_home_prob,
     outcome: r.home_won ? 1 : 0,
     season: r.date.slice(0, 4),
   }));
-  const liveRows = await fetchLiveCalibrationRows(supabase);
 
-  if (!liveRows.length) {
-    console.warn("No resolved picks found in model_picks — recalibrating from historical data only.");
-  } else {
-    const historicalOnlyCurve = fitCalibrationCurve(historicalRows);
-    const before = liveRows.map(r => ({ p: r.modelProb, outcome: r.outcome }));
-    const after  = liveRows.map(r => ({ p: isotonicPredict(historicalOnlyCurve.controlPoints, r.modelProb), outcome: r.outcome }));
-    console.log(`Live production picks (held out of this fit): ${liveRows.length}`);
-    console.log(`  Brier   raw=${brierScore(before).toFixed(4)}  historical-curve-applied=${brierScore(after).toFixed(4)}`);
-    console.log(`  LogLoss raw=${logLoss(before).toFixed(4)}  historical-curve-applied=${logLoss(after).toFixed(4)}`);
-  }
+  const cachePath = join(process.cwd(), "data/calibration/historical-rows.json");
+  writeFileSync(cachePath, JSON.stringify(historicalRows) + "\n");
+  console.log(`Refreshed ${cachePath} (${historicalRows.length} historical rows).`);
 
-  const curve = fitCalibrationCurve([...historicalRows, ...liveRows]);
-  console.log(`\nFit curve on ${curve.gameCount} games (${historicalRows.length} historical + ${liveRows.length} live), seasons ${curve.trainSeasons.join(", ")}`);
-
-  if (write) {
-    const saved = await setActiveCalibrationCurve(
-      supabase, curve, "mlb",
-      `${historicalRows.length} historical + ${liveRows.length} live model_picks`
+  let liveRows = [];
+  try {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
     );
-    console.log(`\nWrote model_calibration row id=${saved.id} (now active).`);
-  } else {
-    console.log("\n--write not passed: not persisted to Supabase.");
+    liveRows = await fetchLiveCalibrationRows(supabase);
+
+    if (!liveRows.length) {
+      console.warn("No resolved picks found in model_picks — recalibrating from historical data only.");
+    }
+
+    const result = await runRecalibration(supabase, { historicalRows, liveRows, write, source: "cli" });
+
+    if (liveRows.length) {
+      console.log(`\nLive production picks (held out of the historical-only fit): ${liveRows.length}`);
+      console.log(`  Brier   raw=${result.diagnostic.liveBrierRaw.toFixed(4)}  historical-curve-applied=${result.diagnostic.liveBrierHistoricalCurve.toFixed(4)}`);
+      console.log(`  LogLoss raw=${result.diagnostic.liveLogLossRaw.toFixed(4)}  historical-curve-applied=${result.diagnostic.liveLogLossHistoricalCurve.toFixed(4)}`);
+    }
+
+    console.log(`\nFit curve on ${result.curve.gameCount} games (${result.historicalCount} historical + ${result.liveCount} live), seasons ${result.curve.trainSeasons.join(", ")}`);
+
+    if (!write) {
+      console.log("\n--write not passed: not persisted to Supabase.");
+    } else if (result.skippedReason) {
+      console.log(`\nSkipped write: ${result.skippedReason}`);
+    } else if (result.written) {
+      console.log(`\nWrote model_calibration row id=${result.calibrationId} (now active).`);
+    }
+  } catch (err) {
+    console.error("\nLive recalibration step failed (historical-rows.json cache was still refreshed above):", err.message);
+    if (write) process.exitCode = 1;
   }
 }
 

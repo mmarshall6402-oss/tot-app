@@ -2,6 +2,7 @@
 // Historical calibration analytics: predicted probability buckets vs actual win rate.
 // Used to detect model overconfidence, underconfidence, and bucket-level distortion.
 import { createClient } from "@supabase/supabase-js";
+import { getCalibrationCurve } from "../../../lib/calibration-db.js";
 
 const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -32,14 +33,23 @@ export async function GET() {
   try {
   const supabase = getSupabase();
 
-  const { data, error } = await supabase
-    .from("model_picks")
-    .select("result, is_bet, features")
-    .eq("is_bet", true)
-    .in("result", ["win", "loss", "push"]);
+  const [{ data, error }, activeCurve] = await Promise.all([
+    supabase
+      .from("model_picks")
+      .select("result, is_bet, features")
+      .eq("is_bet", true)
+      .in("result", ["win", "loss", "push"]),
+    getCalibrationCurve(supabase).catch(() => null),
+  ]);
+
+  const recalibration = activeCurve ? {
+    fittedAt:  activeCurve.fittedAt ?? null,
+    gameCount: activeCurve.gameCount ?? null,
+    notes:     activeCurve.notes ?? null,
+  } : null;
 
   if (error || !data?.length) {
-    return Response.json({ probBuckets: [], confBuckets: [], verdictBuckets: [], varianceBuckets: [], total: 0 });
+    return Response.json({ probBuckets: [], confBuckets: [], verdictBuckets: [], varianceBuckets: [], total: 0, recalibration });
   }
 
   // Exclude pushes from win rate denominators
@@ -103,6 +113,7 @@ export async function GET() {
     varianceBuckets,
     total: decided.length,
     avgDelta,
+    recalibration,
   });
   } catch (e) {
     console.error("[calibration] fatal:", e);

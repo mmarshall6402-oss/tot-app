@@ -664,6 +664,58 @@ export default function AdminDash() {
       {tab === "cal" && (
         <>
           {(() => {
+            const daily = [...(stats?.daily || [])].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 14);
+            const volume = stats?.dailyVolume || {};
+            if (!daily.length) return null;
+            return (
+              <>
+                <span style={S.lbl}>DAILY HEALTH</span>
+                <div style={{ fontSize: 11, color: "#444", marginBottom: 10, lineHeight: 1.6 }}>
+                  Win rate and bet volume by day — the fast &quot;is this thing working&quot; check.
+                </div>
+                <div style={{ ...S.card, padding: 0, overflow: "hidden" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                    <thead>
+                      <tr style={{ color: "#444", borderBottom: "1px solid #1a1a1a" }}>
+                        {["Date", "Bets", "Passed", "W-L", "Win%"].map((h, i) => (
+                          <th key={h} style={{ textAlign: i === 0 ? "left" : "right", padding: "8px 12px", fontWeight: 600 }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {daily.map(d => {
+                        const w = d.wins || 0, l = d.losses || 0;
+                        const settled = w + l;
+                        const pct = settled > 0 ? Math.round((w / settled) * 1000) / 10 : null;
+                        const pctColor = pct == null ? "#333" : pct >= 55 ? "#00FF87" : pct >= 50 ? "#FFD600" : "#FF4D4D";
+                        const vol = volume[d.date];
+                        const label = new Date(`${d.date}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                        return (
+                          <tr key={d.date} style={{ borderBottom: "1px solid #0d0d0d" }}>
+                            <td style={{ padding: "7px 12px", color: "#ccc" }}>{label}</td>
+                            <td style={{ textAlign: "right", padding: "7px 12px", ...S.mono, color: "#888" }}>{vol?.bets ?? "—"}</td>
+                            <td style={{ textAlign: "right", padding: "7px 12px", ...S.mono, color: "#555" }}>{vol?.passed ?? "—"}</td>
+                            <td style={{ textAlign: "right", padding: "7px 12px", ...S.mono, color: "#888" }}>{settled > 0 ? `${w}-${l}` : "—"}</td>
+                            <td style={{ textAlign: "right", padding: "7px 12px", ...S.mono, color: pctColor, fontWeight: 700 }}>{pct != null ? `${pct}%` : "—"}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                {calData?.recalibration?.fittedAt && (
+                  <div style={{ fontSize: 10, color: "#444", marginTop: 8, marginBottom: 14 }}>
+                    Model last recalibrated{" "}
+                    {new Date(calData.recalibration.fittedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "America/Chicago" })} CT
+                    {calData.recalibration.gameCount ? ` · fit on ${calData.recalibration.gameCount.toLocaleString()} games` : ""}
+                    {calData.recalibration.notes ? ` (${calData.recalibration.notes})` : ""}
+                  </div>
+                )}
+              </>
+            );
+          })()}
+
+          {(() => {
             const clean = calData?.verdictBuckets?.find(b => b.label === "CLEAN");
             const total = calData?.total ?? 0;
             const delta = calData?.avgDelta;

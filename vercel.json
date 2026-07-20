@@ -13,6 +13,10 @@
       "schedule": "0 8 * * *"
     },
     {
+      "path": "/api/cron/recalibrate",
+      "schedule": "30 8 * * *"
+    },
+    {
       "path": "/api/cron/email",
       "schedule": "30 15 * * *"
     },
@@ -50,6 +54,7 @@
     "app/api/cron/props/route.js": { "maxDuration": 300 },
     "app/api/props/route.js": { "maxDuration": 60 },
     "app/api/cron/resolve/route.js": { "maxDuration": 60 },
+    "app/api/cron/recalibrate/route.js": { "maxDuration": 60 },
     "app/api/cron/email/route.js": { "maxDuration": 60 },
     "app/api/cron/tweet/route.js": { "maxDuration": 60 },
     "app/api/cron/snapshot/route.js": { "maxDuration": 60 },
