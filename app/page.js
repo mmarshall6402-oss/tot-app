@@ -206,6 +206,8 @@ export default function ToT() {
   const [isBeta, setIsBeta] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
   const [modelRecord, setModelRecord] = useState(null);
+  const [todayMlbRecord, setTodayMlbRecord] = useState(null);
+  const [todayNflRecord, setTodayNflRecord] = useState(null);
   const [unitSize, setUnitSize] = useState(10);
   const [copied, setCopied] = useState(false);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
@@ -295,6 +297,22 @@ export default function ToT() {
     const t = setInterval(() => setCarouselIdx(i => i + 1), 3000);
     return () => clearInterval(t);
   }, []);
+
+  // Today's live W/L record, per sport — polls so the header banner updates
+  // as games actually finish, not just on page load.
+  useEffect(() => {
+    const loadTodayRecords = () => {
+      fetch("/api/daily-record").then(r => r.json()).then(d => {
+        if (d && !d.error) setTodayMlbRecord(d[todayStr] || { wins: 0, losses: 0, pushes: 0 });
+      }).catch(() => {});
+      fetch("/api/nfl/today-record").then(r => r.json()).then(d => {
+        if (d && !d.error) setTodayNflRecord(d);
+      }).catch(() => {});
+    };
+    loadTodayRecords();
+    const t = setInterval(loadTodayRecords, 60000);
+    return () => clearInterval(t);
+  }, [todayStr]);
 
   // Scroll date strip to Today on load
   useEffect(() => {
@@ -1186,6 +1204,32 @@ export default function ToT() {
         savedPicks={savedPicks}
         onTeamClick={openTeam}
       />
+
+      {(currentSport === "mlb" || currentSport === "nfl") && (() => {
+        const rec = currentSport === "mlb" ? todayMlbRecord : todayNflRecord;
+        if (!rec) return null;
+        const { wins = 0, losses = 0, pushes = 0, picked } = rec;
+        const decided = wins + losses + pushes;
+        // NFL's route reports "pending" directly; MLB's daily-record only reports
+        // how many games were picked, so back into pending from that instead.
+        const pending = rec.pending != null ? rec.pending : Math.max((picked || 0) - decided, 0);
+        if (decided === 0 && !pending) return null;
+        const color = wins > losses ? "#2FBF71" : losses > wins ? "#D9645C" : "#888";
+        return (
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            padding: "8px 20px", borderBottom: `1px solid ${tokens.color.border}`,
+            background: wins > losses ? "rgba(47,191,113,0.06)" : losses > wins ? "rgba(217,100,92,0.06)" : "transparent",
+          }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: "#888", letterSpacing: 0.5 }}>TODAY</span>
+            <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 14, fontWeight: 800, color }}>
+              {wins}W–{losses}L
+            </span>
+            {pushes > 0 && <span style={{ fontSize: 11, color: "#888" }}>{pushes} push</span>}
+            {pending > 0 && <span style={{ fontSize: 11, color: "#888" }}>· {pending} in progress</span>}
+          </div>
+        );
+      })()}
 
       {/* Carousel — cycles between free pick, model record, and promo */}
       {currentSport === "mlb" && <div style={S.carousel}>
