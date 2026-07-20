@@ -1,9 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
-
-const getSupabase = () => createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+import { buildFreshMLBPicks } from "../../../lib/mlb-picks.js";
 
 // Score a pick for "best available" selection — confidence is primary, edge secondary.
 // Works for CLEAN, BET, and PASS picks alike.
@@ -32,15 +27,13 @@ export async function GET() {
       timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit",
     }).formatToParts(new Date());
     const date = `${ctParts.find(p => p.type === "year").value}-${ctParts.find(p => p.type === "month").value}-${ctParts.find(p => p.type === "day").value}`;
-    const supabase = getSupabase();
 
-    const { data: cached } = await supabase
-      .from("picks_cache")
-      .select("picks")
-      .eq("date", date)
-      .single();
-
-    const picks = cached?.picks || [];
+    // Always compute live rather than trusting the picks_cache row directly —
+    // that row is only overwritten when someone loads the Picks tab, so it can
+    // sit stale for hours after odds move or the model/filter changes, causing
+    // the free pick to promote a side/verdict the live Picks list no longer
+    // agrees with for the same game.
+    const picks = await buildFreshMLBPicks(date).catch(() => []);
     const promotable = picks.filter(isPromotable);
 
     // Tier 1: CLEAN — full edge, passes every filter condition
