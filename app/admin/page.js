@@ -35,6 +35,19 @@ const S = {
   mono:  { fontFamily: "'JetBrains Mono',monospace" },
 };
 
+// Converts a raw CLV percentage-point value into a simple 0-10 scale (same
+// scale the app already uses for pick confidence) so individual numbers like
+// "+13.99pp" become an easy-to-scan "10/10" instead. 5 = neutral (0pp),
+// every 1pp of CLV is worth 0.5 scale points, capped at the ends.
+function clvScale(pp) {
+  if (pp == null) return null;
+  return Math.max(0, Math.min(10, Math.round((5 + pp / 2) * 10) / 10));
+}
+function fmtClv(pp) {
+  const s = clvScale(pp);
+  return s == null ? "—" : `${s}/10`;
+}
+
 function Chip({ label, value, color, sub }) {
   const c = color || "#fff";
   return (
@@ -535,13 +548,13 @@ export default function AdminDash() {
         <>
           <span style={S.lbl}>CLOSING LINE VALUE (CLV)</span>
           <div style={{ fontSize: 11, color: "#444", marginBottom: 14, lineHeight: 1.6 }}>
-            CLV = closing implied prob − opening implied prob for the picked side (in pp).
-            Positive = beat the closing line. Healthy models average ≥ +1pp over time.
+            CLV = did the line move in your favor after you picked it? Shown on a 0–10 scale —
+            5 is neutral, higher is better, lower is worse. Healthy models average above 5.
           </div>
 
           <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
             <Chip label="AVG CLV"
-              value={modelRec?.avgClv != null ? `${modelRec.avgClv > 0 ? "+" : ""}${modelRec.avgClv}pp` : "—"}
+              value={fmtClv(modelRec?.avgClv)}
               color={modelRec?.avgClv > 0 ? "#00FF87" : modelRec?.avgClv < 0 ? "#FF4D4D" : "#fff"} />
             <Chip label="% POSITIVE"
               value={modelRec?.pctPositiveClv != null ? `${modelRec.pctPositiveClv}%` : "—"}
@@ -559,7 +572,7 @@ export default function AdminDash() {
               <div style={{ ...S.card, marginBottom: 14 }}>
                 {redFlag && (
                   <div style={{ fontSize: 11, color: "#FF4D4D", marginBottom: 10, padding: "7px 10px", background: "rgba(255,77,77,0.05)", borderRadius: 6, border: "1px solid rgba(255,77,77,0.15)", lineHeight: 1.6 }}>
-                    🚨 Red flag: 6%+ bucket has the worst CLV ({b6.avgClv > 0 ? "+" : ""}{b6.avgClv}pp).
+                    🚨 Red flag: 6%+ bucket has the worst CLV ({fmtClv(b6.avgClv)}).
                     Large-edge picks are likely model over-amplification, not genuine inefficiency.
                   </div>
                 )}
@@ -588,7 +601,7 @@ export default function AdminDash() {
                               {b.pct != null ? `${b.pct}%` : "—"}
                             </td>
                             <td style={{ textAlign: "right", ...S.mono, color: clvColor, fontWeight: 700 }}>
-                              {b.avgClv != null ? `${b.avgClv > 0 ? "+" : ""}${b.avgClv}pp` : "—"}
+                              {fmtClv(b.avgClv)}
                             </td>
                             <td style={{ textAlign: "right", color: "#555" }}>{b.clvSamples || "—"}</td>
                           </tr>
@@ -634,7 +647,7 @@ export default function AdminDash() {
                             {p.edge != null ? `+${parseFloat(p.edge).toFixed(1)}%` : "—"}
                           </td>
                           <td style={{ textAlign: "right", color: clvColor, ...S.mono, fontWeight: 700 }}>
-                            {`${clv > 0 ? "+" : ""}${clv.toFixed(1)}pp`}
+                            {fmtClv(clv)}
                           </td>
                         </tr>
                       );
@@ -745,7 +758,7 @@ export default function AdminDash() {
                         <td style={{ textAlign: "right", ...S.mono, color: "#555" }}>{b.predicted != null ? `${b.predicted}%` : "—"}</td>
                         <td style={{ textAlign: "right", ...S.mono, color: b.actual != null ? actColor : "#333", fontWeight: 700 }}>{b.actual != null ? `${b.actual}%` : "—"}</td>
                         <td style={{ textAlign: "right", ...S.mono, color: deltaColor, fontWeight: 700 }}>{delta != null ? `${delta > 0 ? "+" : ""}${delta}pp` : "—"}</td>
-                        <td style={{ textAlign: "right", ...S.mono, color: b.avgClv != null ? clvColor : "#333" }}>{b.avgClv != null ? `${b.avgClv > 0 ? "+" : ""}${b.avgClv}pp` : "—"}</td>
+                        <td style={{ textAlign: "right", ...S.mono, color: b.avgClv != null ? clvColor : "#333" }}>{fmtClv(b.avgClv)}</td>
                         <td style={{ textAlign: "right", color: thinSample ? "#333" : "#555" }}>{b.n}</td>
                       </tr>
                     );
@@ -782,7 +795,7 @@ export default function AdminDash() {
                         <td style={{ padding: "7px 0", color: "#ccc" }}>{b.label}</td>
                         <td style={{ textAlign: "right", ...S.mono, color: "#888" }}>{b.n > 0 ? `${b.wins}-${b.n - b.wins}` : "—"}</td>
                         <td style={{ textAlign: "right", ...S.mono, color: wPctColor, fontWeight: 700 }}>{b.actual != null ? `${b.actual}%` : "—"}</td>
-                        <td style={{ textAlign: "right", ...S.mono, color: b.avgClv != null ? clvColor : "#333" }}>{b.avgClv != null ? `${b.avgClv > 0 ? "+" : ""}${b.avgClv}pp` : "—"}</td>
+                        <td style={{ textAlign: "right", ...S.mono, color: b.avgClv != null ? clvColor : "#333" }}>{fmtClv(b.avgClv)}</td>
                         <td style={{ textAlign: "right", color: "#555" }}>{b.n || "—"}</td>
                       </tr>
                     );
@@ -802,7 +815,7 @@ export default function AdminDash() {
                 </div>
                 <div style={{ fontSize: 10, color: "#444", marginTop: 3 }}>{b.n} bets · {b.wins}W</div>
                 {b.avgClv != null && (
-                  <div style={{ fontSize: 10, color: b.avgClv > 0 ? "#00FF87" : "#FF4D4D", marginTop: 2 }}>CLV {b.avgClv > 0 ? "+" : ""}{b.avgClv}pp</div>
+                  <div style={{ fontSize: 10, color: b.avgClv > 0 ? "#00FF87" : "#FF4D4D", marginTop: 2 }}>CLV {fmtClv(b.avgClv)}</div>
                 )}
               </div>
             ))}
