@@ -9,6 +9,7 @@ import TeamModal, { TeamMatchupLink } from "../components/TeamModal.js";
 import PlayerModal from "../components/PlayerModal.js";
 import PropCard from "../components/PropCard.js";
 import DecisionCard from "../components/DecisionCard.js";
+import SkipSummary from "../components/SkipSummary.js";
 import { impliedWinPct, oddsMovement } from "../lib/odds-display.js";
 import { translateReasons } from "../lib/reason-labels.js";
 import { shouldBetNow } from "../lib/fair-odds.js";
@@ -279,7 +280,7 @@ export default function ToT() {
     if (!user) return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("checkout") !== "success") return;
-    window.history.replaceState({}, "", "/app");
+    window.history.replaceState({}, "", "/");
     setActivatingPro(true);
     let attempts = 0;
     const poll = setInterval(async () => {
@@ -2894,6 +2895,11 @@ export default function ToT() {
         const nflTop = nflBets.filter(p => !(heroSport === "nfl" && p.id === heroPick?.id)).map(p => ({ p, sport: "nfl" }));
         const top3 = [...mlbTop, ...nflTop].sort((a, b) => (b.p.edge || 0) - (a.p.edge || 0)).slice(0, 3);
 
+        const isSkip = (p) => !p.isBet && (p.filter?.verdict === "PASS" || p.filter?.verdict === "TRAP");
+        const mlbSkipped = (picks || []).filter(p => isSkip(p) && !(heroSport === "mlb" && p.id === heroPick?.id)).map(p => ({ p, sport: "mlb" }));
+        const nflSkipped = (homeNflPicks || []).filter(p => isSkip(p) && !(heroSport === "nfl" && p.id === heroPick?.id)).map(p => ({ p, sport: "nfl" }));
+        const skipped = [...mlbSkipped, ...nflSkipped];
+
         return (
         <div style={{ padding: "16px 20px 84px", display: "flex", flexDirection: "column", gap: 20 }}>
           {heroPick ? (
@@ -2923,6 +2929,8 @@ export default function ToT() {
               <button style={{ ...S.saveBtn, background: "#2FBF71", color: "#000", borderColor: "#2FBF71" }} onClick={() => setUpgradeModal(true)}>Upgrade to Pro</button>
             </div>
           )}
+
+          {isPro && <SkipSummary picks={skipped} />}
         </div>
         );
       })()}
