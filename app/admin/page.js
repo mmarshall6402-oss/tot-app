@@ -193,14 +193,28 @@ export default function AdminDash() {
   const atPct  = stats?.allTime?.winPct ?? null;
   const atTotal = stats?.allTime?.settled ?? 0;
 
+  // "All games" = every analyzed pick including PASS/TRAP, shown alongside
+  // (never instead of) the bets-only record above — answers "how would the
+  // model have done betting everything" vs. "how did it actually do."
+  const ataWins = stats?.allTimeAll?.wins ?? 0;
+  const ataLoss = stats?.allTimeAll?.losses ?? 0;
+  const ataPct  = stats?.allTimeAll?.winPct ?? null;
+  const ataTotal = stats?.allTimeAll?.settled ?? 0;
+
   const cutoff30 = etDate(-30);
+  const recent30All = allTimePicks.filter(p => p.date >= cutoff30);
   // is_bet filter matters here: without it, PASS/TRAP games' hypothetical
   // outcomes count toward the record even though nothing was ever bet on them.
-  const recent30 = allTimePicks.filter(p => p.date >= cutoff30 && p.is_bet);
+  const recent30 = recent30All.filter(p => p.is_bet);
   const r30s   = recent30.filter(p => ["win","loss"].includes(p.result));
   const r30W   = r30s.filter(p => p.result === "win").length;
   const r30L   = r30s.filter(p => p.result === "loss").length;
   const r30Pct = r30s.length ? ((r30W / r30s.length) * 100).toFixed(1) : null;
+
+  const r30sAll = recent30All.filter(p => ["win","loss"].includes(p.result));
+  const r30AllW = r30sAll.filter(p => p.result === "win").length;
+  const r30AllL = r30sAll.filter(p => p.result === "loss").length;
+  const r30AllPct = r30sAll.length ? ((r30AllW / r30sAll.length) * 100).toFixed(1) : null;
 
   const bets = picks.filter(p => p.isBet).sort((a,b) => {
     const vr = { CLEAN:3, BET:2 };
@@ -452,7 +466,8 @@ export default function AdminDash() {
       {/* ── OVERVIEW ── */}
       {tab === "overview" && (
         <>
-          <span style={S.lbl}>ALL-TIME RECORD</span>
+          <span style={S.lbl}>ALL-TIME RECORD — BETS ONLY</span>
+          <div style={{ fontSize: 10, color: "#333", marginBottom: 6 }}>CLEAN + BET picks — what was actually staked.</div>
           <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
             <Chip label="WINS"    value={atWins}  color="#00FF87" />
             <Chip label="LOSSES"  value={atLoss}  color="#FF4D4D" />
@@ -460,12 +475,28 @@ export default function AdminDash() {
               color={parseFloat(atPct) >= 55 ? "#00FF87" : parseFloat(atPct) >= 50 ? "#FFD600" : atPct ? "#FF4D4D" : "#fff"} />
           </div>
 
-          <span style={S.lbl}>LAST 30 DAYS</span>
+          <span style={S.lbl}>ALL-TIME RECORD — ALL GAMES</span>
+          <div style={{ fontSize: 10, color: "#333", marginBottom: 6 }}>Every analyzed game including PASS/TRAP — raw model accuracy, not a betting record.</div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+            <Chip label="WINS"    value={ataWins}  color="#00FF87" />
+            <Chip label="LOSSES"  value={ataLoss}  color="#FF4D4D" />
+            <Chip label="WIN RATE" value={ataPct ? `${ataPct}%` : "—"} sub={`${ataTotal} settled`}
+              color={parseFloat(ataPct) >= 55 ? "#00FF87" : parseFloat(ataPct) >= 50 ? "#FFD600" : ataPct ? "#FF4D4D" : "#fff"} />
+          </div>
+
+          <span style={S.lbl}>LAST 30 DAYS — BETS ONLY</span>
           <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
             <Chip label="RECORD" value={r30s.length ? `${r30W}-${r30L}` : "—"} />
             <Chip label="WIN %" value={r30Pct ? `${r30Pct}%` : "—"}
               color={parseFloat(r30Pct) >= 55 ? "#00FF87" : parseFloat(r30Pct) >= 50 ? "#FFD600" : r30Pct ? "#FF4D4D" : "#fff"} />
             <Chip label="PENDING" value={pending.length} sub="all dates" />
+          </div>
+
+          <span style={S.lbl}>LAST 30 DAYS — ALL GAMES</span>
+          <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+            <Chip label="RECORD" value={r30sAll.length ? `${r30AllW}-${r30AllL}` : "—"} />
+            <Chip label="WIN %" value={r30AllPct ? `${r30AllPct}%` : "—"}
+              color={parseFloat(r30AllPct) >= 55 ? "#00FF87" : parseFloat(r30AllPct) >= 50 ? "#FFD600" : r30AllPct ? "#FF4D4D" : "#fff"} />
           </div>
 
           <span style={S.lbl}>TODAY — {today}</span>
@@ -799,12 +830,13 @@ export default function AdminDash() {
                 <span style={S.lbl}>DAILY HEALTH</span>
                 <div style={{ fontSize: 11, color: "#444", marginBottom: 10, lineHeight: 1.6 }}>
                   Win rate and bet volume by day — the fast &quot;is this thing working&quot; check.
+                  Bets = CLEAN+BET only; All = every analyzed game including PASS/TRAP.
                 </div>
                 <div style={{ ...S.card, padding: 0, overflow: "hidden" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
                     <thead>
                       <tr style={{ color: "#444", borderBottom: "1px solid #1a1a1a" }}>
-                        {["Date", "Bets", "Passed", "W-L", "Win%"].map((h, i) => (
+                        {["Date", "Bets", "Passed", "W-L (bets)", "Win% (bets)", "W-L (all)", "Win% (all)"].map((h, i) => (
                           <th key={h} style={{ textAlign: i === 0 ? "left" : "right", padding: "8px 12px", fontWeight: 600 }}>{h}</th>
                         ))}
                       </tr>
@@ -815,6 +847,10 @@ export default function AdminDash() {
                         const settled = w + l;
                         const pct = settled > 0 ? Math.round((w / settled) * 1000) / 10 : null;
                         const pctColor = pct == null ? "#333" : pct >= 55 ? "#00FF87" : pct >= 50 ? "#FFD600" : "#FF4D4D";
+                        const aw = d.allWins || 0, al = d.allLosses || 0;
+                        const allSettled = aw + al;
+                        const allPct = allSettled > 0 ? Math.round((aw / allSettled) * 1000) / 10 : null;
+                        const allPctColor = allPct == null ? "#333" : allPct >= 55 ? "#00FF87" : allPct >= 50 ? "#FFD600" : "#FF4D4D";
                         const vol = volume[d.date];
                         const label = new Date(`${d.date}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
                         return (
@@ -824,6 +860,8 @@ export default function AdminDash() {
                             <td style={{ textAlign: "right", padding: "7px 12px", ...S.mono, color: "#555" }}>{vol?.passed ?? "—"}</td>
                             <td style={{ textAlign: "right", padding: "7px 12px", ...S.mono, color: "#888" }}>{settled > 0 ? `${w}-${l}` : "—"}</td>
                             <td style={{ textAlign: "right", padding: "7px 12px", ...S.mono, color: pctColor, fontWeight: 700 }}>{pct != null ? `${pct}%` : "—"}</td>
+                            <td style={{ textAlign: "right", padding: "7px 12px", ...S.mono, color: "#666" }}>{allSettled > 0 ? `${aw}-${al}` : "—"}</td>
+                            <td style={{ textAlign: "right", padding: "7px 12px", ...S.mono, color: allPctColor }}>{allPct != null ? `${allPct}%` : "—"}</td>
                           </tr>
                         );
                       })}

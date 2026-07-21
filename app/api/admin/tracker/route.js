@@ -45,10 +45,11 @@ export async function GET(request) {
     const today = `${ctParts.find(x=>x.type==="year").value}-${ctParts.find(x=>x.type==="month").value}-${ctParts.find(x=>x.type==="day").value}`;
 
     const sb = getSupabase();
-    const [tierRes, recentRes, allTimeRes, cacheRes, historicalCacheRes, emailRes, subRes] = await Promise.all([
+    const [tierRes, recentRes, allTimeRes, allTimeAllRes, cacheRes, historicalCacheRes, emailRes, subRes] = await Promise.all([
       sb.from("model_tier_stats").select("*"),
       sb.from("model_picks").select("*").gte("date", sinceStr).order("date", { ascending: false }).order("edge", { ascending: false }).limit(5000),
       sb.from("model_picks").select("result").eq("is_bet", true),
+      sb.from("model_picks").select("result"),
       sb.from("picks_cache").select("picks").eq("date", today).single(),
       sb.from("picks_cache").select("date, picks").gte("date", sinceStr).neq("date", "__odds__"),
       sb.from("email_list").select("id", { count: "exact", head: true }),
@@ -78,30 +79,43 @@ export async function GET(request) {
     // resolve cron when dayWins+dayLosses > 0 for that specific run, so any
     // day where resolve failed/didn't run, or every bet pushed, silently has
     // no row and vanishes from the admin view. Computing it here from the
-    // actual per-pick results can't have that gap: every settled is_bet pick
-    // in the fetched window counts, regardless of whether the aggregate
-    // cache ever got written.
+    // actual per-pick results can't have that gap: every settled pick in the
+    // fetched window counts, regardless of whether the aggregate cache ever
+    // got written. Tracks bets (is_bet=true) and all analyzed games
+    // side by side — both always shown, never one substituted for the other.
     const dailyMap = {};
     for (const p of picks) {
-      if (!p.is_bet || !["win", "loss"].includes(p.result)) continue;
-      if (!dailyMap[p.date]) dailyMap[p.date] = { date: p.date, wins: 0, losses: 0 };
-      if (p.result === "win") dailyMap[p.date].wins++;
-      else dailyMap[p.date].losses++;
+      if (!["win", "loss"].includes(p.result)) continue;
+      if (!dailyMap[p.date]) dailyMap[p.date] = { date: p.date, wins: 0, losses: 0, allWins: 0, allLosses: 0 };
+      if (p.result === "win") dailyMap[p.date].allWins++;
+      else dailyMap[p.date].allLosses++;
+      if (p.is_bet) {
+        if (p.result === "win") dailyMap[p.date].wins++;
+        else dailyMap[p.date].losses++;
+      }
     }
     const daily = Object.values(dailyMap).sort((a, b) => b.date.localeCompare(a.date));
 
-    // All-time record — is_bet=true only (query above). Without that filter this
-    // was counting PASS/TRAP games' hypothetical outcomes as if they'd been bet,
-    // which pulls the headline win% toward 50% since those are exactly the
-    // coin-flip games the model declined to bet on.
+    // All-time record, bets only (is_bet=true) — what was actually staked on.
     const allTime   = allTimeRes.data || [];
     const atSettled = allTime.filter(p => ["win","loss"].includes(p.result));
     const atWins    = atSettled.filter(p => p.result === "win").length;
     const atLosses  = atSettled.filter(p => p.result === "loss").length;
     const atWinPct  = atSettled.length > 0 ? (atWins/atSettled.length*100).toFixed(1) : null;
 
+    // All-time record, every analyzed game including PASS/TRAP — "how would
+    // the model have done if it bet everything." Always shown alongside the
+    // bets-only record above, never in place of it — the two answer
+    // different questions (actual performance vs. raw model accuracy).
+    const allTimeAll  = allTimeAllRes.data || [];
+    const ataSettled  = allTimeAll.filter(p => ["win","loss"].includes(p.result));
+    const ataWins     = ataSettled.filter(p => p.result === "win").length;
+    const ataLosses   = ataSettled.filter(p => p.result === "loss").length;
+    const ataWinPct   = ataSettled.length > 0 ? (ataWins/ataSettled.length*100).toFixed(1) : null;
+
     return Response.json({
       allTime:    { wins: atWins, losses: atLosses, winPct: atWinPct, settled: atSettled.length },
+      allTimeAll: { wins: ataWins, losses: ataLosses, winPct: ataWinPct, settled: ataSettled.length },
       overall:    { picks: picks.length, wins, losses, pending: picks.length - settled.length, winPct, avgEdge, roi },
       daily,
       dailyVolume,
