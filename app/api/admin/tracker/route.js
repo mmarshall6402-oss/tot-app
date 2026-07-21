@@ -45,11 +45,10 @@ export async function GET(request) {
     const today = `${ctParts.find(x=>x.type==="year").value}-${ctParts.find(x=>x.type==="month").value}-${ctParts.find(x=>x.type==="day").value}`;
 
     const sb = getSupabase();
-    const [dailyRes, tierRes, recentRes, allTimeRes, cacheRes, historicalCacheRes, emailRes, subRes] = await Promise.all([
-      sb.from("model_daily_stats").select("*").gte("date", sinceStr),
+    const [tierRes, recentRes, allTimeRes, cacheRes, historicalCacheRes, emailRes, subRes] = await Promise.all([
       sb.from("model_tier_stats").select("*"),
       sb.from("model_picks").select("*").gte("date", sinceStr).order("date", { ascending: false }).order("edge", { ascending: false }).limit(5000),
-      sb.from("model_picks").select("result"),
+      sb.from("model_picks").select("result").eq("is_bet", true),
       sb.from("picks_cache").select("picks").eq("date", today).single(),
       sb.from("picks_cache").select("date, picks").gte("date", sinceStr).neq("date", "__odds__"),
       sb.from("email_list").select("id", { count: "exact", head: true }),
@@ -57,7 +56,7 @@ export async function GET(request) {
     ]);
 
     // Bet vs. pass volume per day — how many games the model actually took a
-    // position on vs. sat out, alongside model_daily_stats' win/loss record.
+    // position on vs. sat out, alongside the win/loss record below.
     const dailyVolume = {};
     for (const row of historicalCacheRes.data || []) {
       if (!Array.isArray(row.picks)) continue;
@@ -74,7 +73,27 @@ export async function GET(request) {
     const avgEdge = picks.length > 0 ? (picks.reduce((s,p) => s + (p.edge||0), 0) / picks.length).toFixed(2) : null;
     const roi     = settled.length > 0 ? ((wins * 90.9 - losses * 100) / settled.length).toFixed(1) : null;
 
-    // All-time record (all picks, no is_bet filter)
+    // Daily win/loss record, derived straight from model_picks rather than
+    // the model_daily_stats cache — that table is only upserted by the
+    // resolve cron when dayWins+dayLosses > 0 for that specific run, so any
+    // day where resolve failed/didn't run, or every bet pushed, silently has
+    // no row and vanishes from the admin view. Computing it here from the
+    // actual per-pick results can't have that gap: every settled is_bet pick
+    // in the fetched window counts, regardless of whether the aggregate
+    // cache ever got written.
+    const dailyMap = {};
+    for (const p of picks) {
+      if (!p.is_bet || !["win", "loss"].includes(p.result)) continue;
+      if (!dailyMap[p.date]) dailyMap[p.date] = { date: p.date, wins: 0, losses: 0 };
+      if (p.result === "win") dailyMap[p.date].wins++;
+      else dailyMap[p.date].losses++;
+    }
+    const daily = Object.values(dailyMap).sort((a, b) => b.date.localeCompare(a.date));
+
+    // All-time record — is_bet=true only (query above). Without that filter this
+    // was counting PASS/TRAP games' hypothetical outcomes as if they'd been bet,
+    // which pulls the headline win% toward 50% since those are exactly the
+    // coin-flip games the model declined to bet on.
     const allTime   = allTimeRes.data || [];
     const atSettled = allTime.filter(p => ["win","loss"].includes(p.result));
     const atWins    = atSettled.filter(p => p.result === "win").length;
@@ -84,7 +103,7 @@ export async function GET(request) {
     return Response.json({
       allTime:    { wins: atWins, losses: atLosses, winPct: atWinPct, settled: atSettled.length },
       overall:    { picks: picks.length, wins, losses, pending: picks.length - settled.length, winPct, avgEdge, roi },
-      daily:      dailyRes.data || [],
+      daily,
       dailyVolume,
       byTier:     tierRes.data  || [],
       recent:     picks,

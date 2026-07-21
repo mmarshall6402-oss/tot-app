@@ -194,7 +194,9 @@ export default function AdminDash() {
   const atTotal = stats?.allTime?.settled ?? 0;
 
   const cutoff30 = etDate(-30);
-  const recent30 = allTimePicks.filter(p => p.date >= cutoff30);
+  // is_bet filter matters here: without it, PASS/TRAP games' hypothetical
+  // outcomes count toward the record even though nothing was ever bet on them.
+  const recent30 = allTimePicks.filter(p => p.date >= cutoff30 && p.is_bet);
   const r30s   = recent30.filter(p => ["win","loss"].includes(p.result));
   const r30W   = r30s.filter(p => p.result === "win").length;
   const r30L   = r30s.filter(p => p.result === "loss").length;
@@ -738,7 +740,10 @@ export default function AdminDash() {
 
           <span style={S.lbl}>PER-PICK CLV LOG</span>
           {(() => {
-            const clvPicks = allTimePicks.filter(p => p.features?.clv != null).sort((a, b) => b.date.localeCompare(a.date));
+            // is_bet filter: the snapshot cron records CLV for every pending
+            // pick, not just actual bets, so PASS/TRAP games can carry a clv
+            // value too — exclude them from a log labeled per-pick CLV.
+            const clvPicks = allTimePicks.filter(p => p.is_bet && p.features?.clv != null).sort((a, b) => b.date.localeCompare(a.date));
             if (!clvPicks.length) return (
               <div style={{ color: "#555", fontSize: 12, padding: "12px 0" }}>
                 No CLV data yet — snapshot cron captures closing odds at 6 PM CT daily
