@@ -1818,7 +1818,8 @@ export default function ToT() {
                           {(() => {
                             const reasons = translateReasons(f.confidenceReasons, "mlb").slice(0, 5);
                             const pickOdds = pick.pick === pick.homeTeam ? pick.homeOdds : pick.awayOdds;
-                            const betNow = pick.modelProb != null ? shouldBetNow(pickOdds, pick.modelProb / 100) : null;
+                            const isBettable = f.verdict === "CLEAN" || f.verdict === "BET";
+                            const betNow = isBettable && pick.modelProb != null ? shouldBetNow(pickOdds, pick.modelProb / 100) : null;
                             return (
                               <>
                                 {reasons.length > 0 && (
