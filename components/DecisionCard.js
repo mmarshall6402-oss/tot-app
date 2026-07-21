@@ -53,7 +53,8 @@ export default function DecisionCard({ pick, sport = "mlb", S, savePick, saving,
   const pickOdds = pick.pick === pick.homeTeam ? pick.homeOdds : pick.awayOdds;
   const market = impliedWinPct(pick.homeOdds, pick.awayOdds);
   const marketPct = market ? (pick.pick === pick.homeTeam ? market.home : market.away) : null;
-  const betNow = pick.modelProb != null ? shouldBetNow(pickOdds, pick.modelProb / 100) : null;
+  const isBettable = pick.filter?.verdict === "CLEAN" || pick.filter?.verdict === "BET";
+  const betNow = isBettable && pick.modelProb != null ? shouldBetNow(pickOdds, pick.modelProb / 100) : null;
 
   if (!full) {
     return (

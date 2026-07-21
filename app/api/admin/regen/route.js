@@ -27,6 +27,14 @@ export async function POST(request) {
     return Response.json(data, { status: res.status });
   }
 
+  if (body.type === "props") {
+    const res = await fetch(`${BASE_URL}/api/cron/props`, {
+      headers: { Authorization: `Bearer ${CRON_SECRET}` },
+    });
+    const data = await res.json().catch(() => ({}));
+    return Response.json(data, { status: res.status });
+  }
+
   if (body.sport === "nfl") {
     const nflParams = new URLSearchParams();
     if (body.date) nflParams.set("date", body.date);
