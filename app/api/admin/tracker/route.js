@@ -136,6 +136,28 @@ export async function GET(request) {
     return Response.json({ pending: data || [] });
   }
 
+  // Every game ever analyzed, bets and passes both, no date window — the
+  // "stats" action above deliberately scopes to a rolling window and folds
+  // everything into the main dashboard payload; a full history browser
+  // needs its own paginated query instead of blowing that payload up.
+  if (action === "games") {
+    const page = Math.max(0, parseInt(searchParams.get("page") || "0"));
+    const pageSize = 100;
+    const sb = getSupabase();
+
+    const [{ data, error }, { count }] = await Promise.all([
+      sb.from("model_picks")
+        .select("date, home_team, away_team, pick, odds, edge, tier, is_bet, result, features")
+        .order("date", { ascending: false })
+        .order("id", { ascending: false })
+        .range(page * pageSize, page * pageSize + pageSize - 1),
+      sb.from("model_picks").select("id", { count: "exact", head: true }),
+    ]);
+
+    if (error) return Response.json({ error: error.message }, { status: 500 });
+    return Response.json({ games: data || [], total: count ?? 0, page, pageSize });
+  }
+
   return Response.json({ error: "Unknown action" }, { status: 400 });
 }
 

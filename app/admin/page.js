@@ -72,8 +72,8 @@ function Btn({ onClick, disabled, state, labels, style = {} }) {
   );
 }
 
-const NAVS = ["overview", "picks", "clv", "cal", "weights", "codes", "email", "tweet", "system"];
-const NAV_LABELS = { overview: "📊 Overview", picks: "⚾ Picks", clv: "📈 CLV", cal: "📐 Calibration", weights: "🎛️ Weights", codes: "🔑 Codes", email: "✉️ Email", tweet: "𝕏 Tweet", system: "⚙️ System" };
+const NAVS = ["overview", "picks", "games", "clv", "cal", "weights", "codes", "email", "tweet", "system"];
+const NAV_LABELS = { overview: "📊 Overview", picks: "⚾ Picks", games: "🗂️ Games", clv: "📈 CLV", cal: "📐 Calibration", weights: "🎛️ Weights", codes: "🔑 Codes", email: "✉️ Email", tweet: "𝕏 Tweet", system: "⚙️ System" };
 
 export default function AdminDash() {
   const [auth, setAuth]   = useState(false);
@@ -96,6 +96,10 @@ export default function AdminDash() {
   const [wHistory, setWHistory] = useState([]);
   const [wAutoEnabled, setWAutoEnabled] = useState(true);
   const [wLiveN, setWLiveN] = useState(0);
+  const [gamesList, setGamesList] = useState([]);
+  const [gamesPage, setGamesPage] = useState(0);
+  const [gamesTotal, setGamesTotal] = useState(0);
+  const [gamesLoading, setGamesLoading] = useState(false);
 
   // form state
   const [codeLabel, setCL]      = useState("");
@@ -130,6 +134,32 @@ export default function AdminDash() {
       }
     });
   }, []);
+
+  // Lazy-loaded on first visit to the Games tab — not part of load() since
+  // it's a separate paginated endpoint (see app/api/admin/tracker's "games"
+  // action) deliberately kept out of the main dashboard payload.
+  useEffect(() => {
+    if (tab === "games" && auth && gamesList.length === 0 && !gamesLoading) {
+      loadGames(token, 0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, auth]);
+
+  async function loadGames(tok, page) {
+    setGamesLoading(true);
+    try {
+      const r = await fetch(`/api/admin/tracker?action=games&page=${page}`, {
+        headers: { Authorization: `Bearer ${tok}` },
+      });
+      const d = await r.json();
+      setGamesList(d.games || []);
+      setGamesTotal(d.total ?? 0);
+      setGamesPage(page);
+    } catch {
+      setGamesList([]);
+    }
+    setGamesLoading(false);
+  }
 
   async function load(tok, autoRegen = false) {
     setBusy(true);
@@ -563,6 +593,59 @@ export default function AdminDash() {
               )}
             </div>
           ))}
+        </>
+      )}
+
+      {/* ── GAMES ── */}
+      {tab === "games" && (
+        <>
+          <span style={S.lbl}>EVERY GAME EVER ANALYZED</span>
+          <div style={{ fontSize: 11, color: "#444", marginBottom: 10, lineHeight: 1.6 }}>
+            {gamesTotal.toLocaleString()} games total — bets and passes both, no date window, no cap.
+            {gamesTotal > 0 ? ` Page ${gamesPage + 1} of ${Math.max(1, Math.ceil(gamesTotal / 100))}.` : ""}
+          </div>
+
+          <div style={{ ...S.card, padding: 0, overflow: "hidden", marginBottom: 10 }}>
+            {gamesLoading && <div style={{ padding: 16, color: "#555", fontSize: 12 }}>Loading…</div>}
+            {!gamesLoading && !gamesList.length && <div style={{ padding: 16, color: "#555", fontSize: 12 }}>No games found</div>}
+            {!gamesLoading && gamesList.length > 0 && (
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                <thead>
+                  <tr style={{ color: "#444", borderBottom: "1px solid #1a1a1a" }}>
+                    {["Date", "Matchup", "Pick", "Verdict", "Result", "Edge"].map((h, i) => (
+                      <th key={h} style={{ textAlign: i < 3 ? "left" : "right", padding: "8px 10px", fontWeight: 600 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {gamesList.map((g, i) => {
+                    const verdict = g.features?.verdict || (g.is_bet ? "BET" : "PASS");
+                    const verdictColor = verdict === "CLEAN" ? "#00FF87" : g.is_bet ? "#FFD600" : "#444";
+                    const resColor = g.result === "win" ? "#00FF87" : g.result === "loss" ? "#FF4D4D" : g.result === "push" ? "#FFD600" : "#555";
+                    return (
+                      <tr key={`${g.date}-${g.home_team}-${g.away_team}-${i}`} style={{ borderBottom: "1px solid #0d0d0d" }}>
+                        <td style={{ padding: "7px 10px", color: "#555" }}>{g.date}</td>
+                        <td style={{ padding: "7px 10px", color: "#ccc" }}>{shortTeam(g.away_team)} @ {shortTeam(g.home_team)}</td>
+                        <td style={{ padding: "7px 10px", color: "#888" }}>{shortTeam(g.pick)} {g.odds != null ? fmtOdds(g.odds) : ""}</td>
+                        <td style={{ padding: "7px 10px", ...S.mono, fontSize: 10, fontWeight: 700, color: verdictColor }}>{verdict}</td>
+                        <td style={{ textAlign: "right", padding: "7px 10px", ...S.mono, color: resColor }}>{g.result || "—"}</td>
+                        <td style={{ textAlign: "right", padding: "7px 10px", ...S.mono, color: "#888" }}>
+                          {g.edge != null ? `+${parseFloat(g.edge).toFixed(1)}%` : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => loadGames(token, gamesPage - 1)} disabled={gamesLoading || gamesPage === 0}
+              style={{ ...S.btn, flex: 1, opacity: gamesPage === 0 ? 0.4 : 1 }}>← Prev</button>
+            <button onClick={() => loadGames(token, gamesPage + 1)} disabled={gamesLoading || (gamesPage + 1) * 100 >= gamesTotal}
+              style={{ ...S.btn, flex: 1, opacity: (gamesPage + 1) * 100 >= gamesTotal ? 0.4 : 1 }}>Next →</button>
+          </div>
         </>
       )}
 
