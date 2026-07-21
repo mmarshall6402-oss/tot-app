@@ -48,7 +48,7 @@ export async function GET(request) {
     const [dailyRes, tierRes, recentRes, allTimeRes, cacheRes, historicalCacheRes, emailRes, subRes] = await Promise.all([
       sb.from("model_daily_stats").select("*").gte("date", sinceStr),
       sb.from("model_tier_stats").select("*"),
-      sb.from("model_picks").select("*").gte("date", sinceStr).order("date", { ascending: false }).order("edge", { ascending: false }).limit(500),
+      sb.from("model_picks").select("*").gte("date", sinceStr).order("date", { ascending: false }).order("edge", { ascending: false }).limit(5000),
       sb.from("model_picks").select("result"),
       sb.from("picks_cache").select("picks").eq("date", today).single(),
       sb.from("picks_cache").select("date, picks").gte("date", sinceStr).neq("date", "__odds__"),

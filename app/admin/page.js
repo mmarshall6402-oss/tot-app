@@ -136,7 +136,11 @@ export default function AdminDash() {
     const h = { Authorization: `Bearer ${tok}` };
 
     const [statsR, codesR, pendR, recR, calR, calAdminR, wAdminR] = await Promise.all([
-      fetch("/api/admin/tracker?action=stats&days=30", { headers: h }).then(r => r.json()).catch(() => null),
+      // 270 days ~= a full MLB season (Feb spring training through Oct/Nov)
+      // so the CLV/games log below isn't silently missing anything older
+      // than a month — the 30-day rolling stats further down re-filter
+      // this same fetched set client-side, so this doesn't affect those.
+      fetch("/api/admin/tracker?action=stats&days=270", { headers: h }).then(r => r.json()).catch(() => null),
       fetch("/api/admin/codes", { headers: h }).then(r => r.json()).catch(() => ({ codes: [] })),
       fetch("/api/admin/tracker?action=pending", { headers: h }).then(r => r.json()).catch(() => ({ pending: [] })),
       fetch("/api/model-record").then(r => r.json()).catch(() => null),
