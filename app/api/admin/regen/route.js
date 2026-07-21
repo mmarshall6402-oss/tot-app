@@ -4,17 +4,26 @@ const CRON_SECRET = process.env.CRON_SECRET;
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ||
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
 
+// Returns a reason string alongside the boolean — both Moneyline's and
+// Props' "Gen" buttons were coming back Unauthorized with zero way to tell
+// "not logged in" apart from "email isn't on the admin list" apart from
+// "the admin list env var isn't set on the server at all."
 async function checkAdmin(request) {
   const { user } = await requireAuth(request);
-  if (!user) return false;
-  const admins = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || process.env.NEXT_PUBLIC_ADMIN_EMAIL || "")
-    .split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
-  return admins.includes(user.email?.toLowerCase());
+  if (!user) return { ok: false, reason: "requireAuth found no valid session (missing/expired/unverifiable token)" };
+  const raw = process.env.NEXT_PUBLIC_ADMIN_EMAILS || process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
+  const admins = raw.split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
+  if (!admins.length) return { ok: false, reason: "NEXT_PUBLIC_ADMIN_EMAILS / NEXT_PUBLIC_ADMIN_EMAIL is not set on the server" };
+  if (!admins.includes(user.email?.toLowerCase())) {
+    return { ok: false, reason: `authenticated as ${user.email || "(no email on token)"}, which is not in the admin list` };
+  }
+  return { ok: true };
 }
 
 export async function POST(request) {
-  if (!await checkAdmin(request)) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const admin = await checkAdmin(request);
+  if (!admin.ok) {
+    return Response.json({ error: "Unauthorized", reason: admin.reason }, { status: 401 });
   }
 
   const body = await request.json().catch(() => ({}));

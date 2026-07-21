@@ -232,6 +232,7 @@ export default function ToT() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [upgradeModal, setUpgradeModal] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [genPicksResult, setGenPicksResult] = useState(null);
   const [generatingProps, setGeneratingProps] = useState(false);
   const [genPropsResult, setGenPropsResult] = useState(null);
   const [activatingPro, setActivatingPro] = useState(false);
@@ -708,9 +709,11 @@ export default function ToT() {
     setGenerating(true);
     try {
       const headers = await getAuthHeaders();
-      await fetch("/api/admin/regen", { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify({}) });
+      const res = await fetch("/api/admin/regen", { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify({}) });
+      const data = await res.json().catch(() => ({}));
+      setGenPicksResult(data);
       await fetchPicks(selectedDate, true);
-    } catch (e) { console.error("regen error", e); }
+    } catch (e) { setGenPicksResult({ error: e.message }); }
     setGenerating(false);
   };
 
@@ -1545,6 +1548,12 @@ export default function ToT() {
               <div style={{ fontSize: 12, color: "#555" }}>Full breakdowns · edge scores · parlay builder</div>
             </div>
           </div>
+        )}
+
+        {activeTab === "picks" && isAdmin && genPicksResult && (
+          <pre style={{ fontSize: 11, color: "#888", marginBottom: 12, fontFamily: "'JetBrains Mono',monospace", whiteSpace: "pre-wrap", background: "#0e0f13", border: "1px solid #242832", borderRadius: 6, padding: 8 }}>
+            {JSON.stringify(genPicksResult, null, 2)}
+          </pre>
         )}
 
         {activeTab === "picks" && isPro && (
