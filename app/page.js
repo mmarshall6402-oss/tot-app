@@ -231,6 +231,8 @@ export default function ToT() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [upgradeModal, setUpgradeModal] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [generatingProps, setGeneratingProps] = useState(false);
+  const [genPropsResult, setGenPropsResult] = useState(null);
   const [activatingPro, setActivatingPro] = useState(false);
   const [nflSubTab, setNflSubTab] = useState("picks");
 
@@ -709,6 +711,22 @@ export default function ToT() {
       await fetchPicks(selectedDate, true);
     } catch (e) { console.error("regen error", e); }
     setGenerating(false);
+  };
+
+  // Admin-only diagnostic: force-regenerates today+tomorrow props and
+  // surfaces the cron's raw result (including its "reason" string when a
+  // date comes up empty, e.g. "no theoddsapi games for date") so an empty
+  // Props tab can be told apart from an actual pipeline failure.
+  const generateProps = async () => {
+    setGeneratingProps(true);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch("/api/admin/regen", { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify({ type: "props" }) });
+      const data = await res.json();
+      setGenPropsResult(data);
+      await fetchProps(selectedDate);
+    } catch (e) { setGenPropsResult({ error: e.message }); }
+    setGeneratingProps(false);
   };
 
   // Which top-level sport pill should read as "active" — everything that isn't NFL
@@ -1929,6 +1947,22 @@ export default function ToT() {
             <span>{parlayLegs.size}-leg parlay ready</span>
             <span style={{ fontSize: 11, color: "#999" }}>Open builder →</span>
           </button>
+        )}
+
+        {activeTab === "props" && isAdmin && (
+          <div style={{ marginBottom: 12 }}>
+            <button
+              style={{ fontSize: 11, fontWeight: 700, background: "#181b22", border: "1px solid #333947", borderRadius: 6, padding: "6px 12px", color: "#999", cursor: "pointer" }}
+              onClick={generateProps}
+              disabled={generatingProps}
+              title="Force-generate props for today + tomorrow"
+            >{generatingProps ? "Generating…" : "Gen Props"}</button>
+            {genPropsResult && (
+              <pre style={{ fontSize: 11, color: "#888", marginTop: 6, fontFamily: "'JetBrains Mono',monospace", whiteSpace: "pre-wrap", background: "#0e0f13", border: "1px solid #242832", borderRadius: 6, padding: 8 }}>
+                {JSON.stringify(genPropsResult, null, 2)}
+              </pre>
+            )}
+          </div>
         )}
 
         {activeTab === "props" && (
