@@ -6,6 +6,8 @@ import { createClient } from "@supabase/supabase-js";
 import NFLSection from "../components/NFLSection.js";
 import ScheduleSection from "../components/ScheduleSection.js";
 import TeamModal, { TeamMatchupLink } from "../components/TeamModal.js";
+import PlayerModal from "../components/PlayerModal.js";
+import PropCard from "../components/PropCard.js";
 import DecisionCard from "../components/DecisionCard.js";
 import { impliedWinPct, oddsMovement } from "../lib/odds-display.js";
 import { translateReasons } from "../lib/reason-labels.js";
@@ -165,6 +167,8 @@ export default function ToT() {
   const [deleting, setDeleting] = useState(false);
   const [teamModal, setTeamModal] = useState(null); // { sport, team }
   const openTeam = (sport, team) => { if (team) setTeamModal({ sport, team }); };
+  const [playerModal, setPlayerModal] = useState(null); // { sport, id, name }
+  const openPlayer = (sport, id, name) => { if (id) setPlayerModal({ sport, id, name }); };
   const [authMode, setAuthMode] = useState("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -199,6 +203,9 @@ export default function ToT() {
   const dateScrollRef = useRef(null);
   const todayBtnRef = useRef(null);
   const [steals, setSteals] = useState(null);
+  const [trendingProps, setTrendingProps] = useState(null);
+  const [allProps, setAllProps] = useState(null);
+  const [propsFilter, setPropsFilter] = useState("");
   const [parlayLegs, setParlayLegs] = useState(new Map()); // id -> { game, teamPick }
   const [parlayStake, setParlayStake] = useState(10);
   const [picksDate, setPicksDate] = useState(null); // tracks which date picks were loaded for
@@ -356,6 +363,7 @@ export default function ToT() {
     if (activeTab === "picks" || activeTab === "home") fetchPicks(selectedDate);
     if (activeTab === "parlay" && picksDate !== selectedDate) fetchPicks(selectedDate);
     if (activeTab === "steals") fetchSteals(selectedDate);
+    if (activeTab === "props" || activeTab === "home") fetchProps(selectedDate);
     if (activeTab === "tracker") fetchSaved();
   }, [user, isPro, activeTab, selectedDate]);
 
@@ -482,6 +490,22 @@ export default function ToT() {
       if (date !== selectedDateRef.current) return; // stale — user navigated away
       setSteals(data.steals || []);
     } catch (e) { if (date === selectedDateRef.current) setSteals(prev => prev ?? []); }
+  };
+
+  const fetchProps = async (date) => {
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/props?date=${date}`, { headers });
+      const data = await res.json();
+      if (date !== selectedDateRef.current) return; // stale — user navigated away
+      setTrendingProps(data.picks || []);
+      setAllProps(data.allProps || []);
+    } catch (e) {
+      if (date === selectedDateRef.current) {
+        setTrendingProps(prev => prev ?? []);
+        setAllProps(prev => prev ?? []);
+      }
+    }
   };
 
   const fetchPicks = async (date, bust = false) => {
@@ -1203,6 +1227,8 @@ export default function ToT() {
         picks={picks}
         savedPicks={savedPicks}
         onTeamClick={openTeam}
+        onPlayerClick={openPlayer}
+        getAuthHeaders={getAuthHeaders}
       />
 
       {(currentSport === "mlb" || currentSport === "nfl") && (() => {
@@ -1287,7 +1313,7 @@ export default function ToT() {
         </div>
       </div>}
 
-      {(activeTab === "picks" || activeTab === "steals" || activeTab === "parlay") && (
+      {(activeTab === "picks" || activeTab === "steals" || activeTab === "parlay" || activeTab === "props") && (
         <div ref={dateScrollRef} style={S.dateScroll}>
           {weekDates.map(date => (
             <button
@@ -1310,7 +1336,8 @@ export default function ToT() {
       {navGroup(activeTab) === "games" && activeTab !== "nfl" && <div style={S.subNav}>
         <div style={{ display: "flex", gap: 6, overflowX: "auto" }}>
           {[
-            { id: "picks", label: "Picks" },
+            { id: "picks", label: "Moneyline" },
+            { id: "props", label: "Props" },
             { id: "steals", label: "Steals" },
             { id: "schedule", label: "Schedule" },
             { id: "chat", label: "Ask AI" },
@@ -1319,7 +1346,7 @@ export default function ToT() {
               key={id}
               style={{ ...tabButtonStyle({ active: activeTab === id }), flexShrink: 0 }}
               onClick={() => {
-                if (!isPro && ["steals"].includes(id)) { setUpgradeModal(true); return; }
+                if (!isPro && ["steals", "props"].includes(id)) { setUpgradeModal(true); return; }
                 setActiveTab(id);
               }}
             >
@@ -1901,6 +1928,79 @@ export default function ToT() {
             <span>{parlayLegs.size}-leg parlay ready</span>
             <span style={{ fontSize: 11, color: "#999" }}>Open builder →</span>
           </button>
+        )}
+
+        {activeTab === "props" && (
+          trendingProps === null || allProps === null ? (
+            <div style={S.center}>
+              <div style={S.spinner} />
+              <div style={{ color: "#777", fontSize: 13, marginTop: 12 }}>Scanning K&apos;s and HR&apos;s for edges…</div>
+            </div>
+          ) : trendingProps.length === 0 && allProps.length === 0 ? (
+            <div style={S.center}>
+              <div style={{ fontSize: 32 }}>📈</div>
+              <div style={{ color: "#fff", fontWeight: 700, marginTop: 8 }}>No props {fmtDateLabel(selectedDate)}</div>
+              <div style={{ color: "#777", fontSize: 13, marginTop: 4 }}>Check back closer to game time — lines and lineups are still posting</div>
+            </div>
+          ) : (() => {
+            // allProps is a superset that already includes the Star Players
+            // picks — exclude those so nobody appears twice.
+            const starKeys = new Set(trendingProps.map(p => `${p.marketType}-${p.playerId ?? p.player}`));
+            const rest = allProps.filter(p => !starKeys.has(`${p.marketType}-${p.playerId ?? p.player}`));
+            const q = propsFilter.trim().toLowerCase();
+            const filteredRest = q
+              ? rest.filter(p => (p.player || "").toLowerCase().includes(q) || (p.team || "").toLowerCase().includes(q))
+              : rest;
+            return (
+              <>
+                {trendingProps.length > 0 && (
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "#2FBF71", letterSpacing: 2, marginBottom: 4 }}>
+                      STAR PLAYERS — {trendingProps.length} TOP EDGE PICK{trendingProps.length !== 1 ? "S" : ""}
+                    </div>
+                    {trendingProps.map((pick, i) => (
+                      <div key={`star-${pick.marketType}-${pick.playerId ?? pick.player}-${i}`}
+                        onClick={() => openPlayer("mlb", pick.playerId, pick.player)}
+                        role="button" tabIndex={0}
+                        onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openPlayer("mlb", pick.playerId, pick.player); } }}
+                        style={{ cursor: pick.playerId ? "pointer" : "default" }}>
+                        <PropCard pick={pick} S={S} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div style={{ fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 2, marginBottom: 8 }}>
+                  ALL PROPS TODAY — {rest.length}
+                </div>
+                {rest.length > 3 && (
+                  <input
+                    type="text"
+                    value={propsFilter}
+                    onChange={e => setPropsFilter(e.target.value)}
+                    placeholder="Filter by player or team…"
+                    aria-label="Filter all props by player or team"
+                    style={{ ...S.input, marginBottom: 10 }}
+                  />
+                )}
+                {filteredRest.length === 0 ? (
+                  <div style={{ color: "#777", fontSize: 13, textAlign: "center", padding: 24 }}>
+                    {q ? `No props match "${propsFilter}"` : "No other props posted yet today."}
+                  </div>
+                ) : (
+                  filteredRest.map((pick, i) => (
+                    <div key={`all-${pick.marketType}-${pick.playerId ?? pick.player}-${i}`}
+                      onClick={() => openPlayer("mlb", pick.playerId, pick.player)}
+                      role="button" tabIndex={0}
+                      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openPlayer("mlb", pick.playerId, pick.player); } }}
+                      style={{ cursor: pick.playerId ? "pointer" : "default" }}>
+                      <PropCard pick={pick} S={S} />
+                    </div>
+                  ))
+                )}
+              </>
+            );
+          })()
         )}
 
         {activeTab === "steals" && (
@@ -2936,6 +3036,16 @@ export default function ToT() {
         S={S}
       />
 
+      <PlayerModal
+        open={!!playerModal}
+        sport={playerModal?.sport}
+        playerId={playerModal?.id}
+        playerName={playerModal?.name}
+        onClose={() => setPlayerModal(null)}
+        getAuthHeaders={getAuthHeaders}
+        S={S}
+      />
+
       <div style={S.legal}>
         For entertainment only · Not gambling advice · Must be 21+ in a legal jurisdiction
         {" · "}
@@ -2978,13 +3088,15 @@ export default function ToT() {
 
 const fmtO = o => o == null ? "—" : o > 0 ? `+${o}` : `${o}`;
 
-function SearchOverlay({ open, onClose, picks, savedPicks, onTeamClick }) {
+function SearchOverlay({ open, onClose, picks, savedPicks, onTeamClick, onPlayerClick, getAuthHeaders }) {
   const [query, setQuery] = useState("");
   const [activeId, setActiveId] = useState(null);
+  const [remote, setRemote] = useState({ teams: [], players: [] });
+  const [remoteLoading, setRemoteLoading] = useState(false);
   const inputRef = useRef(null);
 
   useEffect(() => {
-    if (open) { setQuery(""); setActiveId(null); setTimeout(() => inputRef.current?.focus(), 50); }
+    if (open) { setQuery(""); setActiveId(null); setRemote({ teams: [], players: [] }); setTimeout(() => inputRef.current?.focus(), 50); }
   }, [open]);
 
   useEffect(() => {
@@ -2994,6 +3106,29 @@ function SearchOverlay({ open, onClose, picks, savedPicks, onTeamClick }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
+  // Global player directory search (independent of today's loaded games) —
+  // debounced since it hits the network, unlike the instant local filters below.
+  useEffect(() => {
+    if (!open) return;
+    const q2 = query.trim();
+    if (q2.length < 2) { setRemote({ teams: [], players: [] }); return; }
+    let cancelled = false;
+    setRemoteLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const headers = await getAuthHeaders();
+        const res = await fetch(`/api/search?q=${encodeURIComponent(q2)}`, { headers });
+        const data = await res.json();
+        if (!cancelled) setRemote({ teams: data.teams || [], players: data.players || [] });
+      } catch {
+        if (!cancelled) setRemote({ teams: [], players: [] });
+      } finally {
+        if (!cancelled) setRemoteLoading(false);
+      }
+    }, 250);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [open, query, getAuthHeaders]);
+
   if (!open) return null;
 
   const q = query.trim().toLowerCase();
@@ -3002,6 +3137,7 @@ function SearchOverlay({ open, onClose, picks, savedPicks, onTeamClick }) {
 
   const gameResults = q ? (picks || []).filter(matchesGame).slice(0, 20) : [];
   const trackerResults = q ? (savedPicks || []).filter(matchesTracker).slice(0, 20) : [];
+  const { players: playerResults } = remote;
 
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "8vh 16px 16px" }}>
@@ -3016,8 +3152,8 @@ function SearchOverlay({ open, onClose, picks, savedPicks, onTeamClick }) {
             ref={inputRef}
             value={query}
             onChange={e => { setQuery(e.target.value); setActiveId(null); }}
-            placeholder="Search teams, games, tracker history…"
-            aria-label="Search teams, games, tracker history"
+            placeholder="Search teams, players, games, tracker history…"
+            aria-label="Search teams, players, games, tracker history"
             style={{ flex: 1, background: "none", border: "none", outline: "none", color: "#fff", fontSize: 15 }}
           />
           <button onClick={onClose} aria-label="Close search" style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 18, lineHeight: 1, padding: 4, display: "inline-flex" }}><CloseIcon size={16} /></button>
@@ -3025,12 +3161,32 @@ function SearchOverlay({ open, onClose, picks, savedPicks, onTeamClick }) {
         <div style={{ overflowY: "auto", padding: q ? "6px 0" : "0" }}>
           {!q && (
             <div style={{ padding: "36px 20px", textAlign: "center", color: "#444", fontSize: 13 }}>
-              Type a team name to search today's games and your tracker history.
+              Type a team or player name to search today's games, players, or your tracker history.
             </div>
           )}
-          {q && !gameResults.length && !trackerResults.length && (
+          {q && !remoteLoading && !playerResults.length && !gameResults.length && !trackerResults.length && (
             <div style={{ padding: "36px 20px", textAlign: "center", color: "#444", fontSize: 13 }}>
               No matches for "{query}"
+            </div>
+          )}
+          {playerResults.length > 0 && (
+            <div>
+              <div style={{ padding: "8px 16px 4px", fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 1.5 }}>PLAYERS</div>
+              {playerResults.map(p => (
+                <div
+                  key={`player-${p.sport}-${p.id}`}
+                  onClick={() => { onPlayerClick(p.sport, p.id, p.name); onClose(); }}
+                  role="button" tabIndex={0}
+                  onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPlayerClick(p.sport, p.id, p.name); onClose(); } }}
+                  style={{ padding: "10px 16px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #1c1f26" }}
+                >
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#eee" }}>{p.name}</div>
+                    <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>{p.team}{p.position ? ` · ${p.position}` : ""}</div>
+                  </div>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: p.sport === "nfl" ? "#D9754A" : "#2FBF71", letterSpacing: 0.5 }}>{p.sport.toUpperCase()}</span>
+                </div>
+              ))}
             </div>
           )}
           {gameResults.length > 0 && (
