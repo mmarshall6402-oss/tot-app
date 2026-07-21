@@ -4,7 +4,7 @@
 // anytime home run) against real sportsbook lines and writes them to
 // Supabase cache. On-demand /api/props serves from this cache.
 import { createClient } from "@supabase/supabase-js";
-import { fetchMLBOdds } from "../../../../lib/odds.js";
+import { fetchMLBOdds, fetchSGOPlayerProps } from "../../../../lib/odds.js";
 import { fetchAllPlayerProps } from "../../../../lib/odds-props.js";
 import { fetchBattersForLineup } from "../../../../lib/mlb-batters.js";
 import { projectPitcherKs, projectBatterHR } from "../../../../lib/prop-probability.js";
@@ -64,24 +64,33 @@ function ctDateStr(d = new Date()) {
   return `${p.find(x => x.type === "year").value}-${p.find(x => x.type === "month").value}-${p.find(x => x.type === "day").value}`;
 }
 
-async function generatePropsForDate(date, oddsGames, supabase) {
-  // Player props only work off events sourced directly from The Odds API —
-  // its event.id is the only id scheme the per-event props endpoint accepts.
-  // SGO/ESPN-only games (no TOA line) are skipped for props purposes (v1 scope).
+async function generatePropsForDate(date, oddsGames, sgoProps, supabase) {
+  // Player props need a source whose event id we can query per-event props
+  // for (The Odds API) or that already came back with full prop lines
+  // attached (SportsGameOdds' bulk events call). ESPN-only games (no TOA/SGO
+  // line) are skipped for props purposes.
   const dateOdds = oddsGames.filter(g => {
-    if (g.source !== "theoddsapi" || !g.commenceTime) return false;
+    if ((g.source !== "theoddsapi" && g.source !== "sgo") || !g.commenceTime) return false;
     const t = new Date(g.commenceTime);
     const utcDate = t.toISOString().split("T")[0];
     return utcDate === date || ctDateStr(t) === date;
   });
-  if (!dateOdds.length) return { date, count: 0, reason: "no theoddsapi games for date" };
+  if (!dateOdds.length) return { date, count: 0, reason: "no theoddsapi/sgo games for date" };
 
   const mlbRes = await fetch(`${BASE_URL}/api/mlb?date=${date}`).then(r => r.json()).catch(() => ({}));
   const mlbGames = mlbRes?.games || [];
   if (!mlbGames.length) return { date, count: 0, reason: "no MLB schedule for date" };
 
-  const allProps = await fetchAllPlayerProps(dateOdds.map(g => g.id));
-  const propsByEvent = new Map(allProps.map(p => [p.eventId, p]));
+  const toaEventIds = dateOdds.filter(g => g.source === "theoddsapi").map(g => g.id);
+  const toaProps = await fetchAllPlayerProps(toaEventIds);
+  const dateSgoIds = new Set(dateOdds.filter(g => g.source === "sgo").map(g => g.id));
+  const sgoPropsForDate = sgoProps.filter(p => dateSgoIds.has(p.eventId));
+
+  // TOA first, SGO fills in any event TOA didn't cover — mirrors how
+  // fetchMLBOdds() itself treats SGO as a supplement to TOA, not a
+  // replacement, so a game already covered by TOA keeps using it.
+  const propsByEvent = new Map(toaProps.map(p => [p.eventId, p]));
+  for (const p of sgoPropsForDate) if (!propsByEvent.has(p.eventId)) propsByEvent.set(p.eventId, p);
 
   const picks = [];
   await Promise.all(dateOdds.map(async (oddsGame) => {
@@ -188,10 +197,11 @@ export async function GET(request) {
     const tomorrow = ctDateStr(new Date(Date.now() + 86400000));
 
     const oddsGames = await fetchMLBOdds();
+    const sgoProps = await fetchSGOPlayerProps().catch(e => { console.warn("[cron/props] SGO props fetch failed:", e.message); return []; });
     const supabase = getSupabase();
 
-    const todayResult = await generatePropsForDate(today, oddsGames, supabase);
-    const tomorrowResult = await generatePropsForDate(tomorrow, oddsGames, supabase);
+    const todayResult = await generatePropsForDate(today, oddsGames, sgoProps, supabase);
+    const tomorrowResult = await generatePropsForDate(tomorrow, oddsGames, sgoProps, supabase);
 
     return Response.json({ today: todayResult, tomorrow: tomorrowResult });
   } catch (e) {
