@@ -599,6 +599,20 @@ export default function AdminDash() {
       {/* ── GAMES ── */}
       {tab === "games" && (
         <>
+          <span style={S.lbl}>ALL-TIME RECORD — BETS ONLY</span>
+          <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+            <Chip label="RECORD" value={atTotal ? `${atWins}-${atLoss}` : "—"} />
+            <Chip label="WIN RATE" value={atPct ? `${atPct}%` : "—"} sub={`${atTotal} settled`}
+              color={parseFloat(atPct) >= 55 ? "#00FF87" : parseFloat(atPct) >= 50 ? "#FFD600" : atPct ? "#FF4D4D" : "#fff"} />
+          </div>
+
+          <span style={S.lbl}>ALL-TIME RECORD — ALL GAMES</span>
+          <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+            <Chip label="RECORD" value={ataTotal ? `${ataWins}-${ataLoss}` : "—"} />
+            <Chip label="WIN RATE" value={ataPct ? `${ataPct}%` : "—"} sub={`${ataTotal} settled`}
+              color={parseFloat(ataPct) >= 55 ? "#00FF87" : parseFloat(ataPct) >= 50 ? "#FFD600" : ataPct ? "#FF4D4D" : "#fff"} />
+          </div>
+
           <span style={S.lbl}>EVERY GAME EVER ANALYZED</span>
           <div style={{ fontSize: 11, color: "#444", marginBottom: 10, lineHeight: 1.6 }}>
             {gamesTotal.toLocaleString()} games total — bets and passes both, no date window, no cap.
