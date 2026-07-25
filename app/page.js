@@ -304,7 +304,7 @@ export default function ToT() {
       setFreePick(d.pick || null);
       if (d.quietDay) setFreePick({ _quietDay: true });
     }).catch(() => {});
-    fetch("/api/model-record").then(r => r.json()).then(d => setModelRecord(d)).catch(() => {});
+    fetch("/api/model-record?days=30").then(r => r.json()).then(d => setModelRecord(d)).catch(() => {});
     const t = setInterval(() => setCarouselIdx(i => i + 1), 3000);
     return () => clearInterval(t);
   }, []);
@@ -1301,7 +1301,7 @@ export default function ToT() {
         )}
         {slide.type === "record" && (
           <>
-            <div style={S.carouselTag}>MODEL RECORD</div>
+            <div style={S.carouselTag}>LAST 30 DAYS</div>
             {modelRecord?.total > 0 ? (
               <>
                 <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 20, fontWeight: 700, marginTop: 4 }}>
@@ -1434,7 +1434,7 @@ export default function ToT() {
               {modelRecord.wins}-{modelRecord.losses}
             </span>
             <span style={{ fontSize: 11, color: "#888" }}>({modelRecord.pct}%)</span>
-            <span style={{ fontSize: 10, color: "#2b2f3a" }}>all-time</span>
+            <span style={{ fontSize: 10, color: "#2b2f3a" }}>last 30 days</span>
           </div>
         )}
 

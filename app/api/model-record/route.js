@@ -5,15 +5,26 @@ const getSupabase = () => createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-export async function GET() {
+export async function GET(request) {
   try {
   const supabase = getSupabase();
 
-  const { data } = await supabase
+  const { searchParams } = new URL(request.url);
+  const days = parseInt(searchParams.get("days") || "0");
+
+  let query = supabase
     .from("model_picks")
-    .select("result, is_bet, tier, edge, features")
+    .select("result, is_bet, tier, edge, features, date")
     .in("result", ["win", "loss", "push"])
     .eq("is_bet", true);
+
+  if (days > 0) {
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+    query = query.gte("date", since.toISOString().split("T")[0]);
+  }
+
+  const { data } = await query;
 
   if (!data?.length) return Response.json({ wins: 0, losses: 0, pushes: 0, pct: null, total: 0 });
 
