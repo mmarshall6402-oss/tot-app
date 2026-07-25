@@ -131,6 +131,15 @@ npm install
 npm run dev
 ```
 
+### MLB Analytics Dashboard (Streamlit)
+
+A standalone Python/Streamlit dashboard over the same Elo ratings and 2022–2025 game logs used by the pick model — power rankings, home-field advantage, scoring trends, and team-level records.
+
+```bash
+pip install -r streamlit_app/requirements.txt
+streamlit run streamlit_app/app.py
+```
+
 Pull environment variables from Vercel:
 
 ```bash
