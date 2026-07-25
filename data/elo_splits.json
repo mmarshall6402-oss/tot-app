@@ -1,0 +1,281 @@
+{
+  "Arizona Diamondbacks": {
+    "overall": 1556.84,
+    "home": 1518.81,
+    "away": 1491.48,
+    "vsLHP": 1506.87,
+    "vsRHP": 1495.82,
+    "bullpen": 1456.82,
+    "last30": 1497.64
+  },
+  "San Diego Padres": {
+    "overall": 1596.24,
+    "home": 1566.63,
+    "away": 1510.48,
+    "vsLHP": 1542.57,
+    "vsRHP": 1523,
+    "bullpen": 1545.44,
+    "last30": 1518.33
+  },
+  "Atlanta Braves": {
+    "overall": 1546.81,
+    "home": 1430.24,
+    "away": 1576.85,
+    "vsLHP": 1588.02,
+    "vsRHP": 1461.15,
+    "bullpen": 1544.21,
+    "last30": 1515.39
+  },
+  "Cincinnati Reds": {
+    "overall": 1482.55,
+    "home": 1519.37,
+    "away": 1519.73,
+    "vsLHP": 1465.98,
+    "vsRHP": 1519.24,
+    "bullpen": 1531.81,
+    "last30": 1518.91
+  },
+  "Chicago Cubs": {
+    "overall": 1523.58,
+    "home": 1540.2,
+    "away": 1532.61,
+    "vsLHP": 1462.69,
+    "vsRHP": 1569.38,
+    "bullpen": 1610.82,
+    "last30": 1516.52
+  },
+  "Milwaukee Brewers": {
+    "overall": 1555.49,
+    "home": 1556.13,
+    "away": 1588.7,
+    "vsLHP": 1550.94,
+    "vsRHP": 1573.44,
+    "bullpen": 1525.82,
+    "last30": 1501.86
+  },
+  "St. Louis Cardinals": {
+    "overall": 1537.65,
+    "home": 1489.87,
+    "away": 1468.8,
+    "vsLHP": 1533.67,
+    "vsRHP": 1428.4,
+    "bullpen": 1561,
+    "last30": 1474.18
+  },
+  "Pittsburgh Pirates": {
+    "overall": 1477.58,
+    "home": 1512.91,
+    "away": 1444.21,
+    "vsLHP": 1486.14,
+    "vsRHP": 1485.86,
+    "bullpen": 1542.48,
+    "last30": 1490.63
+  },
+  "Washington Nationals": {
+    "overall": 1432.59,
+    "home": 1384.91,
+    "away": 1480.04,
+    "vsLHP": 1416.95,
+    "vsRHP": 1436.25,
+    "bullpen": 1406.87,
+    "last30": 1464.87
+  },
+  "New York Mets": {
+    "overall": 1582.37,
+    "home": 1499.78,
+    "away": 1467.68,
+    "vsLHP": 1519.67,
+    "vsRHP": 1452.02,
+    "bullpen": 1616.83,
+    "last30": 1467.11
+  },
+  "Los Angeles Angels": {
+    "overall": 1338.42,
+    "home": 1438.04,
+    "away": 1430.17,
+    "vsLHP": 1417.16,
+    "vsRHP": 1423.44,
+    "bullpen": 1351.64,
+    "last30": 1419.26
+  },
+  "Houston Astros": {
+    "overall": 1559.78,
+    "home": 1475.74,
+    "away": 1539.12,
+    "vsLHP": 1527.52,
+    "vsRHP": 1517.87,
+    "bullpen": 1345.91,
+    "last30": 1493.04
+  },
+  "Kansas City Royals": {
+    "overall": 1489.29,
+    "home": 1474.43,
+    "away": 1540.45,
+    "vsLHP": 1520.56,
+    "vsRHP": 1499.35,
+    "bullpen": 1408.04,
+    "last30": 1501.33
+  },
+  "Cleveland Guardians": {
+    "overall": 1513.3,
+    "home": 1525.6,
+    "away": 1567.95,
+    "vsLHP": 1548.72,
+    "vsRHP": 1539.72,
+    "bullpen": 1783.79,
+    "last30": 1588.21
+  },
+  "Colorado Rockies": {
+    "overall": 1450.08,
+    "home": 1371.12,
+    "away": 1329.76,
+    "vsLHP": 1345.46,
+    "vsRHP": 1326.15,
+    "bullpen": 1384.74,
+    "last30": 1366.78
+  },
+  "Los Angeles Dodgers": {
+    "overall": 1608.85,
+    "home": 1569.06,
+    "away": 1558.62,
+    "vsLHP": 1548.67,
+    "vsRHP": 1582.72,
+    "bullpen": 1447.59,
+    "last30": 1564.57
+  },
+  "Philadelphia Phillies": {
+    "overall": 1546.06,
+    "home": 1618.07,
+    "away": 1527.32,
+    "vsLHP": 1520.12,
+    "vsRHP": 1601.34,
+    "bullpen": 1352.16,
+    "last30": 1557.53
+  },
+  "Oakland Athletics": {
+    "overall": 1440.4,
+    "home": 1425.3,
+    "away": 1444.75,
+    "vsLHP": 1497.19,
+    "vsRHP": 1423.45,
+    "bullpen": 1555.51,
+    "last30": null
+  },
+  "Athletics": {
+    "overall": 1440.4,
+    "home": 1475.45,
+    "away": 1532.5,
+    "vsLHP": 1521.05,
+    "vsRHP": 1500.21,
+    "bullpen": 1492.43,
+    "last30": 1486.69
+  },
+  "San Francisco Giants": {
+    "overall": 1506.35,
+    "home": 1457.67,
+    "away": 1527.42,
+    "vsLHP": 1435.93,
+    "vsRHP": 1508.34,
+    "bullpen": 1376.7,
+    "last30": 1502.62
+  },
+  "Miami Marlins": {
+    "overall": 1466.23,
+    "home": 1465.97,
+    "away": 1563.51,
+    "vsLHP": 1434.74,
+    "vsRHP": 1541.62,
+    "bullpen": 1388.34,
+    "last30": 1537.5
+  },
+  "Detroit Tigers": {
+    "overall": 1564.49,
+    "home": 1458.17,
+    "away": 1507.64,
+    "vsLHP": 1540.72,
+    "vsRHP": 1444.6,
+    "bullpen": 1506.98,
+    "last30": 1445.27
+  },
+  "Chicago White Sox": {
+    "overall": 1338.59,
+    "home": 1395.95,
+    "away": 1425.25,
+    "vsLHP": 1405.35,
+    "vsRHP": 1421.38,
+    "bullpen": 1434.17,
+    "last30": 1469.32
+  },
+  "Minnesota Twins": {
+    "overall": 1410.75,
+    "home": 1397.97,
+    "away": 1463.34,
+    "vsLHP": 1411.86,
+    "vsRHP": 1417.51,
+    "bullpen": 1557.54,
+    "last30": 1453.11
+  },
+  "Seattle Mariners": {
+    "overall": 1540.39,
+    "home": 1588.53,
+    "away": 1505.68,
+    "vsLHP": 1542.3,
+    "vsRHP": 1564.33,
+    "bullpen": 1544.48,
+    "last30": 1557.97
+  },
+  "New York Yankees": {
+    "overall": 1522.82,
+    "home": 1568.78,
+    "away": 1583.06,
+    "vsLHP": 1514.6,
+    "vsRHP": 1614.66,
+    "bullpen": 1619.64,
+    "last30": 1597.31
+  },
+  "Boston Red Sox": {
+    "overall": 1470.39,
+    "home": 1528.55,
+    "away": 1576.07,
+    "vsLHP": 1511.26,
+    "vsRHP": 1567.71,
+    "bullpen": 1626.77,
+    "last30": 1509.04
+  },
+  "Tampa Bay Rays": {
+    "overall": 1514.7,
+    "home": 1477.05,
+    "away": 1455.44,
+    "vsLHP": 1451.53,
+    "vsRHP": 1488.65,
+    "bullpen": 1531.66,
+    "last30": 1469.06
+  },
+  "Baltimore Orioles": {
+    "overall": 1510.52,
+    "home": 1467.58,
+    "away": 1527.87,
+    "vsLHP": 1507.56,
+    "vsRHP": 1503.31,
+    "bullpen": 1568.29,
+    "last30": 1508.63
+  },
+  "Toronto Blue Jays": {
+    "overall": 1432.73,
+    "home": 1606.06,
+    "away": 1515.86,
+    "vsLHP": 1524.06,
+    "vsRHP": 1574.88,
+    "bullpen": 1496.08,
+    "last30": 1530.96
+  },
+  "Texas Rangers": {
+    "overall": 1484.18,
+    "home": 1522.43,
+    "away": 1471.27,
+    "vsLHP": 1480.6,
+    "vsRHP": 1481.75,
+    "bullpen": 1385.43,
+    "last30": 1476.33
+  }
+}
