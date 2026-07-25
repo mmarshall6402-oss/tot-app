@@ -14,7 +14,7 @@
 
 import { readFileSync, writeFileSync } from "fs";
 import { join } from "path";
-import { calibrationBuckets, isotonicPredict, brierScore, logLoss } from "../../lib/backtest/metrics.js";
+import { calibrationBuckets, defaultBuckets, isotonicPredict, brierScore, logLoss } from "../../lib/backtest/metrics.js";
 
 const ROOT = process.cwd();
 
@@ -34,8 +34,23 @@ function main() {
   const rawHoldout = holdoutIdx.map(i => rawPreds[i]);
   const calibratedHoldout = holdoutIdx.map(i => calibratedPreds[i]);
 
+  // calibrationBuckets()'s "predicted" field is the fixed bin midpoint
+  // (see lib/backtest/metrics.js) — a deliberate simplification for a
+  // stable x-position, shared with the production admin calibration chart.
+  // For this dashboard we also want the TRUE mean predicted probability
+  // within each bin, which genuinely scatters instead of landing on the
+  // midpoint every time. Computed here (not in metrics.js) so the shared
+  // production function stays untouched; reuses the exact same bucket
+  // boundaries via defaultBuckets() so there's no risk of the two disagreeing
+  // on where a bin starts/ends.
+  const buckets = defaultBuckets();
   const summarize = preds => ({
-    buckets: calibrationBuckets(preds),
+    buckets: calibrationBuckets(preds, buckets).map((b, i) => {
+      const { lo, hi } = buckets[i];
+      const slice = preds.filter(({ p }) => p >= lo && p < hi);
+      const meanPredicted = slice.length ? slice.reduce((s, { p }) => s + p, 0) / slice.length : null;
+      return { ...b, meanPredicted };
+    }),
     brier: brierScore(preds),
     logLoss: logLoss(preds),
     n: preds.length,

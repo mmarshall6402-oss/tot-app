@@ -303,26 +303,29 @@ with tab_model:
                 hoverinfo="skip",
             )
         )
+        # x = the true mean predicted probability of the games actually inside
+        # each bucket (NOT the fixed bin midpoint) — a real value that scatters
+        # game-by-game, not a synthetic stand-in.
         fig_cal.add_trace(
             go.Scatter(
-                x=raw_buckets["predicted"], y=raw_buckets["actual"],
+                x=raw_buckets["meanPredicted"], y=raw_buckets["actual"],
                 mode="lines+markers",
                 line=dict(color=CRITICAL, width=2),
                 marker=dict(size=9, color=CRITICAL),
                 name=f"Raw model (Brier {view['raw']['brier']:.3f})",
                 customdata=raw_buckets["n"],
-                hovertemplate="Predicted %{x:.0%} · Actual %{y:.0%}<br>n=%{customdata}<extra>Raw</extra>",
+                hovertemplate="Mean predicted %{x:.1%} · Actual %{y:.1%}<br>n=%{customdata}<extra>Raw</extra>",
             )
         )
         fig_cal.add_trace(
             go.Scatter(
-                x=cal_buckets["predicted"], y=cal_buckets["actual"],
+                x=cal_buckets["meanPredicted"], y=cal_buckets["actual"],
                 mode="lines+markers",
                 line=dict(color=GOOD, width=2),
                 marker=dict(size=9, color=GOOD),
                 name=f"Isotonic-calibrated (Brier {view['calibrated']['brier']:.3f})",
                 customdata=cal_buckets["n"],
-                hovertemplate="Predicted %{x:.0%} · Actual %{y:.0%}<br>n=%{customdata}<extra>Calibrated</extra>",
+                hovertemplate="Mean predicted %{x:.1%} · Actual %{y:.1%}<br>n=%{customdata}<extra>Calibrated</extra>",
             )
         )
         fig_cal.update_xaxes(tickformat=".0%", range=[0.1, 0.9])
@@ -340,16 +343,38 @@ with tab_model:
             "correction pulls both tails back toward y = x. Lower Brier score is better "
             "(0 = perfect, 0.25 = uninformative coin-flip baseline)."
         )
+        st.caption(
+            "Each series buckets games by its own probability — raw model probability for the red "
+            "line, isotonic-calibrated probability for the green line — so the same bucket label "
+            "(e.g. 15–22%) can hold a different set of games in each series, and \"actual\" is that "
+            "series' own win rate for its own games. That's why the calibrated series has no dashes "
+            "at the extremes to fill: the correction moves games out of the 15–36% and 78–85% bands "
+            "entirely, because the raw model's overconfident predictions in that range don't survive "
+            "calibration. It also means a single bucket can look like it moved the \"wrong\" way "
+            "between series without the calibration being wrong — it's comparing two different game "
+            "sets, not the same games re-scored. The Brier scores above are the only apples-to-apples "
+            "comparison."
+        )
 
         with st.expander("Bucket-level detail"):
-            detail = raw_buckets[["label", "predicted", "n"]].merge(
-                cal_buckets[["label", "predicted", "actual"]].rename(columns={"predicted": "predicted_cal", "actual": "actual_calibrated"}),
-                on="label", how="outer",
+            bucket_order = {label: i for i, label in enumerate(raw_buckets["label"])}
+            raw_detail = raw_buckets[["label", "n", "meanPredicted", "actual"]].rename(
+                columns={"n": "N (raw)", "meanPredicted": "Predicted (raw)", "actual": "Win rate (raw bucket)"}
             )
-            detail = detail.merge(raw_buckets[["label", "actual"]].rename(columns={"actual": "actual_raw"}), on="label")
-            detail = detail[["label", "n", "predicted", "actual_raw", "actual_calibrated"]]
-            detail.columns = ["Bucket", "N", "Predicted", "Actual (raw)", "Actual (calibrated)"]
+            cal_detail = cal_buckets[["label", "n", "meanPredicted", "actual"]].rename(
+                columns={"n": "N (calibrated)", "meanPredicted": "Predicted (calibrated)", "actual": "Win rate (calibrated bucket)"}
+            )
+            detail = raw_detail.merge(cal_detail, on="label", how="outer")
+            detail["_order"] = detail["label"].map(bucket_order)
+            detail = detail.sort_values("_order").drop(columns="_order").rename(columns={"label": "Bucket"})
+            detail = detail[
+                ["Bucket", "N (raw)", "Predicted (raw)", "Win rate (raw bucket)",
+                 "N (calibrated)", "Predicted (calibrated)", "Win rate (calibrated bucket)"]
+            ]
             pct = lambda v: f"{v:.1%}" if pd.notna(v) else "—"
-            for col in ["Predicted", "Actual (raw)", "Actual (calibrated)"]:
+            n_fmt = lambda v: f"{v:.0f}" if pd.notna(v) else "—"
+            for col in ["Predicted (raw)", "Win rate (raw bucket)", "Predicted (calibrated)", "Win rate (calibrated bucket)"]:
                 detail[col] = detail[col].map(pct)
+            for col in ["N (raw)", "N (calibrated)"]:
+                detail[col] = detail[col].map(n_fmt)
             st.dataframe(detail, use_container_width=True, hide_index=True)
