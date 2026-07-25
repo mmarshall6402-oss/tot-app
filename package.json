@@ -9,7 +9,9 @@
     "start": "next start",
     "lint": "eslint",
     "backtest": "node --env-file=.env.local scripts/backtest/run.js",
-    "recalibrate": "node --env-file=.env.local scripts/backtest/recalibrate.js"
+    "recalibrate": "node --env-file=.env.local scripts/backtest/recalibrate.js",
+    "elo-splits": "node scripts/backtest/compute-elo-splits.js",
+    "calibration-curve": "node scripts/backtest/compute-calibration-curve.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.91.1",
