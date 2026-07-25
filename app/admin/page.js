@@ -87,7 +87,6 @@ export default function AdminDash() {
   const [picks, setPicks]   = useState([]);
   const [emailCount, setEC] = useState(null);
   const [subCount, setSC]   = useState(null);
-  const [pending, setPend]  = useState([]);
   const [allTimePicks, setATP] = useState([]);
   const [modelRec, setModelRec] = useState(null);
   const [calData, setCal] = useState(null);
@@ -165,14 +164,13 @@ export default function AdminDash() {
     setBusy(true);
     const h = { Authorization: `Bearer ${tok}` };
 
-    const [statsR, codesR, pendR, recR, calR, calAdminR, wAdminR] = await Promise.all([
+    const [statsR, codesR, recR, calR, calAdminR, wAdminR] = await Promise.all([
       // 270 days ~= a full MLB season (Feb spring training through Oct/Nov)
       // so the CLV/games log below isn't silently missing anything older
       // than a month — the 30-day rolling stats further down re-filter
       // this same fetched set client-side, so this doesn't affect those.
       fetch("/api/admin/tracker?action=stats&days=270", { headers: h }).then(r => r.json()).catch(() => null),
       fetch("/api/admin/codes", { headers: h }).then(r => r.json()).catch(() => ({ codes: [] })),
-      fetch("/api/admin/tracker?action=pending", { headers: h }).then(r => r.json()).catch(() => ({ pending: [] })),
       fetch("/api/model-record").then(r => r.json()).catch(() => null),
       fetch("/api/calibration").then(r => r.json()).catch(() => null),
       fetch("/api/admin/calibration", { headers: h }).then(r => r.json()).catch(() => null),
@@ -185,7 +183,6 @@ export default function AdminDash() {
     setPicks(todayPicks);
     setEC(statsR?.emailCount ?? 0);
     setSC(statsR?.subCount   ?? 0);
-    setPend(pendR.pending || []);
     setATP(statsR?.recent || []);
     setModelRec(recR ?? null);
     setCal(calR ?? null);
@@ -240,6 +237,7 @@ export default function AdminDash() {
   const r30W   = r30s.filter(p => p.result === "win").length;
   const r30L   = r30s.filter(p => p.result === "loss").length;
   const r30Pct = r30s.length ? ((r30W / r30s.length) * 100).toFixed(1) : null;
+  const r30Pending = recent30.filter(p => p.result === "pending").length;
 
   const r30sAll = recent30All.filter(p => ["win","loss"].includes(p.result));
   const r30AllW = r30sAll.filter(p => p.result === "win").length;
@@ -519,7 +517,7 @@ export default function AdminDash() {
             <Chip label="RECORD" value={r30s.length ? `${r30W}-${r30L}` : "—"} />
             <Chip label="WIN %" value={r30Pct ? `${r30Pct}%` : "—"}
               color={parseFloat(r30Pct) >= 55 ? "#00FF87" : parseFloat(r30Pct) >= 50 ? "#FFD600" : r30Pct ? "#FF4D4D" : "#fff"} />
-            <Chip label="PENDING" value={pending.length} sub="all dates" />
+            <Chip label="PENDING" value={r30Pending} />
           </div>
 
           <span style={S.lbl}>LAST 30 DAYS — ALL GAMES</span>
