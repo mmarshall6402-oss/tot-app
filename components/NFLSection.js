@@ -67,6 +67,20 @@ const TIER = {
   Low:    { color: "#888",    bg: "rgba(136,136,136,0.08)", label: "Lean" },
 };
 
+// Maps computed draft-cheat-sheet tiers (1, 2, 3…) onto the same three-color
+// language already used for betting-pick tiers, so the fantasy feature reads
+// as the same visual system rather than introducing a new one.
+function draftTierStyle(tier) {
+  if (tier <= 2) return TIER.High;
+  if (tier <= 4) return TIER.Medium;
+  return TIER.Low;
+}
+function scoringToFormat(scoring) {
+  if (scoring === "Half-PPR") return "half_ppr";
+  if (scoring === "Standard") return "standard";
+  return "ppr";
+}
+
 export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgradeModal, savePick, saving, selectedDate, onTeamClick }) {
   const [subTab, setSubTab] = useState("fantasy");
   const [scoring, setScoring] = useState("PPR");
@@ -88,6 +102,12 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
   const [askQ, setAskQ] = useState("");
   const [askResult, setAskResult] = useState(null);
   const [askLoading, setAskLoading] = useState(false);
+
+  // Cheat Sheet state
+  const [cheatSheet, setCheatSheet] = useState(null);
+  const [cheatSheetLoading, setCheatSheetLoading] = useState(false);
+  const [cheatSheetError, setCheatSheetError] = useState(null);
+  const [positionFilter, setPositionFilter] = useState("ALL");
 
   // Odds teaser state (non-Pro Picks view)
   const [nflGames, setNflGames] = useState(null);
@@ -140,6 +160,27 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
     catch (e) { setAskResult("Error: " + e.message); }
     setAskLoading(false);
   };
+
+  const loadCheatSheet = async () => {
+    setCheatSheetLoading(true); setCheatSheetError(null);
+    try {
+      const headers = await getAuthHeaders();
+      const params = new URLSearchParams({ format: scoringToFormat(scoring) });
+      if (positionFilter !== "ALL") params.set("position", positionFilter);
+      const res = await fetch(`/api/nfl/fantasy/rankings?${params}`, { headers });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error");
+      setCheatSheet(data.rankings || []);
+    } catch (e) {
+      setCheatSheetError(e.message || "Could not load rankings");
+      setCheatSheet(prev => prev ?? []);
+    }
+    setCheatSheetLoading(false);
+  };
+
+  useEffect(() => {
+    if (subTab === "fantasy" && fantasyMode === "cheatSheet") loadCheatSheet();
+  }, [subTab, fantasyMode, scoring, positionFilter]);
 
   const loadOdds = async () => {
     setNflLoading(true); setNflGames(null); setNflMsg(null);
@@ -241,9 +282,10 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
             {/* Mode selector */}
             <div style={{ display: "flex", borderBottom: `1px solid ${tokens.color.border}` }}>
               {[
-                { id: "startSit", label: "Start/Sit" },
-                { id: "trade",    label: "Trade" },
-                { id: "ask",      label: "Ask AI" },
+                { id: "startSit",   label: "Start/Sit" },
+                { id: "trade",      label: "Trade" },
+                { id: "ask",        label: "Ask AI" },
+                { id: "cheatSheet", label: "Cheat Sheet" },
               ].map(({ id, label }) => (
                 <button key={id} onClick={() => setFantasyMode(id)} style={{ ...tabButtonStyle({ active: fantasyMode === id, accent: NFL_ORANGE }), flex: 1, textAlign: "center" }}>{label}</button>
               ))}
@@ -316,6 +358,69 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                     <div style={{ fontSize: 13, color: "#ccc", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{askResult}</div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {fantasyMode === "cheatSheet" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ display: "flex", gap: 6, overflowX: "auto" }}>
+                  {["ALL", "QB", "RB", "WR", "TE"].map(pos => (
+                    <button key={pos} onClick={() => setPositionFilter(pos)}
+                      style={{ ...tabButtonStyle({ active: positionFilter === pos, accent: NFL_ORANGE }), flexShrink: 0, padding: "6px 14px" }}>
+                      {pos}
+                    </button>
+                  ))}
+                </div>
+
+                {cheatSheetLoading && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#555", fontSize: 13, padding: "20px 0" }}>
+                    <div style={{ width: 18, height: 18, border: "2px solid #2b2f3a", borderTopColor: NFL_ORANGE, borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+                    Loading rankings…
+                  </div>
+                )}
+
+                {!cheatSheetLoading && cheatSheetError && (
+                  <div style={S.center}>
+                    <div style={{ color: "#fff", fontWeight: 700, marginTop: 8 }}>Could not load rankings</div>
+                    <div style={{ color: "#777", fontSize: 13, marginTop: 4 }}>{cheatSheetError}</div>
+                    <button style={{ ...S.saveBtn, marginTop: 14 }} onClick={loadCheatSheet}>Retry</button>
+                  </div>
+                )}
+
+                {!cheatSheetLoading && !cheatSheetError && cheatSheet?.length === 0 && (
+                  <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 14, padding: "28px 16px", textAlign: "center" }}>
+                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>No rankings yet</div>
+                    <div style={{ fontSize: 13, color: "#555", lineHeight: 1.6 }}>Draft rankings refresh weekly as the season approaches. Check back soon.</div>
+                  </div>
+                )}
+
+                {!cheatSheetLoading && !cheatSheetError && cheatSheet?.map(p => {
+                  const t = draftTierStyle(p.tier);
+                  return (
+                    <div key={p.player_id} style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 14, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{ fontFamily: tokens.font.mono, fontSize: 16, fontWeight: 700, color: "#3d424f", width: 28, textAlign: "center", flexShrink: 0 }}>{p.rank_overall}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                          <span style={{ fontWeight: 700, fontSize: 14 }}>{p.name}</span>
+                          <span style={{ fontSize: 11, color: "#666" }}>{p.position} · {p.team || "FA"}</span>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 5, background: t.bg, color: t.color, border: `1px solid ${t.color}33` }}>
+                            TIER {p.tier}
+                          </span>
+                        </div>
+                        <div style={{ display: "flex", gap: 12, marginTop: 4, fontSize: 11, color: "#888", fontFamily: tokens.font.mono, flexWrap: "wrap" }}>
+                          <span>Proj {p.projected_points?.toFixed(1)}</span>
+                          <span>VORP {p.vorp >= 0 ? "+" : ""}{p.vorp?.toFixed(1)}</span>
+                          <span>Ceil {p.ceiling_points?.toFixed(1)} / Floor {p.floor_points?.toFixed(1)}</span>
+                        </div>
+                      </div>
+                      {p.injury_status && (
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: "rgba(217,100,92,0.1)", color: "#D9645C", border: "1px solid rgba(217,100,92,0.3)", flexShrink: 0 }}>
+                          {p.injury_status}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </>

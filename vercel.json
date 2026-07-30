@@ -47,6 +47,10 @@
     {
       "path": "/api/cron/player-index",
       "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/nfl-fantasy-rankings",
+      "schedule": "0 10 * * 3"
     }
   ],
   "functions": {
@@ -67,6 +71,7 @@
     "app/api/cron/weekly/route.js": { "maxDuration": 60 },
     "app/api/cron/tune-weights/route.js": { "maxDuration": 60 },
     "app/api/admin/backtest/route.js": { "maxDuration": 300 },
-    "app/api/cron/player-index/route.js": { "maxDuration": 120 }
+    "app/api/cron/player-index/route.js": { "maxDuration": 120 },
+    "app/api/cron/nfl-fantasy-rankings/route.js": { "maxDuration": 300 }
   }
 }

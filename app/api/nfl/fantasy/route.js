@@ -1,19 +1,25 @@
 import { requireAuth } from "../../../../lib/auth.js";
 import { lookupNFLPlayer, formatNFLPlayerContext, findMentionedNFLPlayers } from "../../../../lib/nfl-roster.js";
+import { rankingsContextLine } from "../../../../lib/nfl-fantasy/lookup.js";
 import Anthropic from "@anthropic-ai/sdk";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 // Resolves each comma-separated name in a start/sit or trade field to real
-// roster/injury context via ESPN. Unresolvable names are silently dropped —
-// Claude falls back to its own knowledge for those, so a bad/unknown name never
-// blocks the request.
-async function playerContextBlock(namesField) {
+// roster/injury context via ESPN, preferring the VORP/projection-grounded
+// nfl_fantasy_rankings line (lib/nfl-fantasy/lookup.js) when the player has
+// one. Unresolvable names are silently dropped — Claude falls back to its
+// own knowledge for those, so a bad/unknown name never blocks the request.
+async function playerContextBlock(namesField, scoring) {
   const names = (namesField || "").split(",").map(n => n.trim()).filter(Boolean);
   if (!names.length) return null;
   const players = await Promise.all(names.map(n => lookupNFLPlayer(n)));
-  const lines = players.map(formatNFLPlayerContext).filter(Boolean);
-  return lines.length ? lines.join("\n") : null;
+  const lines = await Promise.all(players.map(async (p) => {
+    const rankingLine = await rankingsContextLine(p, scoring).catch(() => null);
+    return rankingLine || formatNFLPlayerContext(p);
+  }));
+  const filtered = lines.filter(Boolean);
+  return filtered.length ? filtered.join("\n") : null;
 }
 
 const SYSTEM = `You are a sharp fantasy football analyst. You give direct, confident starts/sits verdicts and trade analysis — no hedging, no "it depends on your league," just a clear recommendation with the key reasons.
@@ -23,7 +29,7 @@ Format your responses for mobile:
 - 2-3 bullet reasons max, each one sentence
 - End with a one-line confidence note
 
-If current roster/injury data is provided in the message, treat it as more reliable than your own training knowledge (rosters and injury designations change constantly) — lead with it when it's decisive.
+If current roster/injury data is provided in the message, treat it as more reliable than your own training knowledge (rosters and injury designations change constantly) — lead with it when it's decisive. If a line includes VORP/projection/tier numbers, treat those as ground truth over your own training-knowledge point estimates — reserve your own knowledge for qualitative narrative (matchup, scheme fit, recent news) rather than re-deriving a point total.
 
 For starts/sits: consider target share, snap count trends, matchup grade, scoring format, injury status, and recent usage. Give the better play clearly.
 
@@ -45,24 +51,25 @@ export async function POST(request) {
   let userMessage;
   if (mode === "startSit") {
     if (!playerA || !playerB) return Response.json({ error: "playerA and playerB required" }, { status: 400 });
-    const [ctxA, ctxB] = await Promise.all([playerContextBlock(playerA), playerContextBlock(playerB)]);
+    const [ctxA, ctxB] = await Promise.all([playerContextBlock(playerA, scoring), playerContextBlock(playerB, scoring)]);
     const context = [ctxA, ctxB].filter(Boolean).join("\n");
     userMessage = `Scoring format: ${scoring || "PPR"}\n\n` +
-      (context ? `Current roster/injury data:\n${context}\n\n` : "") +
+      (context ? `Current roster/injury/projection data:\n${context}\n\n` : "") +
       `Should I start ${playerA} or ${playerB} this week? Give me a clear start/sit verdict.`;
   } else if (mode === "trade") {
     if (!tradeGive || !tradeGet) return Response.json({ error: "tradeGive and tradeGet required" }, { status: 400 });
-    const [ctxGive, ctxGet] = await Promise.all([playerContextBlock(tradeGive), playerContextBlock(tradeGet)]);
+    const [ctxGive, ctxGet] = await Promise.all([playerContextBlock(tradeGive, scoring), playerContextBlock(tradeGet, scoring)]);
     const context = [ctxGive, ctxGet].filter(Boolean).join("\n");
     userMessage = `Scoring format: ${scoring || "PPR"}\n\n` +
-      (context ? `Current roster/injury data:\n${context}\n\n` : "") +
+      (context ? `Current roster/injury/projection data:\n${context}\n\n` : "") +
       `Trade analysis: I'm giving ${tradeGive} and receiving ${tradeGet}. Should I accept or decline?`;
   } else if (mode === "ask") {
     if (!question) return Response.json({ error: "question required" }, { status: 400 });
     const mentioned = await findMentionedNFLPlayers(question).catch(() => []);
-    const context = mentioned.map(formatNFLPlayerContext).filter(Boolean).join("\n");
+    const lines = await Promise.all(mentioned.map(async (p) => (await rankingsContextLine(p, scoring).catch(() => null)) || formatNFLPlayerContext(p)));
+    const context = lines.filter(Boolean).join("\n");
     userMessage = `Scoring format: ${scoring || "PPR"}\n\n` +
-      (context ? `Current roster/injury data for players mentioned below:\n${context}\n\n` : "") +
+      (context ? `Current roster/injury/projection data for players mentioned below:\n${context}\n\n` : "") +
       question;
   } else {
     return Response.json({ error: "mode must be startSit, trade, or ask" }, { status: 400 });
