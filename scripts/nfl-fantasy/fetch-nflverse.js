@@ -19,6 +19,7 @@ import * as XLSX_NS from "xlsx";
 const XLSX = XLSX_NS.default ?? XLSX_NS;
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
+import { aggregatePlayByPlay, attachPositions } from "../../lib/nfl-fantasy/pbp-aggregate.js";
 
 const RELEASE_BASE = "https://github.com/nflverse/nflverse-data/releases/download";
 const OUT_DIR = join(process.cwd(), "data/nflverse");
@@ -39,6 +40,30 @@ async function fetchCsv(url) {
   const wb = XLSX.read(text, { type: "string" });
   const sheetName = wb.SheetNames[0];
   return XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
+}
+
+// Play-by-play files run 90MB+ (vs ~1.6MB for one season's aggregated
+// stats) — deliberately not parsed through XLSX (see
+// lib/nfl-fantasy/csv-columns.js for why), so this returns raw text for the
+// column-filtered aggregator to handle instead.
+async function fetchText(url) {
+  const res = await fetch(url, { signal: AbortSignal.timeout(120000) });
+  if (!res.ok) throw new Error(`fetch ${url} -> ${res.status}`);
+  return res.text();
+}
+
+// nflverse's aggregated player_stats rollup sometimes lags behind the raw
+// play-by-play for the most recent completed season (confirmed gap for
+// 2025: play_by_play_2025.csv exists, player_stats_2025.csv doesn't). When
+// the aggregated file 404s, compute the same stat lines ourselves from pbp
+// rather than silently losing that season.
+async function fetchSeasonViaPbp(season, playersRows) {
+  console.log(`[fetch-nflverse] player_stats_${season}.csv unavailable — falling back to play_by_play_${season}.csv`);
+  const text = await fetchText(`${RELEASE_BASE}/pbp/play_by_play_${season}.csv`);
+  const aggregated = aggregatePlayByPlay(text);
+  const withPositions = attachPositions(aggregated, playersRows);
+  console.log(`[fetch-nflverse] aggregated ${withPositions.length} player-week rows from play-by-play for ${season}`);
+  return withPositions;
 }
 
 // Expected columns per file, used only to log a warning if nflverse has
@@ -70,8 +95,25 @@ async function main() {
 
   console.log(`[fetch-nflverse] fetching seasons: ${SEASONS.join(", ")}`);
 
+  // The id crosswalk is a single always-current file, not per-season —
+  // fetched first since the play-by-play fallback below needs it to attach
+  // roster position to aggregated stat lines.
+  let playerRows = [];
+  try {
+    playerRows = await fetchCsv(`${RELEASE_BASE}/players/players.csv`);
+    checkColumns("players", playerRows);
+    await writeFile(join(OUT_DIR, "players.json"), JSON.stringify(playerRows));
+    console.log(`[fetch-nflverse] wrote players.json (${playerRows.length} rows)`);
+  } catch (e) {
+    console.error(`[fetch-nflverse] players crosswalk failed: ${e.message}`);
+  }
+
   // player_stats is published as one release per season under the
-  // "player_stats" tag, asset player_stats_<season>.csv.
+  // "player_stats" tag, asset player_stats_<season>.csv. When that's not
+  // available yet for a season (seen for 2025: the season's complete and
+  // play_by_play_2025.csv exists, but nflverse's aggregated rollup doesn't),
+  // fall back to computing it ourselves from play-by-play rather than
+  // losing the season outright.
   const allPlayerStats = [];
   for (const season of SEASONS) {
     try {
@@ -80,20 +122,16 @@ async function main() {
       allPlayerStats.push(...rows);
     } catch (e) {
       console.error(`[fetch-nflverse] season ${season} player_stats failed: ${e.message}`);
+      try {
+        const viaPbp = await fetchSeasonViaPbp(season, playerRows);
+        allPlayerStats.push(...viaPbp);
+      } catch (pbpErr) {
+        console.error(`[fetch-nflverse] season ${season} play-by-play fallback also failed: ${pbpErr.message}`);
+      }
     }
   }
   await writeFile(join(OUT_DIR, "player_stats.json"), JSON.stringify(allPlayerStats));
   console.log(`[fetch-nflverse] wrote player_stats.json (${allPlayerStats.length} rows)`);
-
-  // The id crosswalk is a single always-current file, not per-season.
-  try {
-    const playerRows = await fetchCsv(`${RELEASE_BASE}/players/players.csv`);
-    checkColumns("players", playerRows);
-    await writeFile(join(OUT_DIR, "players.json"), JSON.stringify(playerRows));
-    console.log(`[fetch-nflverse] wrote players.json (${playerRows.length} rows)`);
-  } catch (e) {
-    console.error(`[fetch-nflverse] players crosswalk failed: ${e.message}`);
-  }
 
   // Snap counts, one release per season, used as a volume/ceiling signal.
   const allSnapCounts = [];
