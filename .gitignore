@@ -47,3 +47,7 @@ scripts/backtest/.filter-refactor-snapshot.json
 # python
 __pycache__/
 *.pyc
+
+# raw nflverse downloads too large to commit (manually placed, see
+# scripts/nfl-fantasy/fetch-nflverse.js's local-file override)
+data/nflverse/raw/
