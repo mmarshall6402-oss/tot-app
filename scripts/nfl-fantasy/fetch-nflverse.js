@@ -47,7 +47,7 @@ async function fetchCsv(url) {
 // lib/nfl-fantasy/csv-columns.js for why), so this returns raw text for the
 // column-filtered aggregator to handle instead.
 async function fetchText(url) {
-  const res = await fetch(url, { signal: AbortSignal.timeout(120000) });
+  const res = await fetch(url, { signal: AbortSignal.timeout(600000) });
   if (!res.ok) throw new Error(`fetch ${url} -> ${res.status}`);
   return res.text();
 }
