@@ -17,7 +17,7 @@
 // check the logged column report before trusting the output.
 import * as XLSX_NS from "xlsx";
 const XLSX = XLSX_NS.default ?? XLSX_NS;
-import { writeFile, mkdir } from "fs/promises";
+import { writeFile, mkdir, readFile } from "fs/promises";
 import { join } from "path";
 import { aggregatePlayByPlay, attachPositions } from "../../lib/nfl-fantasy/pbp-aggregate.js";
 
@@ -57,9 +57,22 @@ async function fetchText(url) {
 // 2025: play_by_play_2025.csv exists, player_stats_2025.csv doesn't). When
 // the aggregated file 404s, compute the same stat lines ourselves from pbp
 // rather than silently losing that season.
+//
+// These files run 90MB+, which times out over a fetch() on a slow/unreliable
+// connection no matter how generous the timeout gets. If a manually
+// downloaded copy exists at data/nflverse/raw/play_by_play_<season>.csv
+// (e.g. saved via a browser, which retries/resumes far better than a single
+// script request), read that instead of hitting the network at all.
 async function fetchSeasonViaPbp(season, playersRows) {
   console.log(`[fetch-nflverse] player_stats_${season}.csv unavailable — falling back to play_by_play_${season}.csv`);
-  const text = await fetchText(`${RELEASE_BASE}/pbp/play_by_play_${season}.csv`);
+  const localPath = join(process.cwd(), "data/nflverse/raw", `play_by_play_${season}.csv`);
+  let text;
+  try {
+    text = await readFile(localPath, "utf8");
+    console.log(`[fetch-nflverse] using local copy at ${localPath} instead of fetching over network`);
+  } catch {
+    text = await fetchText(`${RELEASE_BASE}/pbp/play_by_play_${season}.csv`);
+  }
   const aggregated = aggregatePlayByPlay(text);
   const withPositions = attachPositions(aggregated, playersRows);
   console.log(`[fetch-nflverse] aggregated ${withPositions.length} player-week rows from play-by-play for ${season}`);
