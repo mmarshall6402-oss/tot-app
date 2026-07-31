@@ -23,6 +23,7 @@ create table if not exists nfl_fantasy_rankings (
   tier             int,
   injury_status    text,
   injury_risk      text,                 -- low | medium | high (historical durability)
+  trending_add_count int,                -- Sleeper 24h add-count, display-only signal
   updated_at       timestamptz not null default now(),
   unique (player_id, scoring_format, season)
 );

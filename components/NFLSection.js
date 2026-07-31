@@ -413,11 +413,18 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                           <span>Ceil {p.ceiling_points?.toFixed(1)} / Floor {p.floor_points?.toFixed(1)}</span>
                         </div>
                       </div>
-                      {p.injury_status && (
-                        <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: "rgba(217,100,92,0.1)", color: "#D9645C", border: "1px solid rgba(217,100,92,0.3)", flexShrink: 0 }}>
-                          {p.injury_status}
-                        </span>
-                      )}
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end", flexShrink: 0 }}>
+                        {p.injury_status && (
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: "rgba(217,100,92,0.1)", color: "#D9645C", border: "1px solid rgba(217,100,92,0.3)" }}>
+                            {p.injury_status}
+                          </span>
+                        )}
+                        {p.trending_add_count > 0 && (
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: "rgba(47,191,113,0.08)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.25)" }}>
+                            {p.trending_add_count} adds/24h
+                          </span>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
