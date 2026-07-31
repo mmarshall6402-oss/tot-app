@@ -34,7 +34,7 @@ const SEASONS = (() => {
 })();
 
 async function fetchCsv(url) {
-  const res = await fetch(url, { signal: AbortSignal.timeout(30000) });
+  const res = await fetch(url, { signal: AbortSignal.timeout(120000) });
   if (!res.ok) throw new Error(`fetch ${url} -> ${res.status}`);
   const text = await res.text();
   const wb = XLSX.read(text, { type: "string" });
