@@ -409,7 +409,6 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                         </div>
                         <div style={{ display: "flex", gap: 12, marginTop: 4, fontSize: 11, color: "#888", fontFamily: tokens.font.mono, flexWrap: "wrap" }}>
                           <span>Proj {p.projected_points?.toFixed(1)}</span>
-                          <span>VORP {p.vorp >= 0 ? "+" : ""}{p.vorp?.toFixed(1)}</span>
                           <span>Ceil {p.ceiling_points?.toFixed(1)} / Floor {p.floor_points?.toFixed(1)}</span>
                         </div>
                       </div>
