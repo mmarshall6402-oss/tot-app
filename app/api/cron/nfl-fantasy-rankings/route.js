@@ -15,6 +15,7 @@ import { buildPlayerIndex } from "../../../../lib/nfl-roster.js";
 import { buildIdCrosswalk } from "../../../../lib/nfl-fantasy/id-map.js";
 import { groupByPlayer, buildRankings, POSITIONS } from "../../../../lib/nfl-fantasy/rankings.js";
 import { injuryAdjustedGames, classifyInjuryRisk } from "../../../../lib/nfl-fantasy/injury.js";
+import { fetchSleeperPlayerIndex, buildEspnIdIndex, fetchTrendingAdds } from "../../../../lib/nfl-fantasy/sleeper.js";
 
 const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -44,7 +45,7 @@ async function loadCachedData() {
 // Joins each ranked player to live ESPN injury/durability context. Missing
 // crosswalk entries (recent rookies) fall back to name matching against the
 // same live index, rather than shipping with no injury signal at all.
-async function attachInjuryContext(ranked, crosswalk, espnIndex, historicalMissedRateById) {
+async function attachInjuryContext(ranked, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId) {
   return ranked.map((p) => {
     const espnId = crosswalk.espnIdFor(p.playerId) || crosswalk.espnIdForName(p.name);
     let espnPlayer = null;
@@ -55,15 +56,18 @@ async function attachInjuryContext(ranked, crosswalk, espnIndex, historicalMisse
     }
     if (!espnPlayer) espnPlayer = espnIndex.get(p.name.toLowerCase()) || null;
 
+    const sleeperPlayer = espnId ? sleeperEspnIndex.get(espnId) : null;
     const historicalRate = historicalMissedRateById.get(p.playerId) || 0;
     return {
       ...p,
       espnId: espnId || null,
       injuryStatus: espnPlayer?.injuryStatus || null,
       injuryRisk: classifyInjuryRisk(historicalRate),
+      trendingAddCount: (espnId && trendingByEspnId.get(espnId)) || 0,
       gamesProjectedAdjusted: injuryAdjustedGames(p.projection.gamesProjected, {
         currentStatus: espnPlayer?.injuryStatus,
         historicalGamesMissedRate: historicalRate,
+        depthChartOrder: sleeperPlayer?.depthChartOrder,
       }),
     };
   });
@@ -81,12 +85,12 @@ function computeHistoricalMissedRate(playersById, targetSeason, lookbackSeasons 
   return rates;
 }
 
-async function refreshFormat(supabase, format, playersById, targetSeason, crosswalk, espnIndex, historicalMissedRateById) {
+async function refreshFormat(supabase, format, playersById, targetSeason, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId) {
   const runStart = new Date().toISOString();
   const ranked = buildRankings(playersById, { targetSeason, format });
   if (!ranked.length) throw new Error(`${format}: ranking produced zero players — refusing to touch existing cache`);
 
-  const withInjury = await attachInjuryContext(ranked, crosswalk, espnIndex, historicalMissedRateById);
+  const withInjury = await attachInjuryContext(ranked, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId);
 
   const rowsByPosition = {};
   for (const pos of POSITIONS) rowsByPosition[pos] = withInjury.filter((p) => p.position === pos);
@@ -110,6 +114,7 @@ async function refreshFormat(supabase, format, playersById, targetSeason, crossw
     tier: p.tier,
     injury_status: p.injuryStatus,
     injury_risk: p.injuryRisk,
+    trending_add_count: p.trendingAddCount,
     updated_at: runStart,
   }));
 
@@ -158,10 +163,19 @@ export async function GET(request) {
     espnIndex = new Map(); // live injury context is best-effort — rankings still compute without it
   }
 
+  const sleeperIndex = await fetchSleeperPlayerIndex(); // already degrades to empty Map on failure
+  const sleeperEspnIndex = buildEspnIdIndex(sleeperIndex);
+  const trendingAdds = await fetchTrendingAdds();
+  const trendingByEspnId = new Map();
+  for (const { sleeperId, count } of trendingAdds) {
+    const espnId = sleeperIndex.get(sleeperId)?.espnId;
+    if (espnId) trendingByEspnId.set(espnId, count);
+  }
+
   const supabase = getSupabase();
   for (const format of FORMATS) {
     try {
-      results[format] = await refreshFormat(supabase, format, playersById, targetSeason, crosswalk, espnIndex, historicalMissedRateById);
+      results[format] = await refreshFormat(supabase, format, playersById, targetSeason, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId);
     } catch (e) {
       results[format] = { error: e.message };
     }
