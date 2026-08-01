@@ -59,15 +59,16 @@ export async function POST(request) {
   const targetSeason = body.season || new Date().getFullYear();
   const format = body.format || "ppr";
 
-  let playerStatsRows;
+  let playerStatsRows, playersRows;
   try {
     const raw = await readFile(join(process.cwd(), "data/nflverse/player_stats.json"), "utf8");
     playerStatsRows = JSON.parse(raw);
+    playersRows = JSON.parse(await readFile(join(process.cwd(), "data/nflverse/players.json"), "utf8").catch(() => "[]"));
   } catch (e) {
     return Response.json({ error: `failed to load cached nflverse data — run 'npm run fantasy-fetch' first: ${e.message}` }, { status: 500 });
   }
 
-  const result = runFantasyBacktest({ playerStatsRows, targetSeason, format });
+  const result = runFantasyBacktest({ playerStatsRows, playersRows, targetSeason, format });
   const run = await persistFantasyBacktestRun(getSupabase(), result);
   return Response.json({ run, metrics: result.metrics });
 }
