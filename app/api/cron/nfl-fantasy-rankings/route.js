@@ -16,6 +16,7 @@ import { buildIdCrosswalk } from "../../../../lib/nfl-fantasy/id-map.js";
 import { groupByPlayer, buildRankings, POSITIONS } from "../../../../lib/nfl-fantasy/rankings.js";
 import { injuryAdjustedGames, classifyInjuryRisk } from "../../../../lib/nfl-fantasy/injury.js";
 import { fetchSleeperPlayerIndex, buildEspnIdIndex, fetchTrendingAdds } from "../../../../lib/nfl-fantasy/sleeper.js";
+import { buildAgeById } from "../../../../lib/nfl-fantasy/age.js";
 
 const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -85,9 +86,9 @@ function computeHistoricalMissedRate(playersById, targetSeason, lookbackSeasons 
   return rates;
 }
 
-async function refreshFormat(supabase, format, playersById, targetSeason, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId) {
+async function refreshFormat(supabase, format, playersById, targetSeason, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId, ageById) {
   const runStart = new Date().toISOString();
-  const ranked = buildRankings(playersById, { targetSeason, format });
+  const ranked = buildRankings(playersById, { targetSeason, format, ageById });
   if (!ranked.length) throw new Error(`${format}: ranking produced zero players — refusing to touch existing cache`);
 
   const withInjury = await attachInjuryContext(ranked, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId);
@@ -154,6 +155,7 @@ export async function GET(request) {
 
   const playersById = groupByPlayer(playerStatsRows);
   const crosswalk = buildIdCrosswalk(playersRows);
+  const ageById = buildAgeById(playersRows, targetSeason);
   const historicalMissedRateById = computeHistoricalMissedRate(playersById, targetSeason);
 
   let espnIndex;
@@ -175,7 +177,7 @@ export async function GET(request) {
   const supabase = getSupabase();
   for (const format of FORMATS) {
     try {
-      results[format] = await refreshFormat(supabase, format, playersById, targetSeason, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId);
+      results[format] = await refreshFormat(supabase, format, playersById, targetSeason, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId, ageById);
     } catch (e) {
       results[format] = { error: e.message };
     }

@@ -85,9 +85,10 @@ function summarize(metrics) {
 async function main() {
   const { season, format, dryRun, dataDir } = parseArgs(process.argv.slice(2));
   const playerStatsRows = JSON.parse(await readFile(join(dataDir, "player_stats.json"), "utf8"));
+  const playersRows = JSON.parse(await readFile(join(dataDir, "players.json"), "utf8").catch(() => "[]"));
 
   console.log(`Running fantasy backtest for target season ${season} (${format}) against ${playerStatsRows.length} weekly stat rows from ${dataDir}...`);
-  const result = runFantasyBacktest({ playerStatsRows, targetSeason: season, format });
+  const result = runFantasyBacktest({ playerStatsRows, playersRows, targetSeason: season, format });
 
   console.log(JSON.stringify(result.metrics, null, 2));
   summarize(result.metrics);
