@@ -72,8 +72,10 @@ export default function FantasyScheduleImport() {
 
       <div style={{ marginTop: 24, maxWidth: 480 }}>
         <div style={{ fontSize: 12, color: "#888", marginBottom: 16, lineHeight: 1.6 }}>
-          Upload a schedule-difficulty screenshot (a weekly matchup grid, one row per player). Claude extracts
-          the data and folds weeks 15-17 (fantasy playoffs) directly into the Cheat Sheet rankings.
+          Upload a schedule-difficulty screenshot (a weekly matchup grid, one row per player) — typically
+          opponent run-defense strength. Claude extracts the data and folds weeks 15-17 (fantasy playoffs)
+          directly into the Cheat Sheet rankings, weighted toward RBs (and rushing QBs) since run-defense
+          strength isn&apos;t a receiving signal.
         </div>
         <input type="file" accept="image/*" onChange={e => setFile(e.target.files?.[0] || null)}
           style={{ display: "block", marginBottom: 12, color: "#fff" }} />
