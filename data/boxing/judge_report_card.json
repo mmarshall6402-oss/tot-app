@@ -1,0 +1,89 @@
+{
+  "generated_at": "2026-08-01T16:59:15.837800+00:00",
+  "source": "SYNTHETIC_FIXTURE_DATA",
+  "source_note": "boxing.nv.gov is network-blocked in this environment, so this report is built from synthetic fixture PDFs (scripts/boxing/generate_fixtures.py), not real fight data. Judge and fighter names are fictional. Re-run parse_pdfs.py + build_report_card.py against real NAC/NYSAC PDFs to replace this with a real report.",
+  "min_fights_cutoff": 8,
+  "total_fights_parsed": 40,
+  "judges": [
+    {
+      "judge": "S. Okafor",
+      "n_fights": 17,
+      "insufficient_sample": false,
+      "mean_abs_deviation": 2.94,
+      "signed_bias": -1.29,
+      "deviation_variance": 15.97,
+      "odd_card_out_rate": 0.059,
+      "pct_rows_assumed_alignment": 52.9
+    },
+    {
+      "judge": "D. Whitfield",
+      "n_fights": 20,
+      "insufficient_sample": false,
+      "mean_abs_deviation": 2.9,
+      "signed_bias": 2.9,
+      "deviation_variance": 3.39,
+      "odd_card_out_rate": 0.05,
+      "pct_rows_assumed_alignment": 70.0
+    },
+    {
+      "judge": "M. Delacroix",
+      "n_fights": 14,
+      "insufficient_sample": false,
+      "mean_abs_deviation": 1.14,
+      "signed_bias": -1.14,
+      "deviation_variance": 1.55,
+      "odd_card_out_rate": 0.0,
+      "pct_rows_assumed_alignment": 35.7
+    },
+    {
+      "judge": "R. Kimura",
+      "n_fights": 32,
+      "insufficient_sample": false,
+      "mean_abs_deviation": 0.69,
+      "signed_bias": -0.44,
+      "deviation_variance": 1.43,
+      "odd_card_out_rate": 0.031,
+      "pct_rows_assumed_alignment": 46.9
+    },
+    {
+      "judge": "T. Pruitt",
+      "n_fights": 15,
+      "insufficient_sample": false,
+      "mean_abs_deviation": 0.67,
+      "signed_bias": 0.13,
+      "deviation_variance": 1.32,
+      "odd_card_out_rate": 0.0,
+      "pct_rows_assumed_alignment": 40.0
+    },
+    {
+      "judge": "J. Alvarez",
+      "n_fights": 17,
+      "insufficient_sample": false,
+      "mean_abs_deviation": 0.24,
+      "signed_bias": -0.24,
+      "deviation_variance": 0.42,
+      "odd_card_out_rate": 0.0,
+      "pct_rows_assumed_alignment": 64.7
+    },
+    {
+      "judge": "C. Ibsen",
+      "n_fights": 2,
+      "insufficient_sample": true,
+      "mean_abs_deviation": 1.0,
+      "signed_bias": 1.0,
+      "deviation_variance": 1,
+      "odd_card_out_rate": 0.0,
+      "pct_rows_assumed_alignment": 0.0
+    },
+    {
+      "judge": "N. Farrow",
+      "n_fights": 3,
+      "insufficient_sample": true,
+      "mean_abs_deviation": 0.67,
+      "signed_bias": -0.67,
+      "deviation_variance": 0.89,
+      "odd_card_out_rate": 0.0,
+      "pct_rows_assumed_alignment": 0.0
+    }
+  ]
+}

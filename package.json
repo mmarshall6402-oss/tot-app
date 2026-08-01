@@ -13,7 +13,11 @@
     "fantasy-fetch": "node --env-file=.env.local scripts/nfl-fantasy/fetch-nflverse.js",
     "fantasy-backtest": "node --env-file=.env.local scripts/nfl-fantasy/backtest.js",
     "elo-splits": "node scripts/backtest/compute-elo-splits.js",
-    "calibration-curve": "node scripts/backtest/compute-calibration-curve.js"
+    "calibration-curve": "node scripts/backtest/compute-calibration-curve.js",
+    "boxing-fixtures": "python3 scripts/boxing/generate_fixtures.py",
+    "boxing-parse": "python3 scripts/boxing/parse_pdfs.py",
+    "boxing-report": "python3 scripts/boxing/build_report_card.py",
+    "boxing-pipeline": "npm run boxing-parse && npm run boxing-report"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.91.1",

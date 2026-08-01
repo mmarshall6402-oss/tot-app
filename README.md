@@ -131,6 +131,18 @@ npm install
 npm run dev
 ```
 
+### Boxing Judge Report Card (experimental)
+
+An isolated, unfinished vertical exploring per-judge scoring tendency (mean deviation from the room, variance, dissent rate) parsed from athletic-commission event-result PDFs (e.g. Nevada Athletic Commission). Lives entirely under `lib/boxing/`, `scripts/boxing/`, `data/boxing/`, and `app/boxing/` — no shared code with the MLB/NFL picks pipeline.
+
+```bash
+pip install -r scripts/boxing/requirements.txt
+python3 scripts/boxing/generate_fixtures.py   # only needed if data/boxing/fixtures/*.pdf is empty
+npm run boxing-pipeline                       # parse PDFs -> data/boxing/scorecards.jsonl -> judge_report_card.json
+```
+
+View at `/boxing`. **Currently seeded from synthetic fixture PDFs, not real fight data** — `boxing.nv.gov` was unreachable from this environment when this was built. Point `scripts/boxing/parse_pdfs.py` at a directory of real NAC/NYSAC result PDFs to replace the fixture data; the parser already handles the two score-alignment layouts (judge roster order vs. named-per-bout) seen in real bulletins, flagging rows where alignment is inferred rather than explicit. "Skew toward the pressure fighter" from the original spec is out of scope — it needs fighter-style tagging that result PDFs don't contain.
+
 ### MLB Analytics Dashboard (Streamlit)
 
 A standalone Python/Streamlit dashboard over the same Elo ratings and 2022–2025 game logs used by the pick model — power rankings, home-field advantage, scoring trends, and team-level records.
