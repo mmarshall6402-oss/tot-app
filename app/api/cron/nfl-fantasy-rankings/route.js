@@ -17,6 +17,7 @@ import { groupByPlayer, buildRankings, POSITIONS } from "../../../../lib/nfl-fan
 import { injuryAdjustedGames, classifyInjuryRisk } from "../../../../lib/nfl-fantasy/injury.js";
 import { fetchSleeperPlayerIndex, buildEspnIdIndex, fetchTrendingAdds } from "../../../../lib/nfl-fantasy/sleeper.js";
 import { buildAgeById } from "../../../../lib/nfl-fantasy/age.js";
+import { buildScheduleAdjustmentByName, applyScheduleAdjustment } from "../../../../lib/nfl-fantasy/schedule-adjustment.js";
 
 const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -86,12 +87,13 @@ function computeHistoricalMissedRate(playersById, targetSeason, lookbackSeasons 
   return rates;
 }
 
-async function refreshFormat(supabase, format, playersById, targetSeason, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId, ageById) {
+async function refreshFormat(supabase, format, playersById, targetSeason, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId, ageById, scheduleAdjustmentByName) {
   const runStart = new Date().toISOString();
   const ranked = buildRankings(playersById, { targetSeason, format, ageById });
   if (!ranked.length) throw new Error(`${format}: ranking produced zero players — refusing to touch existing cache`);
+  const scheduleAdjusted = applyScheduleAdjustment(ranked, scheduleAdjustmentByName);
 
-  const withInjury = await attachInjuryContext(ranked, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId);
+  const withInjury = await attachInjuryContext(scheduleAdjusted, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId);
 
   const rowsByPosition = {};
   for (const pos of POSITIONS) rowsByPosition[pos] = withInjury.filter((p) => p.position === pos);
@@ -175,9 +177,16 @@ export async function GET(request) {
   }
 
   const supabase = getSupabase();
+
+  const { data: scheduleRows } = await supabase
+    .from("nfl_fantasy_schedule_difficulty")
+    .select("player_name, week, difficulty")
+    .eq("season", targetSeason);
+  const scheduleAdjustmentByName = buildScheduleAdjustmentByName(scheduleRows || []);
+
   for (const format of FORMATS) {
     try {
-      results[format] = await refreshFormat(supabase, format, playersById, targetSeason, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId, ageById);
+      results[format] = await refreshFormat(supabase, format, playersById, targetSeason, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId, ageById, scheduleAdjustmentByName);
     } catch (e) {
       results[format] = { error: e.message };
     }
