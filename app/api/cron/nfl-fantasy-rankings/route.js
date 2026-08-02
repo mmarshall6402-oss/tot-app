@@ -18,6 +18,7 @@ import { injuryAdjustedGames, classifyInjuryRisk } from "../../../../lib/nfl-fan
 import { fetchSleeperPlayerIndex, buildEspnIdIndex, fetchTrendingAdds } from "../../../../lib/nfl-fantasy/sleeper.js";
 import { buildAgeById } from "../../../../lib/nfl-fantasy/age.js";
 import { buildScheduleAdjustmentByName, applyScheduleAdjustment } from "../../../../lib/nfl-fantasy/schedule-adjustment.js";
+import { buildPersonnelAdjustmentByTeam, applyPersonnelAdjustment } from "../../../../lib/nfl-fantasy/personnel-adjustment.js";
 
 const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -87,11 +88,12 @@ function computeHistoricalMissedRate(playersById, targetSeason, lookbackSeasons 
   return rates;
 }
 
-async function refreshFormat(supabase, format, playersById, targetSeason, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId, ageById, scheduleAdjustmentByName) {
+async function refreshFormat(supabase, format, playersById, targetSeason, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId, ageById, scheduleAdjustmentByName, personnelAdjustmentByTeam) {
   const runStart = new Date().toISOString();
   const ranked = buildRankings(playersById, { targetSeason, format, ageById });
   if (!ranked.length) throw new Error(`${format}: ranking produced zero players — refusing to touch existing cache`);
-  const scheduleAdjusted = applyScheduleAdjustment(ranked, scheduleAdjustmentByName);
+  const personnelAdjusted = applyPersonnelAdjustment(ranked, personnelAdjustmentByTeam);
+  const scheduleAdjusted = applyScheduleAdjustment(personnelAdjusted, scheduleAdjustmentByName);
 
   const withInjury = await attachInjuryContext(scheduleAdjusted, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId);
 
@@ -118,6 +120,7 @@ async function refreshFormat(supabase, format, playersById, targetSeason, crossw
     injury_status: p.injuryStatus,
     injury_risk: p.injuryRisk,
     trending_add_count: p.trendingAddCount,
+    personnel_note: p.personnelNote || null,
     updated_at: runStart,
   }));
 
@@ -184,9 +187,15 @@ export async function GET(request) {
     .eq("season", targetSeason);
   const scheduleAdjustmentByName = buildScheduleAdjustmentByName(scheduleRows || []);
 
+  const { data: personnelRows } = await supabase
+    .from("nfl_fantasy_team_personnel")
+    .select("team, wr3_plus_pct, wr2_minus_pct")
+    .eq("season", targetSeason);
+  const personnelAdjustmentByTeam = buildPersonnelAdjustmentByTeam(personnelRows || []);
+
   for (const format of FORMATS) {
     try {
-      results[format] = await refreshFormat(supabase, format, playersById, targetSeason, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId, ageById, scheduleAdjustmentByName);
+      results[format] = await refreshFormat(supabase, format, playersById, targetSeason, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId, ageById, scheduleAdjustmentByName, personnelAdjustmentByTeam);
     } catch (e) {
       results[format] = { error: e.message };
     }
