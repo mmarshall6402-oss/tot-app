@@ -37,11 +37,16 @@ export async function POST(request) {
     return Response.json({ error: `extraction failed: ${e.message}` }, { status: 500 });
   }
 
-  const rows = [];
+  // Keyed by player_name+season+week (the upsert's conflict target) — a Map
+  // dedupes any repeated week columns the vision extraction may have echoed
+  // (e.g. a trailing summary column), since Postgres rejects an upsert batch
+  // that targets the same conflict key twice, aborting the whole batch.
+  const rowsByKey = new Map();
   for (const player of extracted) {
     for (const w of player.weeks || []) {
       if (!w.week || !w.difficulty) continue;
-      rows.push({
+      const key = `${player.name}|${season}|${w.week}`;
+      rowsByKey.set(key, {
         player_name: player.name,
         position: player.position || null,
         season: Number(season),
@@ -52,6 +57,7 @@ export async function POST(request) {
       });
     }
   }
+  const rows = [...rowsByKey.values()];
   if (!rows.length) {
     return Response.json({ error: "no usable rows extracted from image" }, { status: 422 });
   }
