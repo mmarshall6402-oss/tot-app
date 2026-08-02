@@ -89,7 +89,7 @@ export default function Landing() {
 
       {/* ─── HERO ─────────────────────────────────────── */}
       <section style={{ padding: "80px 24px 72px", maxWidth: 860, margin: "0 auto", textAlign: "center" }}>
-        <div className="fade-up" style={{ fontSize: 13, color: "#777", fontWeight: 500, marginBottom: 24 }}>Live today · MLB &amp; NFL</div>
+        <div className="fade-up" style={{ fontSize: 13, color: "#777", fontWeight: 500, marginBottom: 24 }}>Live today · MLB &amp; NFL · Props · Fantasy</div>
 
         <h1 className="fade-up-2" style={{ fontSize: "clamp(38px,7vw,68px)", fontWeight: 600, lineHeight: 1.12, letterSpacing: -0.5, marginBottom: 22 }}>
           We outperform<br />
@@ -99,8 +99,9 @@ export default function Landing() {
 
         <p className="fade-up-3" style={{ fontSize: "clamp(15px,2.5vw,18px)", color: "#666", lineHeight: 1.65, maxWidth: 560, margin: "0 auto 36px" }}>
           T|T is a sharp MLB and NFL model that finds genuine edges the books miss —
-          pitcher/bullpen state and park factors for baseball, matchup and EPA data for football,
-          plus line movement across both. Not gut feelings. Edges.
+          moneyline, spread, and total picks, plus player props, curated top-edge
+          "Steals," and an NFL fantasy assistant for start/sit and trade calls.
+          Not gut feelings. Edges.
         </p>
 
         <div className="fade-up-4" style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", marginBottom: 48 }}>
@@ -240,7 +241,7 @@ export default function Landing() {
           {/* Bottom CTA inside mockup */}
           <div style={{ marginTop: 12, background: "rgba(47,191,113,0.06)", border: "1px solid rgba(47,191,113,0.12)", borderRadius: 12, padding: "12px", textAlign: "center" }}>
             <div style={{ fontSize: 11, color: "#2FBF71", fontWeight: 700, marginBottom: 4 }}>Unlock all picks for $2/mo</div>
-            <div style={{ fontSize: 10, color: "#444" }}>Full breakdowns · edge scores · parlay builder</div>
+            <div style={{ fontSize: 10, color: "#444" }}>Full breakdowns · props · steals · fantasy tools · parlay builder</div>
           </div>
         </div>
       </section>
@@ -274,6 +275,21 @@ export default function Landing() {
               title: "Market edge scoring",
               body: "We compare our model's win probability to the book's implied probability. Only plays with a verified edge after market calibration pass. No phantom edges.",
               tag: "BOTH SPORTS",
+            },
+            {
+              title: "Player props",
+              body: "Poisson-based projections for pitcher strikeouts and anytime home runs, blended toward the sportsbook's own price the same way our moneyline model respects the market.",
+              tag: "MLB PROPS",
+            },
+            {
+              title: "Steals",
+              body: "A curated feed of only the CLEAN, fully-verified picks across the board — sorted by edge size, so you see the sharpest plays first without scrolling every game.",
+              tag: "CURATED VIEW",
+            },
+            {
+              title: "NFL fantasy assistant",
+              body: "Start/sit comparisons, trade analyzer, and a weekly cheat sheet — all fed by the same EPA and efficiency data that powers our NFL picks.",
+              tag: "FANTASY",
             },
             {
               title: "Park + lineup context",
@@ -421,7 +437,7 @@ Sports betting carries extreme variance — MLB and NFL alike. Even 60% pickers 
             </div>
             <div style={{ fontFamily: tokens.font.mono, fontSize: 36, fontWeight: 700, marginBottom: 4, color: "#2FBF71" }}>$2</div>
             <div style={{ fontSize: 12, color: "#555", marginBottom: 24 }}>per month</div>
-            {["All picks + full breakdowns", "Edge scores + variance data", "CLEAN / BET / PASS filter", "Parlay builder (CLEAN only)", "Personal tracker + P&L", "Access on all devices"].map(f => (
+            {["All picks + full breakdowns", "Edge scores + variance data", "CLEAN / BET / PASS filter", "Player props (Ks & HRs)", "Steals — curated top-edge feed", "NFL fantasy assistant + cheat sheet", "Parlay builder (CLEAN only)", "Personal tracker + P&L", "Access on all devices"].map(f => (
               <div key={f} style={{ display: "flex", gap: 8, alignItems: "center", padding: "7px 0", borderBottom: "1px solid rgba(47,191,113,0.06)", fontSize: 13, color: "#888" }}>
                 <span style={{ color: "#2FBF71", fontSize: 14 }}>✓</span> {f}
               </div>
