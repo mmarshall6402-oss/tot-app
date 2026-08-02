@@ -38,6 +38,27 @@ function statEntries(stats, max = 12) {
     .slice(0, max);
 }
 
+// NFL's detail payload carries `age` directly; MLB's only has `birthDate` —
+// derive age from it so both sports show the same bio field without either
+// route needing to know about the other's shape.
+function ageFromBirthDate(iso) {
+  if (!iso) return null;
+  const dob = new Date(iso);
+  if (Number.isNaN(dob.getTime())) return null;
+  const now = new Date();
+  let age = now.getFullYear() - dob.getFullYear();
+  const monthDiff = now.getMonth() - dob.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < dob.getDate())) age--;
+  return age;
+}
+
+function draftLabel(draft) {
+  if (!draft) return null;
+  if (draft.text) return draft.text;
+  if (draft.year && draft.round) return `${draft.year} · Rd ${draft.round}${draft.selection ? `, Pk ${draft.selection}` : ""}`;
+  return null;
+}
+
 export default function PlayerModal({ open, sport, playerId, playerName, onClose, getAuthHeaders, S }) {
   const [subTab, setSubTab] = useState("overview");
   const [data, setData] = useState(null);
@@ -147,9 +168,14 @@ export default function PlayerModal({ open, sport, playerId, playerName, onClose
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 {[
+                  ["Age", data?.age ?? ageFromBirthDate(data?.birthDate)],
                   ["Bats", data?.bats], ["Throws", data?.throws],
                   ["Height", data?.height], ["Weight", data?.weight],
-                  ["Jersey", data?.jersey], ["Status", data?.injuryStatus],
+                  ["Jersey", data?.jersey],
+                  ["College", data?.college],
+                  ["Exp", data?.experience != null ? `${data.experience} yr${data.experience === 1 ? "" : "s"}` : null],
+                  ["Draft", draftLabel(data?.draft)],
+                  ["Status", data?.injuryStatus],
                 ].filter(([, v]) => v).map(([label, val]) => (
                   <div key={label} style={{ ...S.statBox, flex: "unset", minWidth: 90 }}>
                     <div style={S.statLabel}>{label.toUpperCase()}</div>
