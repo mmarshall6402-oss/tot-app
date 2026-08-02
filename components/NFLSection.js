@@ -423,6 +423,11 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                             {p.trending_add_count} adds/24h
                           </span>
                         )}
+                        {p.personnel_note && (
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: "rgba(120,140,255,0.08)", color: "#7C8CFF", border: "1px solid rgba(120,140,255,0.25)" }}>
+                            {p.personnel_note}
+                          </span>
+                        )}
                       </div>
                     </div>
                   );

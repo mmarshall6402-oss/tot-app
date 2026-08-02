@@ -478,6 +478,7 @@ export default function AdminDash() {
           {busy && <div style={{ width: 14, height: 14, border: "2px solid #222", borderTopColor: "#00FF87", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />}
           <a href="/admin/backtest" style={{ fontSize: 11, color: "#444" }}>Backtest →</a>
           <a href="/admin/fantasy-schedule" style={{ fontSize: 11, color: "#444" }}>Fantasy Schedule →</a>
+          <a href="/admin/fantasy-personnel" style={{ fontSize: 11, color: "#444" }}>Fantasy Personnel →</a>
           <a href="/" style={{ fontSize: 11, color: "#444" }}>← App</a>
         </div>
       </div>
