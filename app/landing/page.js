@@ -341,7 +341,8 @@ export default function Landing() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14, marginBottom: 40 }}>
           {[
             { label: "Break-even needed",    us: record?.pct ? `${record.pct}%`  : "—", them: "52.4%", usBetter: true,  sub: "win rate" },
-            { label: "Model edge per pick",  us: record?.avgEdge ? `+${record.avgEdge}%` : "+3–5%",  them: "0%",     usBetter: true,  sub: "vs vig" },
+            { label: "Model edge per pick",  us: record?.avgEdge != null ? (record.avgEdge > 0 ? "Ahead" : "Behind") : "—",  them: "0%",     usBetter: true,
+              sub: <>vs vig · <a href="/record" style={{ color: "#2FBF71" }}>see full record →</a></> },
             { label: "CLEAN picks screened", us: "6-layer",  them: "1-layer",   usBetter: true,  sub: "AND-gate filter" },
             { label: "Transparency",         us: "Full",     them: "None",       usBetter: true,  sub: "every condition shown" },
           ].map(({ label, us, them, usBetter, sub }) => (
