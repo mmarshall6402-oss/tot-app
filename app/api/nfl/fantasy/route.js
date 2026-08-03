@@ -1,7 +1,9 @@
 import { requireAuth } from "../../../../lib/auth.js";
 import { lookupNFLPlayer, formatNFLPlayerContext, findMentionedNFLPlayers } from "../../../../lib/nfl-roster.js";
-import { rankingsContextLine, rankingsRow } from "../../../../lib/nfl-fantasy/lookup.js";
+import { rankingsContextLine, rankingsRow, normalizeFormat } from "../../../../lib/nfl-fantasy/lookup.js";
 import { headToHeadProbability } from "../../../../lib/nfl-fantasy/probability.js";
+import { logLiveProbabilityCall } from "../../../../lib/nfl-fantasy/probability-log.js";
+import { currentNflSeason } from "../../../../lib/nfl-fantasy/season.js";
 import Anthropic from "@anthropic-ai/sdk";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -30,14 +32,19 @@ async function playerContextBlock(namesField, scoring) {
 // (as trade mode allows) has no single head-to-head to score, so it's left
 // to the plain-text playerContextBlock path instead. Returns null on any
 // resolution miss (unranked/rookie/name mismatch) — caller falls back to
-// the LLM-only verdict with no probability attached.
+// the LLM-only verdict with no probability attached. Returns the resolved
+// rows alongside the probability so the caller can log the call (canonical
+// names/positions, not whatever typo the user typed) against
+// fantasy_probability_log (sql/018) for the public calibration page.
 async function startSitProbability(playerAName, playerBName, scoring) {
   if (playerAName.includes(",") || playerBName.includes(",")) return null;
   try {
     const [espnA, espnB] = await Promise.all([lookupNFLPlayer(playerAName), lookupNFLPlayer(playerBName)]);
     const [rowA, rowB] = await Promise.all([rankingsRow(espnA, scoring), rankingsRow(espnB, scoring)]);
     if (!rowA || !rowB) return null;
-    return headToHeadProbability(rowA, rowB);
+    const probability = headToHeadProbability(rowA, rowB);
+    if (!probability) return null;
+    return { probability, rowA, rowB };
   } catch (e) {
     console.warn("[nfl-fantasy] start/sit probability failed:", e.message);
     return null;
@@ -72,14 +79,21 @@ export async function POST(request) {
 
   let userMessage;
   let probability = null;
+  let logAfterReply = null;
   if (mode === "startSit") {
     if (!playerA || !playerB) return Response.json({ error: "playerA and playerB required" }, { status: 400 });
-    const [ctxA, ctxB, prob] = await Promise.all([
+    const [ctxA, ctxB, probResult] = await Promise.all([
       playerContextBlock(playerA, scoring),
       playerContextBlock(playerB, scoring),
       startSitProbability(playerA.trim(), playerB.trim(), scoring),
     ]);
-    probability = prob;
+    probability = probResult?.probability || null;
+    if (probResult) {
+      logAfterReply = () => logLiveProbabilityCall({
+        rowA: probResult.rowA, rowB: probResult.rowB, probability,
+        scoringFormat: normalizeFormat(scoring), season: currentNflSeason(),
+      });
+    }
     const context = [ctxA, ctxB].filter(Boolean).join("\n");
     const probLine = probability
       ? `\nModel win probability this week: ${playerA} ${probability.playerAProbability}% vs ${playerB} ${probability.playerBProbability}%. Treat this as ground truth — your verdict should agree with it, and your reasons should explain why, not contradict it.\n`
@@ -115,6 +129,7 @@ export async function POST(request) {
       messages: [{ role: "user", content: userMessage }],
     });
     const text = msg.content[0]?.text || "";
+    if (logAfterReply) await logAfterReply();
     return Response.json({ result: text, probability });
   } catch (e) {
     console.error("NFL fantasy API error", e);

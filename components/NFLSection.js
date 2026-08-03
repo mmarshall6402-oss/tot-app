@@ -391,6 +391,12 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
             </div>
 
             {fantasyMode === "startSit" && (
+              <a href="/calibration" target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: "#666", textAlign: "right", textDecoration: "none" }}>
+                See our calibration track record →
+              </a>
+            )}
+
+            {fantasyMode === "startSit" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <input style={inputStyle} placeholder="Player A (e.g. Justin Jefferson)" value={playerA}
