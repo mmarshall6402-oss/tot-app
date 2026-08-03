@@ -5,6 +5,8 @@ import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { createClient } from "@supabase/supabase-js";
 import NFLSection from "../components/NFLSection.js";
 import ScheduleSection from "../components/ScheduleSection.js";
+import TeamsSection from "../components/TeamsSection.js";
+import PlayersSection from "../components/PlayersSection.js";
 import TeamModal, { TeamMatchupLink } from "../components/TeamModal.js";
 import PlayerModal from "../components/PlayerModal.js";
 import PropCard from "../components/PropCard.js";
@@ -736,7 +738,7 @@ export default function ToT() {
   // Which top-level sport pill should read as "active" — everything that isn't NFL
   // or Settings is an MLB-scoped tab, so it defaults to "mlb" rather than needing
   // every MLB tab id listed out here.
-  const currentSport = activeTab === "home" ? "home" : activeTab === "nfl" ? "nfl" : activeTab === "settings" ? "settings" : activeTab === "schedule" ? "schedule" : "mlb";
+  const currentSport = activeTab === "home" ? "home" : activeTab === "nfl" ? "nfl" : activeTab === "settings" ? "settings" : ["schedule", "teams", "players"].includes(activeTab) ? activeTab : "mlb";
   // Bottom-tab-bar grouping — Home/Games/Portfolio/Profile. Games covers the
   // whole "today's board" experience (Picks/Steals/Live/Feed/Chat/Props/NFL/
   // Schedule); Portfolio is "my bets" (Tracker/Parlay/Record); everything
@@ -1362,6 +1364,8 @@ export default function ToT() {
             { id: "props", label: "Props" },
             { id: "steals", label: "Steals" },
             { id: "schedule", label: "Schedule" },
+            { id: "teams", label: "Teams" },
+            { id: "players", label: "Players" },
             { id: "chat", label: "Ask AI" },
           ].map(({ id, label }) => (
             <button
@@ -2960,6 +2964,14 @@ export default function ToT() {
 
       {activeTab === "schedule" && (
         <ScheduleSection S={S} getAuthHeaders={getAuthHeaders} onTeamClick={openTeam} />
+      )}
+
+      {activeTab === "teams" && (
+        <TeamsSection S={S} getAuthHeaders={getAuthHeaders} onTeamClick={openTeam} />
+      )}
+
+      {activeTab === "players" && (
+        <PlayersSection S={S} getAuthHeaders={getAuthHeaders} onPlayerClick={openPlayer} />
       )}
 
       {activeTab === "settings" && (
