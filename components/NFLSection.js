@@ -110,6 +110,14 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
   const [cheatSheetError, setCheatSheetError] = useState(null);
   const [positionFilter, setPositionFilter] = useState("ALL");
 
+  // My Team (Sleeper connect + roster) state
+  const [sleeperConnection, setSleeperConnection] = useState(null); // null = not yet loaded
+  const [sleeperLoading, setSleeperLoading] = useState(false);
+  const [sleeperError, setSleeperError] = useState(null);
+  const [sleeperUsername, setSleeperUsername] = useState("");
+  const [sleeperLookup, setSleeperLookup] = useState(null); // { sleeperUserId, username, leagues }
+  const [sleeperBusy, setSleeperBusy] = useState(false);
+
   // Odds teaser state (non-Pro Picks view)
   const [nflGames, setNflGames] = useState(null);
   const [nflLoading, setNflLoading] = useState(false);
@@ -185,6 +193,92 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
   useEffect(() => {
     if (subTab === "fantasy" && fantasyMode === "cheatSheet") loadCheatSheet();
   }, [subTab, fantasyMode, scoring, positionFilter]);
+
+  const loadSleeperConnection = async () => {
+    setSleeperLoading(true); setSleeperError(null);
+    try {
+      const headers = await getAuthHeaders();
+      const params = new URLSearchParams({ format: scoringToFormat(scoring) });
+      const res = await fetch(`/api/nfl/fantasy/sleeper?${params}`, { headers });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error");
+      setSleeperConnection(data);
+    } catch (e) {
+      setSleeperError(e.message || "Could not load your team");
+      setSleeperConnection({ connected: false });
+    }
+    setSleeperLoading(false);
+  };
+
+  useEffect(() => {
+    if (subTab === "fantasy" && fantasyMode === "myTeam" && sleeperConnection === null && !sleeperLoading) loadSleeperConnection();
+  }, [subTab, fantasyMode, sleeperConnection, sleeperLoading]);
+
+  const lookupSleeperUsername = async () => {
+    if (!sleeperUsername.trim()) return;
+    setSleeperBusy(true); setSleeperError(null); setSleeperLookup(null);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch("/api/nfl/fantasy/sleeper", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify({ mode: "lookup", username: sleeperUsername.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error");
+      if (data.leagues.length === 1) {
+        await connectSleeperLeague(data.sleeperUserId, data.username, data.leagues[0]);
+      } else {
+        setSleeperLookup(data);
+      }
+    } catch (e) {
+      setSleeperError(e.message || "Could not find that Sleeper username");
+    }
+    setSleeperBusy(false);
+  };
+
+  const connectSleeperLeague = async (sleeperUserId, username, league) => {
+    setSleeperBusy(true); setSleeperError(null);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch("/api/nfl/fantasy/sleeper", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify({
+          mode: "connect", sleeperUserId, username,
+          leagueId: league.leagueId, leagueName: league.name, season: league.season,
+          format: scoringToFormat(scoring),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error");
+      setSleeperConnection(data);
+      setSleeperLookup(null);
+      setSleeperUsername("");
+    } catch (e) {
+      setSleeperError(e.message || "Could not connect that league");
+    }
+    setSleeperBusy(false);
+  };
+
+  const disconnectSleeper = async () => {
+    setSleeperBusy(true);
+    try {
+      const headers = await getAuthHeaders();
+      await fetch("/api/nfl/fantasy/sleeper", { method: "DELETE", headers });
+    } catch (e) { console.error("sleeper disconnect error", e); }
+    setSleeperConnection({ connected: false });
+    setSleeperBusy(false);
+  };
+
+  // Quick hand-off from a roster row into the Start/Sit comparison — fills
+  // playerA first, then playerB, then wraps back to playerA so tapping the
+  // same two players repeatedly stays useful.
+  const sendToStartSit = (name) => {
+    if (!playerA.trim() || (playerA.trim() && playerB.trim())) { setPlayerA(name); setPlayerB(""); }
+    else setPlayerB(name);
+    setFantasyMode("startSit");
+  };
 
   const loadOdds = async () => {
     setNflLoading(true); setNflGames(null); setNflMsg(null);
@@ -290,6 +384,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                 { id: "trade",      label: "Trade" },
                 { id: "ask",        label: "Ask AI" },
                 { id: "cheatSheet", label: "Cheat Sheet" },
+                { id: "myTeam",     label: "My Team" },
               ].map(({ id, label }) => (
                 <button key={id} onClick={() => setFantasyMode(id)} style={{ ...tabButtonStyle({ active: fantasyMode === id, accent: NFL_ORANGE }), flex: 1, textAlign: "center" }}>{label}</button>
               ))}
@@ -453,6 +548,115 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {fantasyMode === "myTeam" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {sleeperLoading && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#555", fontSize: 13, padding: "20px 0" }}>
+                    <div style={{ width: 18, height: 18, border: "2px solid #2b2f3a", borderTopColor: NFL_ORANGE, borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+                    Loading your team…
+                  </div>
+                )}
+
+                {!sleeperLoading && sleeperConnection && !sleeperConnection.connected && (
+                  <>
+                    <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 14, padding: 16 }}>
+                      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>Connect your Sleeper league</div>
+                      <div style={{ fontSize: 13, color: "#777", lineHeight: 1.6, marginBottom: 12 }}>
+                        Enter your Sleeper username — we&apos;ll pull your leagues and your actual roster, free and read-only.
+                      </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <input style={inputStyle} placeholder="Sleeper username" value={sleeperUsername}
+                          onChange={e => setSleeperUsername(e.target.value)}
+                          onKeyDown={e => e.key === "Enter" && lookupSleeperUsername()} />
+                        <button style={{ ...orangeBtn(!sleeperUsername.trim() || sleeperBusy), flexShrink: 0 }}
+                          disabled={!sleeperUsername.trim() || sleeperBusy}
+                          onClick={lookupSleeperUsername}>
+                          {sleeperBusy ? "…" : "Find leagues →"}
+                        </button>
+                      </div>
+                      {sleeperError && <div style={{ color: "#D9645C", fontSize: 12, marginTop: 10 }}>{sleeperError}</div>}
+                    </div>
+
+                    {sleeperLookup?.leagues?.length > 1 && (
+                      <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 14, padding: 16 }}>
+                        <div style={{ fontSize: 11, color: "#777", marginBottom: 10, letterSpacing: 0.5 }}>WHICH LEAGUE?</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          {sleeperLookup.leagues.map(l => (
+                            <button key={l.leagueId}
+                              disabled={sleeperBusy}
+                              onClick={() => connectSleeperLeague(sleeperLookup.sleeperUserId, sleeperLookup.username, l)}
+                              style={{ ...S.saveBtn, textAlign: "left", justifyContent: "flex-start" }}>
+                              {l.name} <span style={{ color: "#777", fontWeight: 400 }}>&nbsp;· {l.totalRosters} teams</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {!sleeperLoading && sleeperConnection?.connected && (
+                  <>
+                    <div style={{ background: "#15171d", border: `1px solid rgba(217,117,74,0.25)`, borderRadius: 14, padding: 16, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>{sleeperConnection.teamName || "My Team"}</div>
+                        <div style={{ fontSize: 12, color: "#777", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sleeperConnection.league?.name}</div>
+                      </div>
+                      <button style={{ background: "transparent", border: "1px solid #2b2f3a", color: "#777", borderRadius: 8, padding: "6px 12px", fontSize: 12, flexShrink: 0 }}
+                        disabled={sleeperBusy} onClick={disconnectSleeper}>
+                        Disconnect
+                      </button>
+                    </div>
+
+                    {sleeperConnection.error && (
+                      <div style={{ color: "#D9645C", fontSize: 12 }}>{sleeperConnection.error}</div>
+                    )}
+
+                    <div style={{ fontSize: 11, color: "#555", padding: "0 2px" }}>Tap two players to send them to Start/Sit.</div>
+
+                    {sleeperConnection.players?.map(p => {
+                      const t = draftTierStyle(p.tier);
+                      return (
+                        <button key={p.sleeperId} onClick={() => sendToStartSit(p.name)}
+                          style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 14, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12, textAlign: "left", cursor: "pointer" }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                              <span style={{ fontWeight: 700, fontSize: 14, color: "#fff" }}>{p.name}</span>
+                              <span style={{ fontSize: 11, color: "#666" }}>{p.position || "?"} · {p.team || "FA"}</span>
+                              {p.ranked && (
+                                <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 5, background: t.bg, color: t.color, border: `1px solid ${t.color}33` }}>
+                                  TIER {p.tier}
+                                </span>
+                              )}
+                            </div>
+                            {p.ranked ? (
+                              <div style={{ display: "flex", gap: 12, marginTop: 4, fontSize: 11, color: "#888", fontFamily: tokens.font.mono, flexWrap: "wrap" }}>
+                                <span>Proj {p.projectedPoints?.toFixed(1)}</span>
+                                <span>Ceil {p.ceilingPoints?.toFixed(1)} / Floor {p.floorPoints?.toFixed(1)}</span>
+                              </div>
+                            ) : (
+                              <div style={{ fontSize: 11, color: "#555", marginTop: 4 }}>Not in our rankings yet</div>
+                            )}
+                          </div>
+                          {p.injuryStatus && (
+                            <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: "rgba(217,100,92,0.1)", color: "#D9645C", border: "1px solid rgba(217,100,92,0.3)", flexShrink: 0 }}>
+                              {p.injuryStatus}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+
+                    {sleeperConnection.players?.length === 0 && !sleeperConnection.error && (
+                      <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 14, padding: "28px 16px", textAlign: "center", color: "#555", fontSize: 13 }}>
+                        No players found on your roster.
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             )}
           </>
