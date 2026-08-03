@@ -17,6 +17,7 @@
 import { useState, useEffect } from "react";
 import { impliedWinPct, oddsMovement } from "../lib/odds-display.js";
 import { TeamMatchupLink } from "./TeamModal.js";
+import TeamLogo from "./TeamLogo.js";
 import { translateReasons } from "../lib/reason-labels.js";
 import { shouldBetNow } from "../lib/fair-odds.js";
 import { accentButtonStyle, tabButtonStyle, tokens, iconButtonStyle } from "../lib/ui-theme.js";
@@ -622,12 +623,16 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                       <div style={{ animation: "fadeUp 0.2s ease" }}>
                         <div style={S.pitchRow}>
                           <div style={S.pitchBox}>
-                            <div style={S.pitchLabel}>{pick.awayTeam?.toUpperCase()}</div>
+                            <div style={{ ...S.pitchLabel, display: "flex", alignItems: "center", gap: 5 }}>
+                              <TeamLogo team={pick.awayTeam} sport="nfl" size={14} /> {pick.awayTeam?.toUpperCase()}
+                            </div>
                             <div style={S.pitchName}>{pick.matchup?.away || "stats unavailable"}</div>
                           </div>
                           <div style={S.pitchVs}>VS</div>
                           <div style={{ ...S.pitchBox, textAlign: "right" }}>
-                            <div style={S.pitchLabel}>{pick.homeTeam?.toUpperCase()}</div>
+                            <div style={{ ...S.pitchLabel, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 5 }}>
+                              {pick.homeTeam?.toUpperCase()} <TeamLogo team={pick.homeTeam} sport="nfl" size={14} />
+                            </div>
                             <div style={S.pitchName}>{pick.matchup?.home || "stats unavailable"}</div>
                           </div>
                         </div>

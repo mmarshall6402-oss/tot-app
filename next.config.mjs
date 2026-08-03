@@ -2,6 +2,14 @@
 const nextConfig = {
   /* config options here */
   reactCompiler: true,
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "a.espncdn.com", pathname: "/i/teamlogos/**" },
+      { protocol: "https", hostname: "a.espncdn.com", pathname: "/i/headshots/**" },
+      { protocol: "https", hostname: "midfield.mlbstatic.com", pathname: "/**" },
+      { protocol: "https", hostname: "www.mlbstatic.com", pathname: "/**" },
+    ],
+  },
   // lib/elo-db.js reads a seed file via a dynamically-constructed path
   // (readFileSync(join(process.cwd(), seedFile))), which Next's file tracer
   // can't statically resolve — it falls back to over-including, dragging the

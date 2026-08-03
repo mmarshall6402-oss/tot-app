@@ -12,6 +12,8 @@ import { impliedWinPct } from "../lib/odds-display.js";
 import { shouldBetNow } from "../lib/fair-odds.js";
 import { tokens } from "../lib/ui-theme.js";
 import { CheckIcon } from "./icons.js";
+import TeamLogo from "./TeamLogo.js";
+import { TeamMatchupLink } from "./TeamModal.js";
 
 const VERDICT_STYLE = {
   CLEAN: { color: tokens.color.brand, label: "BET" },
@@ -71,8 +73,9 @@ export default function DecisionCard({ pick, sport = "mlb", S, savePick, saving,
             <Stars confidence={confidence} />
           </div>
         </div>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#eee", marginTop: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {pick.pick} {sport === "nfl" ? "" : "ML"}
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#eee", marginTop: 6, display: "flex", alignItems: "center", gap: 6, overflow: "hidden" }}>
+          <TeamLogo team={pick.pick} sport={sport} size={16} />
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pick.pick} {sport === "nfl" ? "" : "ML"}</span>
         </div>
       </button>
     );
@@ -88,12 +91,13 @@ export default function DecisionCard({ pick, sport = "mlb", S, savePick, saving,
         </div>
       </div>
 
-      <div style={{ fontSize: 17, fontWeight: 700, marginTop: 6 }}>
+      <div style={{ fontSize: 17, fontWeight: 700, marginTop: 6, display: "flex", alignItems: "center", gap: 8 }}>
+        <TeamLogo team={pick.pick} sport={sport} size={22} />
         {pick.pick}{sport === "mlb" ? " ML" : ""}
-        <span style={{ fontSize: 12, color: "#666", fontWeight: 400, marginLeft: 8 }}>{fmtOdds(pickOdds)}</span>
+        <span style={{ fontSize: 12, color: "#666", fontWeight: 400 }}>{fmtOdds(pickOdds)}</span>
       </div>
       <div style={{ fontSize: 12, color: "#666", marginTop: 2 }}>
-        {pick.awayTeam} @ {pick.homeTeam} · {fmtGameTime(pick.commenceTime)}
+        <TeamMatchupLink sport={sport} awayTeam={pick.awayTeam} homeTeam={pick.homeTeam} logoSize={13} /> · {fmtGameTime(pick.commenceTime)}
       </div>
 
       {reasons.length > 0 && (

@@ -1,5 +1,6 @@
 import { requireAuth } from "../../../lib/auth.js";
 import { getMLBTeams, getNFLTeams, matchMLBTeam, matchNFLTeam } from "../../../lib/team-list.js";
+import { teamLogoUrl } from "../../../lib/team-logos.js";
 
 const MLB_API = "https://statsapi.mlb.com/api/v1";
 const ESPN_NFL = "https://site.api.espn.com/apis/site/v2/sports/football/nfl";
@@ -28,9 +29,11 @@ async function buildMLBTeam(name) {
 
   const rosterJson = rosterRes.ok ? await rosterRes.json() : null;
   const roster = (rosterJson?.roster || []).map(r => ({
+    id: r.person?.id || null,
     name: r.person?.fullName || null,
     number: r.jerseyNumber || null,
     position: r.position?.abbreviation || null,
+    headshot: r.person?.id ? `https://midfield.mlbstatic.com/v1/people/${r.person.id}/spots/120` : null,
   })).filter(r => r.name);
 
   const standingsJson = standingsRes.ok ? await standingsRes.json() : null;
@@ -92,6 +95,7 @@ async function buildMLBTeam(name) {
     sport: "mlb",
     id: team.id,
     name: team.name,
+    logo: teamLogoUrl(team.name, "mlb"),
     division: divisionName,
     record,
     standings,
@@ -126,9 +130,11 @@ async function buildNFLTeam(name) {
 
   const rosterJson = rosterRes.ok ? await rosterRes.json() : null;
   const roster = extractAthletes(rosterJson).map(a => ({
+    id: a?.id || null,
     name: a?.displayName || null,
     number: a?.jersey || null,
     position: a?.position?.abbreviation || null,
+    headshot: a?.headshot?.href || null,
   })).filter(r => r.name);
 
   const standingsJson = standingsRes.ok ? await standingsRes.json() : null;
@@ -199,6 +205,7 @@ async function buildNFLTeam(name) {
     sport: "nfl",
     id: team.id,
     name: team.displayName,
+    logo: teamLogoUrl(team.displayName, "nfl"),
     division: divisionName,
     record,
     standings,

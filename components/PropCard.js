@@ -5,6 +5,7 @@
 // that fills based on the model's blended probability for the picked side.
 
 import { tokens } from "../lib/ui-theme.js";
+import PlayerHeadshot from "./PlayerHeadshot.js";
 
 const fmtOdds = (o) => (o == null ? "—" : o > 0 ? `+${o}` : `${o}`);
 
@@ -45,15 +46,18 @@ export default function PropCard({ pick, S }) {
   return (
     <div style={{ ...S.card, borderColor: `${color}44` }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: tokens.color.textMuted, letterSpacing: 1.5, marginBottom: 4 }}>
-            {marketLabel.toUpperCase()} · {pick.team}
-          </div>
-          <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 15, fontWeight: 700, color: tokens.color.textPrimary }}>
-            {pick.player}
-          </div>
-          <div style={{ fontSize: 12, color: tokens.color.textMuted, marginTop: 2 }}>
-            vs {pick.opponent} · {fmtGameTime(pick.commenceTime)}
+        <div style={{ minWidth: 0, display: "flex", gap: 10, alignItems: "flex-start" }}>
+          <PlayerHeadshot src={pick.playerId ? `https://midfield.mlbstatic.com/v1/people/${pick.playerId}/spots/120` : null} name={pick.player} size={36} />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: tokens.color.textMuted, letterSpacing: 1.5, marginBottom: 4 }}>
+              {marketLabel.toUpperCase()} · {pick.team}
+            </div>
+            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 15, fontWeight: 700, color: tokens.color.textPrimary }}>
+              {pick.player}
+            </div>
+            <div style={{ fontSize: 12, color: tokens.color.textMuted, marginTop: 2 }}>
+              vs {pick.opponent} · {fmtGameTime(pick.commenceTime)}
+            </div>
           </div>
         </div>
         <div style={{ textAlign: "right", flexShrink: 0 }}>

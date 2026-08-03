@@ -3084,6 +3084,7 @@ export default function ToT() {
         sport={teamModal?.sport}
         team={teamModal?.team}
         onClose={() => setTeamModal(null)}
+        onPlayerClick={openPlayer}
         getAuthHeaders={getAuthHeaders}
         S={S}
       />

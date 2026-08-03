@@ -7,6 +7,8 @@
 
 import { useState, useEffect } from "react";
 import { ChevronLeftIcon } from "./icons.js";
+import TeamLogo from "./TeamLogo.js";
+import PlayerHeadshot from "./PlayerHeadshot.js";
 
 const MLB_GREEN = "#2FBF71";
 const NFL_ORANGE = "#D9754A";
@@ -34,7 +36,7 @@ function groupRoster(roster) {
   });
 }
 
-export default function TeamModal({ open, sport, team, onClose, getAuthHeaders, S }) {
+export default function TeamModal({ open, sport, team, onClose, onPlayerClick, getAuthHeaders, S }) {
   const [subTab, setSubTab] = useState("record");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -79,6 +81,7 @@ export default function TeamModal({ open, sport, team, onClose, getAuthHeaders, 
     <div role="dialog" aria-modal="true" aria-label={`${team} team details`} style={{ position: "fixed", inset: 0, zIndex: 9997, background: "#0a0b0f", display: "flex", flexDirection: "column", animation: "fadeUp 0.2s ease" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px", borderBottom: "1px solid #242832", flexShrink: 0 }}>
         <button onClick={onClose} aria-label="Back" style={{ background: "none", border: "none", color: "#999", fontSize: 20, cursor: "pointer", padding: 0, display: "inline-flex" }}><ChevronLeftIcon size={18} /></button>
+        <TeamLogo team={data?.name || team} sport={sport} size={36} />
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 16, fontWeight: 700 }}>{data?.name || team}</div>
           {data?.division && <div style={{ fontSize: 11, color: "#666", marginTop: 1 }}>{data.division}</div>}
@@ -135,7 +138,9 @@ export default function TeamModal({ open, sport, team, onClose, getAuthHeaders, 
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {data.upcomingGames.map(g => (
                       <div key={g.id} style={{ ...S.card, borderColor: "#242832" }}>
-                        <div style={{ fontSize: 13, fontWeight: 700 }}>{g.awayTeam} @ {g.homeTeam}</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                          <TeamLogo team={g.awayTeam} sport={sport} size={16} /> {g.awayTeam} @ <TeamLogo team={g.homeTeam} sport={sport} size={16} /> {g.homeTeam}
+                        </div>
                         <div style={{ fontSize: 11, color: "#666", marginTop: 3 }}>{fmtTime(g.commenceTime)}</div>
                       </div>
                     ))}
@@ -148,7 +153,9 @@ export default function TeamModal({ open, sport, team, onClose, getAuthHeaders, 
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {data.recentGames.map(g => (
                       <div key={g.id} style={{ ...S.card, borderColor: "#242832" }}>
-                        <div style={{ fontSize: 13, fontWeight: 700 }}>{g.awayTeam} @ {g.homeTeam}</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                          <TeamLogo team={g.awayTeam} sport={sport} size={16} /> {g.awayTeam} @ <TeamLogo team={g.homeTeam} sport={sport} size={16} /> {g.homeTeam}
+                        </div>
                         <div style={{ fontSize: 11, color: "#888", marginTop: 3 }}>
                           Final — {g.awayTeam?.split(" ").pop()} {g.awayScore} · {g.homeTeam?.split(" ").pop()} {g.homeScore}
                         </div>
@@ -181,7 +188,9 @@ export default function TeamModal({ open, sport, team, onClose, getAuthHeaders, 
                       background: row.isCurrentTeam ? `${accent}14` : "transparent",
                       border: row.isCurrentTeam ? `1px solid ${accent}44` : "1px solid transparent",
                     }}>
-                      <div style={{ flex: 1, fontSize: 13, fontWeight: row.isCurrentTeam ? 700 : 500, color: row.isCurrentTeam ? accent : "#ddd" }}>{row.team}</div>
+                      <div style={{ flex: 1, fontSize: 13, fontWeight: row.isCurrentTeam ? 700 : 500, color: row.isCurrentTeam ? accent : "#ddd", display: "flex", alignItems: "center", gap: 8 }}>
+                        <TeamLogo team={row.team} sport={sport} size={18} /> {row.team}
+                      </div>
                       <div style={{ width: 40, textAlign: "right", fontSize: 13, fontFamily: "'JetBrains Mono',monospace" }}>{row.wins}</div>
                       <div style={{ width: 40, textAlign: "right", fontSize: 13, fontFamily: "'JetBrains Mono',monospace" }}>{row.losses}</div>
                       <div style={{ width: 60, textAlign: "right", fontSize: 12, fontFamily: "'JetBrains Mono',monospace", color: "#888" }}>
@@ -203,12 +212,25 @@ export default function TeamModal({ open, sport, team, onClose, getAuthHeaders, 
                   <div key={pos}>
                     <div style={{ fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 1.5, marginBottom: 8 }}>{pos}</div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                      {players.map((p, i) => (
-                        <div key={`${p.name}-${i}`} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "#181b22", borderRadius: 8 }}>
-                          <div style={{ fontSize: 13, color: "#ddd" }}>{p.name}</div>
-                          {p.number && <div style={{ fontSize: 12, color: "#666", fontFamily: "'JetBrains Mono',monospace" }}>#{p.number}</div>}
-                        </div>
-                      ))}
+                      {players.map((p, i) => {
+                        const clickable = !!(onPlayerClick && p.id);
+                        return (
+                          <div
+                            key={`${p.name}-${i}`}
+                            role={clickable ? "button" : undefined}
+                            tabIndex={clickable ? 0 : undefined}
+                            onClick={clickable ? () => onPlayerClick(sport, p.id, p.name) : undefined}
+                            onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPlayerClick(sport, p.id, p.name); } } : undefined}
+                            style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "space-between", padding: "8px 12px", background: "#181b22", borderRadius: 8, cursor: clickable ? "pointer" : undefined }}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                              <PlayerHeadshot src={p.headshot} name={p.name} size={28} />
+                              <div style={{ fontSize: 13, color: "#ddd", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
+                            </div>
+                            {p.number && <div style={{ fontSize: 12, color: "#666", fontFamily: "'JetBrains Mono',monospace", flexShrink: 0 }}>#{p.number}</div>}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 ))
@@ -223,16 +245,22 @@ export default function TeamModal({ open, sport, team, onClose, getAuthHeaders, 
 
 // Renders "{awayTeam} @ {homeTeam}" as two independently clickable spans that
 // open the TeamModal, matching whatever text style the caller already used.
-export function TeamMatchupLink({ sport, awayTeam, homeTeam, onPick, style, awayLabel, homeLabel }) {
-  const linkStyle = { cursor: onPick ? "pointer" : undefined };
+// Logos are on by default — every matchup in the app renders through this
+// one component, so this is the single place that controls it everywhere.
+export function TeamMatchupLink({ sport, awayTeam, homeTeam, onPick, style, awayLabel, homeLabel, logos = true, logoSize = 15 }) {
+  const linkStyle = { cursor: onPick ? "pointer" : undefined, display: "inline-flex", alignItems: "center", gap: 4 };
   const pick = (team) => (e) => { if (!onPick) return; e.stopPropagation(); onPick(sport, team); };
   const onKey = (team) => (e) => { if (!onPick) return; if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); onPick(sport, team); } };
   const interactiveProps = onPick ? { role: "button", tabIndex: 0 } : {};
   return (
-    <span style={style}>
-      <span style={linkStyle} {...interactiveProps} onClick={pick(awayTeam)} onKeyDown={onKey(awayTeam)}>{awayLabel ?? awayTeam}</span>
+    <span style={{ display: "inline-flex", alignItems: "center", flexWrap: "wrap", gap: 4, ...style }}>
+      <span style={linkStyle} {...interactiveProps} onClick={pick(awayTeam)} onKeyDown={onKey(awayTeam)}>
+        {logos && <TeamLogo team={awayTeam} sport={sport} size={logoSize} />}{awayLabel ?? awayTeam}
+      </span>
       {" @ "}
-      <span style={linkStyle} {...interactiveProps} onClick={pick(homeTeam)} onKeyDown={onKey(homeTeam)}>{homeLabel ?? homeTeam}</span>
+      <span style={linkStyle} {...interactiveProps} onClick={pick(homeTeam)} onKeyDown={onKey(homeTeam)}>
+        {logos && <TeamLogo team={homeTeam} sport={sport} size={logoSize} />}{homeLabel ?? homeTeam}
+      </span>
     </span>
   );
 }

@@ -8,6 +8,7 @@
 import { useState, useEffect } from "react";
 import { ChevronLeftIcon } from "./icons.js";
 import PropCard from "./PropCard.js";
+import PlayerHeadshot from "./PlayerHeadshot.js";
 import { computeHitRateBreakdown, hitRateAtLine, PROP_STAT_FIELD } from "../lib/prop-probability.js";
 
 const MLB_GREEN = "#2FBF71";
@@ -100,6 +101,7 @@ export default function PlayerModal({ open, sport, playerId, playerName, onClose
     <div role="dialog" aria-modal="true" aria-label={`${playerName || "Player"} details`} style={{ position: "fixed", inset: 0, zIndex: 9997, background: "#0a0b0f", display: "flex", flexDirection: "column", animation: "fadeUp 0.2s ease" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px", borderBottom: "1px solid #242832", flexShrink: 0 }}>
         <button onClick={onClose} aria-label="Back" style={{ background: "none", border: "none", color: "#999", fontSize: 20, cursor: "pointer", padding: 0, display: "inline-flex" }}><ChevronLeftIcon size={18} /></button>
+        <PlayerHeadshot src={data?.headshot} name={data?.name || playerName} size={40} />
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 16, fontWeight: 700 }}>{data?.name || playerName}</div>
           {data?.team && <div style={{ fontSize: 11, color: "#666", marginTop: 1 }}>{data.team}{data.position ? ` · ${data.position}` : ""}</div>}
