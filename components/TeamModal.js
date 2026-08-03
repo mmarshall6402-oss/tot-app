@@ -178,9 +178,11 @@ export default function TeamModal({ open, sport, team, onClose, onPlayerClick, g
                 <>
                   <div style={{ display: "flex", padding: "0 12px", fontSize: 10, color: "#555", letterSpacing: 1, marginBottom: 4 }}>
                     <div style={{ flex: 1 }}>TEAM</div>
-                    <div style={{ width: 40, textAlign: "right" }}>W</div>
-                    <div style={{ width: 40, textAlign: "right" }}>L</div>
-                    <div style={{ width: 60, textAlign: "right" }}>PCT</div>
+                    <div style={{ width: 34, textAlign: "right" }}>W</div>
+                    <div style={{ width: 34, textAlign: "right" }}>L</div>
+                    <div style={{ width: 52, textAlign: "right" }}>PCT</div>
+                    <div style={{ width: 36, textAlign: "right" }}>GB</div>
+                    <div style={{ width: 40, textAlign: "right" }}>STRK</div>
                   </div>
                   {data.standings.map(row => (
                     <div key={row.team} style={{
@@ -191,10 +193,16 @@ export default function TeamModal({ open, sport, team, onClose, onPlayerClick, g
                       <div style={{ flex: 1, fontSize: 13, fontWeight: row.isCurrentTeam ? 700 : 500, color: row.isCurrentTeam ? accent : "#ddd", display: "flex", alignItems: "center", gap: 8 }}>
                         <TeamLogo team={row.team} sport={sport} size={18} /> {row.team}
                       </div>
-                      <div style={{ width: 40, textAlign: "right", fontSize: 13, fontFamily: "'JetBrains Mono',monospace" }}>{row.wins}</div>
-                      <div style={{ width: 40, textAlign: "right", fontSize: 13, fontFamily: "'JetBrains Mono',monospace" }}>{row.losses}</div>
-                      <div style={{ width: 60, textAlign: "right", fontSize: 12, fontFamily: "'JetBrains Mono',monospace", color: "#888" }}>
+                      <div style={{ width: 34, textAlign: "right", fontSize: 13, fontFamily: "'JetBrains Mono',monospace" }}>{row.wins}</div>
+                      <div style={{ width: 34, textAlign: "right", fontSize: 13, fontFamily: "'JetBrains Mono',monospace" }}>{row.losses}</div>
+                      <div style={{ width: 52, textAlign: "right", fontSize: 12, fontFamily: "'JetBrains Mono',monospace", color: "#888" }}>
                         {row.pct != null ? row.pct.toFixed(3).replace(/^0/, "") : "—"}
+                      </div>
+                      <div style={{ width: 36, textAlign: "right", fontSize: 12, fontFamily: "'JetBrains Mono',monospace", color: "#888" }}>
+                        {row.gb ?? "—"}
+                      </div>
+                      <div style={{ width: 40, textAlign: "right", fontSize: 12, fontFamily: "'JetBrains Mono',monospace", color: "#888" }}>
+                        {row.streak ?? "—"}
                       </div>
                     </div>
                   ))}

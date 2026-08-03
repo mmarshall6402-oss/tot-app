@@ -151,13 +151,22 @@ async function buildNFLTeam(name) {
       for (const s of (e.stats || [])) {
         if (s?.name) stats[s.name] = typeof s.value === "number" ? s.value : Number(s.value);
       }
+      // ESPN's standings stat names aren't confirmed live in this environment
+      // (outbound access to ESPN is blocked here) — read defensively and fall
+      // back to null, same posture as the rest of the NFL pipeline.
+      const gb = Number.isFinite(stats.gamesBehind)
+        ? (stats.gamesBehind === 0 ? "-" : String(stats.gamesBehind))
+        : null;
+      const streak = Number.isFinite(stats.streak) && stats.streak !== 0
+        ? `${stats.streak > 0 ? "W" : "L"}${Math.abs(stats.streak)}`
+        : null;
       return {
         team: e.team?.displayName || null,
         wins: stats.wins ?? 0,
         losses: stats.losses ?? 0,
         pct: Number.isFinite(stats.winPercent) ? stats.winPercent : null,
-        gb: null,
-        streak: null,
+        gb,
+        streak,
         isCurrentTeam: e.team?.id === team.id,
       };
     }).sort((a, b) => b.wins - a.wins || a.losses - b.losses);
@@ -169,7 +178,9 @@ async function buildNFLTeam(name) {
       wins: mineStats.wins ?? 0,
       losses: mineStats.losses ?? 0,
       pct: Number.isFinite(mineStats.winPercent) ? mineStats.winPercent : null,
-      streak: mineStats.streak != null ? String(mineStats.streak) : null,
+      streak: Number.isFinite(mineStats.streak) && mineStats.streak !== 0
+        ? `${mineStats.streak > 0 ? "W" : "L"}${Math.abs(mineStats.streak)}`
+        : null,
     };
     break;
   }
