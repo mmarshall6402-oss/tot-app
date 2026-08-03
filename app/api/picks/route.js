@@ -125,9 +125,16 @@ export async function GET(request) {
             const freshHomeOdds = currentOdds?.homeOdds ?? pick.homeOdds;
             const freshAwayOdds = currentOdds?.awayOdds ?? pick.awayOdds;
 
-            // Reconstruct homeImplied from current odds so model + filter run on live market
+            // Reconstruct homeImplied from current odds so model + filter run on live market.
+            // Kalshi's price is used as-is instead of re-derived — lib/kalshi-odds.js
+            // already computed and vig-normalized it, and re-deriving from
+            // freshHomeOdds/freshAwayOdds (the sportsbook American-odds display,
+            // untouched by the Kalshi overlay) would silently throw the Kalshi
+            // price away on every live page load.
             let gameWithImplied = { ...pick, homeOdds: freshHomeOdds, awayOdds: freshAwayOdds };
-            if (freshHomeOdds && freshAwayOdds) {
+            if (currentOdds?.source === "kalshi" && currentOdds.homeImplied != null && currentOdds.awayImplied != null) {
+              gameWithImplied = { ...gameWithImplied, homeImplied: currentOdds.homeImplied, awayImplied: currentOdds.awayImplied, source: "kalshi" };
+            } else if (freshHomeOdds && freshAwayOdds) {
               const hDec = americanToDecimal(freshHomeOdds);
               const aDec = americanToDecimal(freshAwayOdds);
               const { fairHome, fairAway } = removeVig(decimalToImplied(hDec), decimalToImplied(aDec));
@@ -165,7 +172,7 @@ export async function GET(request) {
             // contradiction where the card says "Take A" but the breakdown argues for "Take B".
             const hasBreakdown  = !!pick.breakdown?.preview;
             const freshPick     = hasBreakdown ? pick.pick : (rawEdge >= 0 ? pick.homeTeam : pick.awayTeam);
-            const freshFilter   = applyFilterLayer(freshPick, { ...gameWithImplied, source: pick.filter?.isSquareLine ? "sportsdata" : undefined }, mlb, modelProbRaw);
+            const freshFilter   = applyFilterLayer(freshPick, { ...gameWithImplied, source: gameWithImplied.source === "kalshi" ? "kalshi" : (pick.filter?.isSquareLine ? "sportsdata" : undefined) }, mlb, modelProbRaw);
             const filteredIsBet = ["CLEAN", "BET"].includes(freshFilter.verdict);
             const edgePct       = freshFilter.trueEdgePct;
             // Always derive tier from the live filter — Claude's cron-time tier may conflict
