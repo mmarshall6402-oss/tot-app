@@ -1,7 +1,7 @@
 import { requireAuth } from "../../../../lib/auth.js";
 import { lookupNFLPlayer, formatNFLPlayerContext, findMentionedNFLPlayers } from "../../../../lib/nfl-roster.js";
-import { rankingsContextLine, rankingsRow, normalizeFormat } from "../../../../lib/nfl-fantasy/lookup.js";
-import { headToHeadProbability } from "../../../../lib/nfl-fantasy/probability.js";
+import { rankingsContextLine, normalizeFormat } from "../../../../lib/nfl-fantasy/lookup.js";
+import { resolveHeadToHead } from "../../../../lib/nfl-fantasy/head-to-head.js";
 import { logLiveProbabilityCall } from "../../../../lib/nfl-fantasy/probability-log.js";
 import { currentNflSeason } from "../../../../lib/nfl-fantasy/season.js";
 import Anthropic from "@anthropic-ai/sdk";
@@ -23,32 +23,6 @@ async function playerContextBlock(namesField, scoring) {
   }));
   const filtered = lines.filter(Boolean);
   return filtered.length ? filtered.join("\n") : null;
-}
-
-// The calibrated part of start/sit: a real P(playerA outscores playerB) this
-// week, derived from each player's stored season projection, rather than an
-// LLM's confidence adjective. Only fires for a clean single-name-per-side
-// comparison (the UI's actual usage) — a comma-separated multi-player field
-// (as trade mode allows) has no single head-to-head to score, so it's left
-// to the plain-text playerContextBlock path instead. Returns null on any
-// resolution miss (unranked/rookie/name mismatch) — caller falls back to
-// the LLM-only verdict with no probability attached. Returns the resolved
-// rows alongside the probability so the caller can log the call (canonical
-// names/positions, not whatever typo the user typed) against
-// fantasy_probability_log (sql/018) for the public calibration page.
-async function startSitProbability(playerAName, playerBName, scoring) {
-  if (playerAName.includes(",") || playerBName.includes(",")) return null;
-  try {
-    const [espnA, espnB] = await Promise.all([lookupNFLPlayer(playerAName), lookupNFLPlayer(playerBName)]);
-    const [rowA, rowB] = await Promise.all([rankingsRow(espnA, scoring), rankingsRow(espnB, scoring)]);
-    if (!rowA || !rowB) return null;
-    const probability = headToHeadProbability(rowA, rowB);
-    if (!probability) return null;
-    return { probability, rowA, rowB };
-  } catch (e) {
-    console.warn("[nfl-fantasy] start/sit probability failed:", e.message);
-    return null;
-  }
 }
 
 const SYSTEM = `You are a sharp fantasy football analyst. You give direct, confident starts/sits verdicts and trade analysis — no hedging, no "it depends on your league," just a clear recommendation with the key reasons.
@@ -85,7 +59,7 @@ export async function POST(request) {
     const [ctxA, ctxB, probResult] = await Promise.all([
       playerContextBlock(playerA, scoring),
       playerContextBlock(playerB, scoring),
-      startSitProbability(playerA.trim(), playerB.trim(), scoring),
+      resolveHeadToHead(playerA.trim(), playerB.trim(), scoring),
     ]);
     probability = probResult?.probability || null;
     if (probResult) {

@@ -92,6 +92,13 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
   const [ssResult, setSsResult] = useState(null);
   const [ssProbability, setSsProbability] = useState(null);
   const [ssLoading, setSsLoading] = useState(false);
+  const [gutLogged, setGutLogged] = useState(null);
+  const [gutLogging, setGutLogging] = useState(false);
+  const [gutError, setGutError] = useState(null);
+
+  // Gut vs Model record state
+  const [gutRecord, setGutRecord] = useState(null);
+  const [gutRecordLoading, setGutRecordLoading] = useState(false);
 
   // Trade state
   const [tradeGive, setTradeGive] = useState("");
@@ -148,7 +155,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
 
   const runStartSit = async () => {
     if (!playerA.trim() || !playerB.trim()) return;
-    setSsLoading(true); setSsResult(null); setSsProbability(null);
+    setSsLoading(true); setSsResult(null); setSsProbability(null); setGutLogged(null); setGutError(null);
     try {
       const data = await callFantasy("startSit", { playerA: playerA.trim(), playerB: playerB.trim() });
       setSsResult(data.result);
@@ -156,6 +163,46 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
     } catch (e) { setSsResult("Error: " + e.message); }
     setSsLoading(false);
   };
+
+  // Records which player the user actually says they're starting, alongside
+  // what the model favored at that moment (app/api/nfl/fantasy/gut-calls).
+  // Only meaningful once a probability was returned — no model pick to
+  // compare against otherwise.
+  const logGutCall = async (pick) => {
+    setGutLogging(true); setGutError(null);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch("/api/nfl/fantasy/gut-calls", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify({ playerA: playerA.trim(), playerB: playerB.trim(), gutPick: pick, scoring }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error");
+      setGutLogged(data);
+    } catch (e) {
+      setGutError(e.message || "Could not log your pick");
+    }
+    setGutLogging(false);
+  };
+
+  const loadGutRecord = async () => {
+    setGutRecordLoading(true);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch("/api/nfl/fantasy/gut-calls", { headers });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error");
+      setGutRecord(data);
+    } catch (e) {
+      setGutRecord({ error: e.message || "Could not load your record" });
+    }
+    setGutRecordLoading(false);
+  };
+
+  useEffect(() => {
+    if (subTab === "fantasy" && fantasyMode === "myRecord" && gutRecord === null && !gutRecordLoading) loadGutRecord();
+  }, [subTab, fantasyMode, gutRecord, gutRecordLoading]);
 
   const runTrade = async () => {
     if (!tradeGive.trim() || !tradeGet.trim()) return;
@@ -385,6 +432,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                 { id: "ask",        label: "Ask AI" },
                 { id: "cheatSheet", label: "Cheat Sheet" },
                 { id: "myTeam",     label: "My Team" },
+                { id: "myRecord",   label: "Gut vs Model" },
               ].map(({ id, label }) => (
                 <button key={id} onClick={() => setFantasyMode(id)} style={{ ...tabButtonStyle({ active: fantasyMode === id, accent: NFL_ORANGE }), flex: 1, textAlign: "center" }}>{label}</button>
               ))}
@@ -433,6 +481,32 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                       </div>
                     )}
                     <div style={{ fontSize: 13, color: "#ccc", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{ssResult}</div>
+
+                    {ssProbability && (
+                      <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(217,117,74,0.15)" }}>
+                        {!gutLogged ? (
+                          <>
+                            <div style={{ fontSize: 11, color: "#777", marginBottom: 8 }}>Going with your gut instead? Log it — we&apos;ll show you how it did vs the model.</div>
+                            <div style={{ display: "flex", gap: 8 }}>
+                              <button disabled={gutLogging} onClick={() => logGutCall("A")}
+                                style={{ flex: 1, background: "transparent", border: "1px solid #2b2f3a", color: "#ccc", borderRadius: 8, padding: "8px 10px", fontSize: 12, cursor: "pointer" }}>
+                                I&apos;m starting {playerA.trim()}
+                              </button>
+                              <button disabled={gutLogging} onClick={() => logGutCall("B")}
+                                style={{ flex: 1, background: "transparent", border: "1px solid #2b2f3a", color: "#ccc", borderRadius: 8, padding: "8px 10px", fontSize: 12, cursor: "pointer" }}>
+                                I&apos;m starting {playerB.trim()}
+                              </button>
+                            </div>
+                            {gutError && <div style={{ color: "#D9645C", fontSize: 11, marginTop: 8 }}>{gutError}</div>}
+                          </>
+                        ) : (
+                          <div style={{ fontSize: 12, color: gutLogged.agreedWithModel ? "#2FBF71" : "#D6B23D" }}>
+                            Logged — you&apos;re starting {gutLogged.gutPick === "A" ? gutLogged.playerAName : gutLogged.playerBName}, model favored {gutLogged.modelPick === "A" ? gutLogged.playerAName : gutLogged.playerBName} ({gutLogged.modelProbA}%).
+                            {gutLogged.agreedWithModel ? " You agreed with the model." : " You&apos;re going against the model."} We&apos;ll grade this once results are in — check Gut vs Model.
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -661,6 +735,79 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                         No players found on your roster.
                       </div>
                     )}
+                  </>
+                )}
+              </div>
+            )}
+
+            {fantasyMode === "myRecord" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {gutRecordLoading && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#555", fontSize: 13, padding: "20px 0" }}>
+                    <div style={{ width: 18, height: 18, border: "2px solid #2b2f3a", borderTopColor: NFL_ORANGE, borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+                    Loading your record…
+                  </div>
+                )}
+
+                {!gutRecordLoading && gutRecord?.error && (
+                  <div style={S.center}>
+                    <div style={{ color: "#fff", fontWeight: 700, marginTop: 8 }}>Could not load your record</div>
+                    <div style={{ color: "#777", fontSize: 13, marginTop: 4 }}>{gutRecord.error}</div>
+                    <button style={{ ...S.saveBtn, marginTop: 14 }} onClick={() => { setGutRecord(null); loadGutRecord(); }}>Retry</button>
+                  </div>
+                )}
+
+                {!gutRecordLoading && gutRecord && !gutRecord.error && gutRecord.summary.total === 0 && (
+                  <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 14, padding: "28px 16px", textAlign: "center" }}>
+                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>No calls logged yet</div>
+                    <div style={{ fontSize: 13, color: "#555", lineHeight: 1.6 }}>Run a Start/Sit comparison, then log which player you actually went with. We&apos;ll track you vs the model all season.</div>
+                  </div>
+                )}
+
+                {!gutRecordLoading && gutRecord && !gutRecord.error && gutRecord.summary.total > 0 && (
+                  <>
+                    <div style={{ background: "#15171d", border: `1px solid rgba(217,117,74,0.25)`, borderRadius: 14, padding: 16 }}>
+                      <div style={{ fontSize: 10, color: NFL_ORANGE, fontWeight: 700, letterSpacing: 1.5, marginBottom: 10 }}>YOU VS THE MODEL</div>
+                      <div style={{ display: "flex", gap: 20 }}>
+                        <div>
+                          <div style={{ fontSize: 20, fontWeight: 700, fontFamily: tokens.font.mono }}>{gutRecord.summary.gutRecord || "—"}</div>
+                          <div style={{ fontSize: 11, color: "#777" }}>Your record</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 20, fontWeight: 700, fontFamily: tokens.font.mono }}>{gutRecord.summary.modelRecord || "—"}</div>
+                          <div style={{ fontSize: 11, color: "#777" }}>Model&apos;s record</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 20, fontWeight: 700, fontFamily: tokens.font.mono }}>{gutRecord.summary.agreed}/{gutRecord.summary.total}</div>
+                          <div style={{ fontSize: 11, color: "#777" }}>Agreed with model</div>
+                        </div>
+                      </div>
+                      {gutRecord.summary.resolved === 0 && (
+                        <div style={{ fontSize: 11, color: "#555", marginTop: 12 }}>Nothing resolved yet — check back once this week&apos;s games are final.</div>
+                      )}
+                    </div>
+
+                    {gutRecord.calls.map(c => {
+                      const agreed = c.gut_pick === c.model_pick;
+                      const yourPick = c.gut_pick === "A" ? c.player_a_name : c.player_b_name;
+                      const modelPick = c.model_pick === "A" ? c.player_a_name : c.player_b_name;
+                      return (
+                        <div key={c.id} style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 14, padding: "12px 14px" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <div style={{ fontSize: 13, fontWeight: 700 }}>{c.player_a_name} vs {c.player_b_name}</div>
+                            <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 5, color: agreed ? "#2FBF71" : "#D6B23D", background: agreed ? "rgba(47,191,113,0.08)" : "rgba(214,178,61,0.08)" }}>
+                              {agreed ? "AGREED" : "WENT WITH GUT"}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: 11, color: "#888", marginTop: 6 }}>
+                            You: {yourPick} · Model: {modelPick} ({c.model_prob_a}%)
+                          </div>
+                          <div style={{ fontSize: 11, color: c.resolved ? (c.actual_winner ? "#888" : "#555") : "#555", marginTop: 4 }}>
+                            {c.resolved && c.actual_winner ? `Result: ${c.actual_winner === "push" ? "push" : (c.actual_winner === "A" ? c.player_a_name : c.player_b_name) + " scored more"}` : "Pending"}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </>
                 )}
               </div>
