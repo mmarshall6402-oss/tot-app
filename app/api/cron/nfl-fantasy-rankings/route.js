@@ -121,6 +121,7 @@ async function refreshFormat(supabase, format, playersById, targetSeason, crossw
     injury_risk: p.injuryRisk,
     trending_add_count: p.trendingAddCount,
     personnel_note: p.personnelNote || null,
+    games_projected: p.projection.gamesProjected,
     updated_at: runStart,
   }));
 

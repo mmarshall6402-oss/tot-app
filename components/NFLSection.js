@@ -90,6 +90,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
   const [playerA, setPlayerA] = useState("");
   const [playerB, setPlayerB] = useState("");
   const [ssResult, setSsResult] = useState(null);
+  const [ssProbability, setSsProbability] = useState(null);
   const [ssLoading, setSsLoading] = useState(false);
 
   // Trade state
@@ -134,21 +135,24 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Error");
-    return data.result;
+    return data;
   };
 
   const runStartSit = async () => {
     if (!playerA.trim() || !playerB.trim()) return;
-    setSsLoading(true); setSsResult(null);
-    try { setSsResult(await callFantasy("startSit", { playerA: playerA.trim(), playerB: playerB.trim() })); }
-    catch (e) { setSsResult("Error: " + e.message); }
+    setSsLoading(true); setSsResult(null); setSsProbability(null);
+    try {
+      const data = await callFantasy("startSit", { playerA: playerA.trim(), playerB: playerB.trim() });
+      setSsResult(data.result);
+      setSsProbability(data.probability || null);
+    } catch (e) { setSsResult("Error: " + e.message); }
     setSsLoading(false);
   };
 
   const runTrade = async () => {
     if (!tradeGive.trim() || !tradeGet.trim()) return;
     setTradeLoading(true); setTradeResult(null);
-    try { setTradeResult(await callFantasy("trade", { tradeGive: tradeGive.trim(), tradeGet: tradeGet.trim() })); }
+    try { setTradeResult((await callFantasy("trade", { tradeGive: tradeGive.trim(), tradeGet: tradeGet.trim() })).result); }
     catch (e) { setTradeResult("Error: " + e.message); }
     setTradeLoading(false);
   };
@@ -156,7 +160,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
   const runAsk = async () => {
     if (!askQ.trim()) return;
     setAskLoading(true); setAskResult(null);
-    try { setAskResult(await callFantasy("ask", { question: askQ.trim() })); }
+    try { setAskResult((await callFantasy("ask", { question: askQ.trim() })).result); }
     catch (e) { setAskResult("Error: " + e.message); }
     setAskLoading(false);
   };
@@ -310,6 +314,23 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                 {ssResult && (
                   <div style={{ background: "#15171d", border: `1px solid rgba(217,117,74,0.25)`, borderRadius: 14, padding: 16 }}>
                     <div style={{ fontSize: 10, color: NFL_ORANGE, fontWeight: 700, letterSpacing: 1.5, marginBottom: 8 }}>START / SIT · {scoring}</div>
+                    {ssProbability && (
+                      <div style={{ marginBottom: 14, paddingBottom: 14, borderBottom: "1px solid rgba(217,117,74,0.15)" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 6 }}>
+                          <span>{playerA.trim()} — {ssProbability.playerAProbability}%</span>
+                          <span>{playerB.trim()} — {ssProbability.playerBProbability}%</span>
+                        </div>
+                        <div style={{ height: 6, borderRadius: 3, overflow: "hidden", display: "flex", background: "#2b2f3a" }}>
+                          <div style={{ width: `${ssProbability.playerAProbability}%`, background: NFL_ORANGE }} />
+                          <div style={{ width: `${ssProbability.playerBProbability}%`, background: "#3a3f4c" }} />
+                        </div>
+                        {ssProbability.factors?.length > 0 && (
+                          <ul style={{ margin: "10px 0 0", padding: "0 0 0 18px", fontSize: 12, color: "#999", lineHeight: 1.6 }}>
+                            {ssProbability.factors.map((f, i) => <li key={i}>{f}</li>)}
+                          </ul>
+                        )}
+                      </div>
+                    )}
                     <div style={{ fontSize: 13, color: "#ccc", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{ssResult}</div>
                   </div>
                 )}
