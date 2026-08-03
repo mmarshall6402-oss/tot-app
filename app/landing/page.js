@@ -408,6 +408,15 @@ Sports betting carries extreme variance — MLB and NFL alike. Even 60% pickers 
 
       <div className="glow-line" style={{ maxWidth: 900, margin: "0 auto" }} />
 
+      {/* ─── PUBLIC RECORD CALLOUT ─────────────────────── */}
+      <section style={{ padding: "56px 24px 0", maxWidth: 700, margin: "0 auto" }}>
+        <a href="/record" style={{ display: "block", background: "rgba(47,191,113,0.04)", border: "1px solid rgba(47,191,113,0.25)", borderRadius: 18, padding: "24px 28px", textAlign: "center" }}>
+          <div style={{ fontSize: 12, color: "#2FBF71", fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>THE RECORD</div>
+          <div style={{ fontSize: 17, fontWeight: 600, marginBottom: 6 }}>Every graded pick, every calibration bucket — including the losing stretches.</div>
+          <div style={{ fontSize: 13, color: "#555" }}>See the full breakdown before you pay for it →</div>
+        </a>
+      </section>
+
       {/* ─── PRICING + BOTTOM CTA ─────────────────────── */}
       <section style={{ padding: "80px 24px", maxWidth: 860, margin: "0 auto", textAlign: "center" }}>
         <h2 style={{ fontSize: "clamp(28px,5vw,42px)", fontWeight: 600, letterSpacing: -0.3, lineHeight: 1.15, marginBottom: 16 }}>
