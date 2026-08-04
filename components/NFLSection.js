@@ -82,6 +82,18 @@ function scoringToFormat(scoring) {
   return "ppr";
 }
 
+// Cheat Sheet "signal" filter — narrows the list to players carrying a
+// specific ceilingVorp-adjustment badge (see lib/nfl-fantasy/*-adjustment.js)
+// instead of scrolling the full board looking for them.
+const SIGNAL_FILTERS = [
+  { id: "ALL", label: "All", test: () => true },
+  { id: "TRENDING", label: "Trending", test: (p) => p.trending_add_count > 0 },
+  { id: "INJURY", label: "Injury Risk", test: (p) => !!p.injury_status },
+  { id: "PERSONNEL", label: "Personnel", test: (p) => !!p.personnel_note },
+  { id: "PACE", label: "Pace", test: (p) => !!p.pace_note },
+  { id: "PLAYCALLER", label: "Playcaller", test: (p) => !!p.playcaller_note },
+];
+
 export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgradeModal, savePick, saving, selectedDate, onTeamClick }) {
   const [subTab, setSubTab] = useState("fantasy");
   const [scoring, setScoring] = useState("PPR");
@@ -109,6 +121,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
   const [cheatSheetLoading, setCheatSheetLoading] = useState(false);
   const [cheatSheetError, setCheatSheetError] = useState(null);
   const [positionFilter, setPositionFilter] = useState("ALL");
+  const [signalFilter, setSignalFilter] = useState("ALL");
 
   // Odds teaser state (non-Pro Picks view)
   const [nflGames, setNflGames] = useState(null);
@@ -248,6 +261,9 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
   };
   const orangeBtn = (disabled) => accentButtonStyle(NFL_ORANGE, { disabled });
 
+  const activeSignalTest = SIGNAL_FILTERS.find(f => f.id === signalFilter)?.test || (() => true);
+  const filteredCheatSheet = cheatSheet?.filter(activeSignalTest) ?? cheatSheet;
+
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
 
@@ -373,6 +389,15 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                   ))}
                 </div>
 
+                <div style={{ display: "flex", gap: 6, overflowX: "auto" }}>
+                  {SIGNAL_FILTERS.map(({ id, label }) => (
+                    <button key={id} onClick={() => setSignalFilter(id)}
+                      style={{ ...tabButtonStyle({ active: signalFilter === id, accent: NFL_ORANGE }), flexShrink: 0, padding: "5px 12px", fontSize: 11 }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
                 {cheatSheetLoading && (
                   <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#555", fontSize: 13, padding: "20px 0" }}>
                     <div style={{ width: 18, height: 18, border: "2px solid #2b2f3a", borderTopColor: NFL_ORANGE, borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
@@ -395,7 +420,14 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                   </div>
                 )}
 
-                {!cheatSheetLoading && !cheatSheetError && cheatSheet?.map(p => {
+                {!cheatSheetLoading && !cheatSheetError && cheatSheet?.length > 0 && filteredCheatSheet?.length === 0 && (
+                  <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 14, padding: "28px 16px", textAlign: "center" }}>
+                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>No players match this filter</div>
+                    <div style={{ fontSize: 13, color: "#555", lineHeight: 1.6 }}>Try a different signal or switch back to All.</div>
+                  </div>
+                )}
+
+                {!cheatSheetLoading && !cheatSheetError && filteredCheatSheet?.map(p => {
                   const t = draftTierStyle(p.tier);
                   return (
                     <div key={p.player_id} style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 14, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
