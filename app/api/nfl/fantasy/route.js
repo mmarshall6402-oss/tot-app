@@ -22,6 +22,23 @@ async function playerContextBlock(namesField, scoring) {
   return filtered.length ? filtered.join("\n") : null;
 }
 
+// A player picked from the /api/search-backed typeahead (components/NFLSection.js's
+// PlayerSearchInput) arrives as the exact {id, name, team, position} row instead of
+// free text — skip the fuzzy roster-name match entirely and go straight to
+// grounding, since there's no ambiguity left to resolve.
+function isResolvedPlayer(info) {
+  return !!(info && typeof info.name === "string" && info.name.trim());
+}
+
+async function resolvedPlayerContext(info, scoring) {
+  const rankingLine = await rankingsContextLine(info, scoring).catch(() => null);
+  return rankingLine || formatNFLPlayerContext(info);
+}
+
+async function playerContext(namesField, info, scoring) {
+  return isResolvedPlayer(info) ? resolvedPlayerContext(info, scoring) : playerContextBlock(namesField, scoring);
+}
+
 const SYSTEM = `You are a sharp fantasy football analyst. You give direct, confident starts/sits verdicts and trade analysis — no hedging, no "it depends on your league," just a clear recommendation with the key reasons.
 
 Format your responses for mobile:
@@ -46,19 +63,19 @@ export async function POST(request) {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { mode, playerA, playerB, scoring, tradeGive, tradeGet, question } = body;
+  const { mode, playerA, playerB, playerAInfo, playerBInfo, scoring, tradeGive, tradeGet, tradeGiveInfo, tradeGetInfo, question } = body;
 
   let userMessage;
   if (mode === "startSit") {
     if (!playerA || !playerB) return Response.json({ error: "playerA and playerB required" }, { status: 400 });
-    const [ctxA, ctxB] = await Promise.all([playerContextBlock(playerA, scoring), playerContextBlock(playerB, scoring)]);
+    const [ctxA, ctxB] = await Promise.all([playerContext(playerA, playerAInfo, scoring), playerContext(playerB, playerBInfo, scoring)]);
     const context = [ctxA, ctxB].filter(Boolean).join("\n");
     userMessage = `Scoring format: ${scoring || "PPR"}\n\n` +
       (context ? `Current roster/injury/projection data:\n${context}\n\n` : "") +
       `Should I start ${playerA} or ${playerB} this week? Give me a clear start/sit verdict.`;
   } else if (mode === "trade") {
     if (!tradeGive || !tradeGet) return Response.json({ error: "tradeGive and tradeGet required" }, { status: 400 });
-    const [ctxGive, ctxGet] = await Promise.all([playerContextBlock(tradeGive, scoring), playerContextBlock(tradeGet, scoring)]);
+    const [ctxGive, ctxGet] = await Promise.all([playerContext(tradeGive, tradeGiveInfo, scoring), playerContext(tradeGet, tradeGetInfo, scoring)]);
     const context = [ctxGive, ctxGet].filter(Boolean).join("\n");
     userMessage = `Scoring format: ${scoring || "PPR"}\n\n` +
       (context ? `Current roster/injury/projection data:\n${context}\n\n` : "") +

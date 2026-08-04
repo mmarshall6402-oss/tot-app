@@ -14,7 +14,7 @@
 // pitchVs, expDivider, expSection, sortBtn) rather than this component guessing at
 // values that could silently drift from the host's actual theme.
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { impliedWinPct, oddsMovement } from "../lib/odds-display.js";
 import { TeamMatchupLink } from "./TeamModal.js";
 import TeamLogo from "./TeamLogo.js";
@@ -47,6 +47,94 @@ function WinPctRow({ homeTeam, awayTeam, homeOdds, awayOdds, openHomeOdds, openA
       <span style={{ color: "#666" }}>{(homeTeam || "").split(" ").pop()} <b style={{ color: "#bbb" }}>{wp.home}%</b></span>
       {arrow && (
         <span style={{ color: arrowColor }}>{arrow} {move.delta}% since open</span>
+      )}
+    </div>
+  );
+}
+
+const FANTASY_POSITIONS = ["QB", "RB", "WR", "TE"];
+
+// Typeahead over the real player catalog (/api/search, sport=nfl) — replaces
+// a plain free-text field so Start/Sit and Trade always ground on an exact
+// roster player instead of the backend fuzzy-matching (or failing to match
+// and silently falling back to Claude guessing) whatever the user typed.
+// Selecting a suggestion hands the exact {id, name, team, position} object
+// back via onSelectPlayer, which app/api/nfl/fantasy/route.js uses directly
+// instead of re-resolving the name server-side.
+function PlayerSearchInput({ value, onChangeText, onSelectPlayer, placeholder, getAuthHeaders, onEnter, style }) {
+  const [results, setResults] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [highlighted, setHighlighted] = useState(0);
+  const boxRef = useRef(null);
+
+  useEffect(() => {
+    const q = (value || "").trim();
+    // Below the search floor, just let render-time (showDropdown requires
+    // length >= 2) hide whatever's left over — no state to reset here.
+    if (q.length < 2) return;
+    let cancelled = false;
+    setLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const headers = await getAuthHeaders();
+        const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&sport=nfl`, { headers });
+        const data = await res.json();
+        if (!cancelled) {
+          setResults((data.players || []).filter(p => FANTASY_POSITIONS.includes(p.position)));
+          setHighlighted(0);
+        }
+      } catch {
+        if (!cancelled) setResults([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }, 200);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [value, getAuthHeaders]);
+
+  useEffect(() => {
+    const onDocMouseDown = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", onDocMouseDown);
+    return () => document.removeEventListener("mousedown", onDocMouseDown);
+  }, []);
+
+  const select = (p) => {
+    onSelectPlayer(p);
+    onChangeText(p.name);
+    setOpen(false);
+  };
+
+  const showDropdown = open && value.trim().length >= 2 && (results.length > 0 || loading);
+
+  return (
+    <div ref={boxRef} style={{ position: "relative", flex: 1, minWidth: 0 }}>
+      <input
+        style={style}
+        value={value}
+        placeholder={placeholder}
+        onChange={e => { onChangeText(e.target.value); onSelectPlayer(null); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={e => {
+          if (e.key === "ArrowDown" && results.length) { e.preventDefault(); setHighlighted(h => Math.min(h + 1, results.length - 1)); }
+          else if (e.key === "ArrowUp" && results.length) { e.preventDefault(); setHighlighted(h => Math.max(h - 1, 0)); }
+          else if (e.key === "Enter") {
+            if (open && results[highlighted]) { e.preventDefault(); select(results[highlighted]); }
+            else onEnter?.();
+          } else if (e.key === "Escape") setOpen(false);
+        }}
+      />
+      {showDropdown && (
+        <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "#15171d", border: "1px solid #242832", borderRadius: 10, zIndex: 50, maxHeight: 220, overflowY: "auto", boxShadow: "0 8px 24px rgba(0,0,0,0.4)" }}>
+          {loading && !results.length && <div style={{ padding: "10px 12px", fontSize: 12, color: "#555" }}>Searching…</div>}
+          {results.map((p, i) => (
+            <div key={p.id} onMouseDown={() => select(p)}
+              style={{ padding: "8px 12px", cursor: "pointer", background: i === highlighted ? "rgba(217,117,74,0.14)" : "transparent", borderTop: i === 0 ? "none" : "1px solid #1c1f26" }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "#eee" }}>{p.name}</div>
+              <div style={{ fontSize: 11, color: "#666" }}>{p.position} · {p.team || "FA"}{p.injuryStatus ? ` · ${p.injuryStatus}` : ""}</div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
@@ -102,12 +190,16 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
   // Start/Sit state
   const [playerA, setPlayerA] = useState("");
   const [playerB, setPlayerB] = useState("");
+  const [playerAInfo, setPlayerAInfo] = useState(null);
+  const [playerBInfo, setPlayerBInfo] = useState(null);
   const [ssResult, setSsResult] = useState(null);
   const [ssLoading, setSsLoading] = useState(false);
 
   // Trade state
   const [tradeGive, setTradeGive] = useState("");
   const [tradeGet, setTradeGet] = useState("");
+  const [tradeGiveInfo, setTradeGiveInfo] = useState(null);
+  const [tradeGetInfo, setTradeGetInfo] = useState(null);
   const [tradeResult, setTradeResult] = useState(null);
   const [tradeLoading, setTradeLoading] = useState(false);
 
@@ -155,7 +247,12 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
   const runStartSit = async () => {
     if (!playerA.trim() || !playerB.trim()) return;
     setSsLoading(true); setSsResult(null);
-    try { setSsResult(await callFantasy("startSit", { playerA: playerA.trim(), playerB: playerB.trim() })); }
+    try {
+      setSsResult(await callFantasy("startSit", {
+        playerA: playerA.trim(), playerB: playerB.trim(),
+        playerAInfo, playerBInfo,
+      }));
+    }
     catch (e) { setSsResult("Error: " + e.message); }
     setSsLoading(false);
   };
@@ -163,7 +260,12 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
   const runTrade = async () => {
     if (!tradeGive.trim() || !tradeGet.trim()) return;
     setTradeLoading(true); setTradeResult(null);
-    try { setTradeResult(await callFantasy("trade", { tradeGive: tradeGive.trim(), tradeGet: tradeGet.trim() })); }
+    try {
+      setTradeResult(await callFantasy("trade", {
+        tradeGive: tradeGive.trim(), tradeGet: tradeGet.trim(),
+        tradeGiveInfo, tradeGetInfo,
+      }));
+    }
     catch (e) { setTradeResult("Error: " + e.message); }
     setTradeLoading(false);
   };
@@ -316,13 +418,13 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
             {fantasyMode === "startSit" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <input style={inputStyle} placeholder="Player A (e.g. Justin Jefferson)" value={playerA}
-                    onChange={e => setPlayerA(e.target.value)}
-                    onKeyDown={e => e.key === "Enter" && runStartSit()} />
+                  <PlayerSearchInput style={inputStyle} placeholder="Player A (e.g. Justin Jefferson)" value={playerA}
+                    onChangeText={setPlayerA} onSelectPlayer={setPlayerAInfo}
+                    getAuthHeaders={getAuthHeaders} onEnter={runStartSit} />
                   <span style={{ color: "#444", fontWeight: 700, flexShrink: 0 }}>vs</span>
-                  <input style={inputStyle} placeholder="Player B (e.g. CeeDee Lamb)" value={playerB}
-                    onChange={e => setPlayerB(e.target.value)}
-                    onKeyDown={e => e.key === "Enter" && runStartSit()} />
+                  <PlayerSearchInput style={inputStyle} placeholder="Player B (e.g. CeeDee Lamb)" value={playerB}
+                    onChangeText={setPlayerB} onSelectPlayer={setPlayerBInfo}
+                    getAuthHeaders={getAuthHeaders} onEnter={runStartSit} />
                 </div>
                 <button style={orangeBtn(!playerA.trim() || !playerB.trim() || ssLoading)}
                   disabled={!playerA.trim() || !playerB.trim() || ssLoading}
@@ -342,13 +444,15 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 <div>
                   <div style={{ fontSize: 11, color: "#555", marginBottom: 6, letterSpacing: 0.5 }}>I'M GIVING</div>
-                  <input style={inputStyle} placeholder="e.g. Saquon Barkley + WR2" value={tradeGive}
-                    onChange={e => setTradeGive(e.target.value)} />
+                  <PlayerSearchInput style={inputStyle} placeholder="e.g. Saquon Barkley" value={tradeGive}
+                    onChangeText={setTradeGive} onSelectPlayer={setTradeGiveInfo}
+                    getAuthHeaders={getAuthHeaders} onEnter={runTrade} />
                 </div>
                 <div>
                   <div style={{ fontSize: 11, color: "#555", marginBottom: 6, letterSpacing: 0.5 }}>I'M GETTING</div>
-                  <input style={inputStyle} placeholder="e.g. Tyreek Hill" value={tradeGet}
-                    onChange={e => setTradeGet(e.target.value)} />
+                  <PlayerSearchInput style={inputStyle} placeholder="e.g. Tyreek Hill" value={tradeGet}
+                    onChangeText={setTradeGet} onSelectPlayer={setTradeGetInfo}
+                    getAuthHeaders={getAuthHeaders} onEnter={runTrade} />
                 </div>
                 <button style={orangeBtn(!tradeGive.trim() || !tradeGet.trim() || tradeLoading)}
                   disabled={!tradeGive.trim() || !tradeGet.trim() || tradeLoading}
