@@ -122,6 +122,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
   const [cheatSheetError, setCheatSheetError] = useState(null);
   const [positionFilter, setPositionFilter] = useState("ALL");
   const [signalFilter, setSignalFilter] = useState("ALL");
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Odds teaser state (non-Pro Picks view)
   const [nflGames, setNflGames] = useState(null);
@@ -263,6 +264,10 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
 
   const activeSignalTest = SIGNAL_FILTERS.find(f => f.id === signalFilter)?.test || (() => true);
   const filteredCheatSheet = cheatSheet?.filter(activeSignalTest) ?? cheatSheet;
+  const cheatSheetFilterSummary = [
+    positionFilter !== "ALL" ? positionFilter : null,
+    signalFilter !== "ALL" ? SIGNAL_FILTERS.find(f => f.id === signalFilter)?.label : null,
+  ].filter(Boolean).join(", ");
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
@@ -380,23 +385,44 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
 
             {fantasyMode === "cheatSheet" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <div style={{ display: "flex", gap: 6, overflowX: "auto" }}>
-                  {["ALL", "QB", "RB", "WR", "TE"].map(pos => (
-                    <button key={pos} onClick={() => setPositionFilter(pos)}
-                      style={{ ...tabButtonStyle({ active: positionFilter === pos, accent: NFL_ORANGE }), flexShrink: 0, padding: "6px 14px" }}>
-                      {pos}
-                    </button>
-                  ))}
-                </div>
+                <button onClick={() => setFiltersOpen(o => !o)}
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                    background: "#15171d", border: `1px solid ${filtersOpen ? NFL_ORANGE : "#242832"}`,
+                    borderRadius: 10, padding: "10px 14px", color: "#fff", fontSize: 13, fontWeight: 600,
+                    cursor: "pointer", width: "100%",
+                  }}>
+                  <span>Filters{cheatSheetFilterSummary ? ` · ${cheatSheetFilterSummary}` : ""}</span>
+                  <span style={{ color: NFL_ORANGE, fontSize: 11, transform: filtersOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}>▾</span>
+                </button>
 
-                <div style={{ display: "flex", gap: 6, overflowX: "auto" }}>
-                  {SIGNAL_FILTERS.map(({ id, label }) => (
-                    <button key={id} onClick={() => setSignalFilter(id)}
-                      style={{ ...tabButtonStyle({ active: signalFilter === id, accent: NFL_ORANGE }), flexShrink: 0, padding: "5px 12px", fontSize: 11 }}>
-                      {label}
-                    </button>
-                  ))}
-                </div>
+                {filtersOpen && (
+                  <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 12, padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+                    <div>
+                      <div style={{ fontSize: 10, color: "#555", fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>POSITION</div>
+                      <div style={{ display: "flex", gap: 6, overflowX: "auto" }}>
+                        {["ALL", "QB", "RB", "WR", "TE"].map(pos => (
+                          <button key={pos} onClick={() => setPositionFilter(pos)}
+                            style={{ ...tabButtonStyle({ active: positionFilter === pos, accent: NFL_ORANGE }), flexShrink: 0, padding: "6px 14px" }}>
+                            {pos}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div style={{ fontSize: 10, color: "#555", fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>SIGNAL</div>
+                      <div style={{ display: "flex", gap: 6, overflowX: "auto" }}>
+                        {SIGNAL_FILTERS.map(({ id, label }) => (
+                          <button key={id} onClick={() => setSignalFilter(id)}
+                            style={{ ...tabButtonStyle({ active: signalFilter === id, accent: NFL_ORANGE }), flexShrink: 0, padding: "5px 12px", fontSize: 11 }}>
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {cheatSheetLoading && (
                   <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#555", fontSize: 13, padding: "20px 0" }}>
