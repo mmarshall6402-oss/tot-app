@@ -1,6 +1,6 @@
 {
   "season": 2025,
-  "source": "@RyanJ_Heath / FantasyPtsData, 2021-2025 as primary playcaller. Values read from chart pixels \u2014 approximate, +/- 0.1 target, +/- 0.15 yds, +/- 0.5pp on rates. Coaches whose team logo could not be identified with confidence in the source chart are excluded: Klint Kubiak, Drew Petzing, Bobby Slowik, Mike McCarthy, Frank Reich, Mike LaFleur.",
+  "source": "@RyanJ_Heath / FantasyPtsData, 2021-2025 as primary playcaller. Values read from chart pixels \u2014 approximate, +/- 0.1 target, +/- 0.15 yds, +/- 0.5pp on rates. Coaches whose team logo could not be identified with confidence in the source chart are excluded: Klint Kubiak, Drew Petzing, Bobby Slowik, Mike McCarthy, Frank Reich, Mike LaFleur. Rams keyed as \"LA\" (not \"LAR\") to match nflverse's recent_team convention, which is what lib/nfl-fantasy/rankings.js sets p.team from \u2014 keep it that way or the Rams silently stop matching.",
   "teams": {
     "ATL": {
       "coach": "Tommy Rees",
@@ -37,7 +37,7 @@
       "paDropbackRatePct": 32.2,
       "motionRatePct": 57.3
     },
-    "LAR": {
+    "LA": {
       "coach": "Sean McVay",
       "designedTargetsPerGame": 3.58,
       "designedRecYdsPerTarget": 6.4,

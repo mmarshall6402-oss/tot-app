@@ -1,6 +1,6 @@
 {
   "season": 2025,
-  "source": "UnderdogRankings.com / @HaydenWinks, data nflfastR, 2025 team offense. Values read from chart pixels (576p video frame) \u2014 approximate, +/- 0.15% on explosive play rate, +/- 0.01 on neutral pace. Baltimore not visible in the plot (likely overlapped) and is excluded.",
+  "source": "UnderdogRankings.com / @HaydenWinks, data nflfastR, 2025 team offense. Values read from chart pixels (576p video frame) \u2014 approximate, +/- 0.15% on explosive play rate, +/- 0.01 on neutral pace. Baltimore not visible in the plot (likely overlapped) and is excluded. Rams keyed as \"LA\" (not \"LAR\") to match nflverse's recent_team convention, which is what lib/nfl-fantasy/rankings.js sets p.team from \u2014 keep it that way or the Rams silently stop matching.",
   "teams": {
     "NO": {
       "explosivePlayRate15": 8.6,
@@ -22,7 +22,7 @@
       "explosivePlayRate15": 10.2,
       "neutralPace": 1.92
     },
-    "LAR": {
+    "LA": {
       "explosivePlayRate15": 13,
       "neutralPace": 1.91
     },
