@@ -8,7 +8,7 @@ import { createClient } from "@supabase/supabase-js";
 import { requireAuth } from "../../../../../lib/auth.js";
 import { resolveHeadToHead } from "../../../../../lib/nfl-fantasy/head-to-head.js";
 import { normalizeFormat } from "../../../../../lib/nfl-fantasy/lookup.js";
-import { currentNflSeason } from "../../../../../lib/nfl-fantasy/season.js";
+import { currentNflSeason, fetchCurrentNflWeek } from "../../../../../lib/nfl-fantasy/season.js";
 
 const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -32,7 +32,10 @@ export async function POST(request) {
     return Response.json({ error: "gutPick must be 'A' or 'B'" }, { status: 400 });
   }
 
-  const resolved = await resolveHeadToHead(playerA.trim(), playerB.trim(), scoring);
+  const [resolved, week] = await Promise.all([
+    resolveHeadToHead(playerA.trim(), playerB.trim(), scoring),
+    fetchCurrentNflWeek(),
+  ]);
   if (!resolved) {
     return Response.json({ error: "Could not find projections for one or both players — only ranked players can be logged." }, { status: 404 });
   }
@@ -46,7 +49,7 @@ export async function POST(request) {
       user_id: user.id,
       scoring_format: normalizeFormat(scoring),
       season: currentNflSeason(),
-      week: null,
+      week: week ?? null,
       player_a_id: rowA.player_id || null,
       player_a_name: rowA.name,
       player_b_id: rowB.player_id || null,

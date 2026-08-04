@@ -3,7 +3,7 @@ import { lookupNFLPlayer, formatNFLPlayerContext, findMentionedNFLPlayers } from
 import { rankingsContextLine, normalizeFormat } from "../../../../lib/nfl-fantasy/lookup.js";
 import { resolveHeadToHead } from "../../../../lib/nfl-fantasy/head-to-head.js";
 import { logLiveProbabilityCall } from "../../../../lib/nfl-fantasy/probability-log.js";
-import { currentNflSeason } from "../../../../lib/nfl-fantasy/season.js";
+import { currentNflSeason, fetchCurrentNflWeek } from "../../../../lib/nfl-fantasy/season.js";
 import Anthropic from "@anthropic-ai/sdk";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -56,16 +56,17 @@ export async function POST(request) {
   let logAfterReply = null;
   if (mode === "startSit") {
     if (!playerA || !playerB) return Response.json({ error: "playerA and playerB required" }, { status: 400 });
-    const [ctxA, ctxB, probResult] = await Promise.all([
+    const [ctxA, ctxB, probResult, week] = await Promise.all([
       playerContextBlock(playerA, scoring),
       playerContextBlock(playerB, scoring),
       resolveHeadToHead(playerA.trim(), playerB.trim(), scoring),
+      fetchCurrentNflWeek(),
     ]);
     probability = probResult?.probability || null;
     if (probResult) {
       logAfterReply = () => logLiveProbabilityCall({
         rowA: probResult.rowA, rowB: probResult.rowB, probability,
-        scoringFormat: normalizeFormat(scoring), season: currentNflSeason(),
+        scoringFormat: normalizeFormat(scoring), season: currentNflSeason(), week,
       });
     }
     const context = [ctxA, ctxB].filter(Boolean).join("\n");
