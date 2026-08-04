@@ -1,0 +1,130 @@
+{
+  "season": 2025,
+  "source": "UnderdogRankings.com / @HaydenWinks, data nflfastR, 2025 team offense. Values read from chart pixels (576p video frame) \u2014 approximate, +/- 0.15% on explosive play rate, +/- 0.01 on neutral pace. Baltimore not visible in the plot (likely overlapped) and is excluded.",
+  "teams": {
+    "NO": {
+      "explosivePlayRate15": 8.6,
+      "neutralPace": 2.02
+    },
+    "DAL": {
+      "explosivePlayRate15": 11.2,
+      "neutralPace": 1.95
+    },
+    "SEA": {
+      "explosivePlayRate15": 12.15,
+      "neutralPace": 1.93
+    },
+    "CHI": {
+      "explosivePlayRate15": 11.5,
+      "neutralPace": 1.92
+    },
+    "NYG": {
+      "explosivePlayRate15": 10.2,
+      "neutralPace": 1.92
+    },
+    "LAR": {
+      "explosivePlayRate15": 13,
+      "neutralPace": 1.91
+    },
+    "HOU": {
+      "explosivePlayRate15": 8.9,
+      "neutralPace": 1.91
+    },
+    "CIN": {
+      "explosivePlayRate15": 9.8,
+      "neutralPace": 1.89
+    },
+    "CLE": {
+      "explosivePlayRate15": 8.1,
+      "neutralPace": 1.89
+    },
+    "KC": {
+      "explosivePlayRate15": 9.1,
+      "neutralPace": 1.89
+    },
+    "ATL": {
+      "explosivePlayRate15": 10.4,
+      "neutralPace": 1.88
+    },
+    "SF": {
+      "explosivePlayRate15": 9.6,
+      "neutralPace": 1.86
+    },
+    "PHI": {
+      "explosivePlayRate15": 10,
+      "neutralPace": 1.85
+    },
+    "DET": {
+      "explosivePlayRate15": 12.6,
+      "neutralPace": 1.84
+    },
+    "PIT": {
+      "explosivePlayRate15": 9.35,
+      "neutralPace": 1.835
+    },
+    "DEN": {
+      "explosivePlayRate15": 11.6,
+      "neutralPace": 1.83
+    },
+    "LV": {
+      "explosivePlayRate15": 7.7,
+      "neutralPace": 1.82
+    },
+    "MIN": {
+      "explosivePlayRate15": 9.8,
+      "neutralPace": 1.82
+    },
+    "ARI": {
+      "explosivePlayRate15": 11,
+      "neutralPace": 1.82
+    },
+    "CAR": {
+      "explosivePlayRate15": 9.2,
+      "neutralPace": 1.82
+    },
+    "NYJ": {
+      "explosivePlayRate15": 7.6,
+      "neutralPace": 1.815
+    },
+    "TEN": {
+      "explosivePlayRate15": 8.3,
+      "neutralPace": 1.81
+    },
+    "WAS": {
+      "explosivePlayRate15": 10.25,
+      "neutralPace": 1.81
+    },
+    "JAX": {
+      "explosivePlayRate15": 10.75,
+      "neutralPace": 1.8
+    },
+    "IND": {
+      "explosivePlayRate15": 11.8,
+      "neutralPace": 1.8
+    },
+    "NE": {
+      "explosivePlayRate15": 13.2,
+      "neutralPace": 1.79
+    },
+    "GB": {
+      "explosivePlayRate15": 11.85,
+      "neutralPace": 1.775
+    },
+    "TB": {
+      "explosivePlayRate15": 9.6,
+      "neutralPace": 1.77
+    },
+    "LAC": {
+      "explosivePlayRate15": 9.8,
+      "neutralPace": 1.755
+    },
+    "MIA": {
+      "explosivePlayRate15": 11.5,
+      "neutralPace": 1.74
+    },
+    "BUF": {
+      "explosivePlayRate15": 12.2,
+      "neutralPace": 1.7
+    }
+  }
+}

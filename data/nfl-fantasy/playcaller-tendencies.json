@@ -1,0 +1,153 @@
+{
+  "season": 2025,
+  "source": "@RyanJ_Heath / FantasyPtsData, 2021-2025 as primary playcaller. Values read from chart pixels \u2014 approximate, +/- 0.1 target, +/- 0.15 yds, +/- 0.5pp on rates. Coaches whose team logo could not be identified with confidence in the source chart are excluded: Klint Kubiak, Drew Petzing, Bobby Slowik, Mike McCarthy, Frank Reich, Mike LaFleur.",
+  "teams": {
+    "ATL": {
+      "coach": "Tommy Rees",
+      "designedTargetsPerGame": 3.44,
+      "designedRecYdsPerTarget": 8.7,
+      "paDropbackRatePct": 26,
+      "motionRatePct": 51.5
+    },
+    "SF": {
+      "coach": "Kyle Shanahan",
+      "designedTargetsPerGame": 3.13,
+      "designedRecYdsPerTarget": 7.45,
+      "paDropbackRatePct": 24.6,
+      "motionRatePct": 67.7
+    },
+    "NE": {
+      "coach": "Josh McDaniels",
+      "designedTargetsPerGame": 2.65,
+      "designedRecYdsPerTarget": 6.8,
+      "paDropbackRatePct": 25,
+      "motionRatePct": 46
+    },
+    "JAX": {
+      "coach": "Liam Coen",
+      "designedTargetsPerGame": 4.27,
+      "designedRecYdsPerTarget": 6.65,
+      "paDropbackRatePct": 24,
+      "motionRatePct": 57.1
+    },
+    "CHI": {
+      "coach": "Ben Johnson",
+      "designedTargetsPerGame": 3.92,
+      "designedRecYdsPerTarget": 6.4,
+      "paDropbackRatePct": 32.2,
+      "motionRatePct": 57.3
+    },
+    "LAR": {
+      "coach": "Sean McVay",
+      "designedTargetsPerGame": 3.58,
+      "designedRecYdsPerTarget": 6.4,
+      "paDropbackRatePct": 30.4,
+      "motionRatePct": 53
+    },
+    "KC": {
+      "coach": "Andy Reid",
+      "designedTargetsPerGame": 5.05,
+      "designedRecYdsPerTarget": 6.2,
+      "paDropbackRatePct": 26.9,
+      "motionRatePct": 58.3
+    },
+    "IND": {
+      "coach": "Shane Steichen",
+      "designedTargetsPerGame": 3.38,
+      "designedRecYdsPerTarget": 6.2,
+      "paDropbackRatePct": 32,
+      "motionRatePct": 43.5
+    },
+    "BUF": {
+      "coach": "Joe Brady",
+      "designedTargetsPerGame": 3.65,
+      "designedRecYdsPerTarget": 6.05,
+      "paDropbackRatePct": 24.4,
+      "motionRatePct": 62.1
+    },
+    "LAC": {
+      "coach": "Mike McDaniel",
+      "designedTargetsPerGame": 4.65,
+      "designedRecYdsPerTarget": 5.7,
+      "paDropbackRatePct": 31.8,
+      "motionRatePct": 71.5
+    },
+    "TEN": {
+      "coach": "Brian Daboll",
+      "designedTargetsPerGame": 4.2,
+      "designedRecYdsPerTarget": 5.6,
+      "paDropbackRatePct": 28.5,
+      "motionRatePct": 40.3
+    },
+    "MIN": {
+      "coach": "Kevin O'Connell",
+      "designedTargetsPerGame": 3.8,
+      "designedRecYdsPerTarget": 5.5,
+      "paDropbackRatePct": 31.3,
+      "motionRatePct": 50.7
+    },
+    "CLE": {
+      "coach": "Todd Monken",
+      "designedTargetsPerGame": 2.85,
+      "designedRecYdsPerTarget": 5.45,
+      "paDropbackRatePct": 27.5,
+      "motionRatePct": 54
+    },
+    "GB": {
+      "coach": "Matt LaFleur",
+      "designedTargetsPerGame": 4.5,
+      "designedRecYdsPerTarget": 5.45,
+      "paDropbackRatePct": 29.7,
+      "motionRatePct": 51.3
+    },
+    "CIN": {
+      "coach": "Zac Taylor",
+      "designedTargetsPerGame": 3.35,
+      "designedRecYdsPerTarget": 5.35,
+      "paDropbackRatePct": 20.3,
+      "motionRatePct": 41.5
+    },
+    "NO": {
+      "coach": "Kellen Moore",
+      "designedTargetsPerGame": 2.8,
+      "designedRecYdsPerTarget": 5.25,
+      "paDropbackRatePct": 26.1,
+      "motionRatePct": 52
+    },
+    "TB": {
+      "coach": "Zac Robinson",
+      "designedTargetsPerGame": 3.05,
+      "designedRecYdsPerTarget": 5.1,
+      "paDropbackRatePct": 19.6,
+      "motionRatePct": 61
+    },
+    "CAR": {
+      "coach": "Dave Canales",
+      "designedTargetsPerGame": 2.6,
+      "designedRecYdsPerTarget": 5.05,
+      "paDropbackRatePct": 25.6,
+      "motionRatePct": 44.5
+    },
+    "DAL": {
+      "coach": "Brian Schottenheimer",
+      "designedTargetsPerGame": 1.9,
+      "designedRecYdsPerTarget": 4.8,
+      "paDropbackRatePct": 29.4,
+      "motionRatePct": 59.3
+    },
+    "HOU": {
+      "coach": "Nick Caley",
+      "designedTargetsPerGame": 1.78,
+      "designedRecYdsPerTarget": 4.65,
+      "paDropbackRatePct": 25.3,
+      "motionRatePct": 51.2
+    },
+    "NYG": {
+      "coach": "Matt Nagy",
+      "designedTargetsPerGame": 1.72,
+      "designedRecYdsPerTarget": 1.4,
+      "paDropbackRatePct": 23.2,
+      "motionRatePct": 30.2
+    }
+  }
+}

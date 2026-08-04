@@ -19,6 +19,8 @@ import { fetchSleeperPlayerIndex, buildEspnIdIndex, fetchTrendingAdds } from "..
 import { buildAgeById } from "../../../../lib/nfl-fantasy/age.js";
 import { buildScheduleAdjustmentByName, applyScheduleAdjustment } from "../../../../lib/nfl-fantasy/schedule-adjustment.js";
 import { buildPersonnelAdjustmentByTeam, applyPersonnelAdjustment } from "../../../../lib/nfl-fantasy/personnel-adjustment.js";
+import { buildPaceAdjustmentByTeam, applyPaceAdjustment } from "../../../../lib/nfl-fantasy/pace-adjustment.js";
+import { buildPlaycallerAdjustmentByTeam, applyPlaycallerAdjustment } from "../../../../lib/nfl-fantasy/playcaller-adjustment.js";
 
 const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -27,6 +29,7 @@ const getSupabase = () => createClient(
 
 const FORMATS = ["ppr", "half_ppr", "standard"];
 const DATA_DIR = join(process.cwd(), "data/nflverse");
+const TENDENCY_DATA_DIR = join(process.cwd(), "data/nfl-fantasy");
 
 // NFL season "year" runs Sept-Feb; before March it's still last season's
 // playoffs/offseason, so rankings should target the season about to start.
@@ -42,6 +45,22 @@ async function loadCachedData() {
   return {
     playerStatsRows: JSON.parse(playerStatsRaw).map((r) => ({ ...r, season: Number(r.season), week: Number(r.week) })),
     playersRows: JSON.parse(playersRaw),
+  };
+}
+
+// Checked-in chart-read snapshots (see data/nfl-fantasy/*.json for source
+// provenance) — no DB reupload workflow for these, so a missing/malformed
+// file just means no adjustment rather than a hard failure.
+async function loadTendencyData() {
+  const [paceRaw, playcallerRaw] = await Promise.all([
+    readFile(join(TENDENCY_DATA_DIR, "team-pace.json"), "utf8").catch(() => "null"),
+    readFile(join(TENDENCY_DATA_DIR, "playcaller-tendencies.json"), "utf8").catch(() => "null"),
+  ]);
+  const pace = JSON.parse(paceRaw);
+  const playcaller = JSON.parse(playcallerRaw);
+  return {
+    paceAdjustmentByTeam: buildPaceAdjustmentByTeam(pace?.teams),
+    playcallerAdjustmentByTeam: buildPlaycallerAdjustmentByTeam(playcaller?.teams),
   };
 }
 
@@ -88,14 +107,16 @@ function computeHistoricalMissedRate(playersById, targetSeason, lookbackSeasons 
   return rates;
 }
 
-async function refreshFormat(supabase, format, playersById, targetSeason, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId, ageById, scheduleAdjustmentByName, personnelAdjustmentByTeam) {
+async function refreshFormat(supabase, format, playersById, targetSeason, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId, ageById, scheduleAdjustmentByName, personnelAdjustmentByTeam, paceAdjustmentByTeam, playcallerAdjustmentByTeam) {
   const runStart = new Date().toISOString();
   const ranked = buildRankings(playersById, { targetSeason, format, ageById });
   if (!ranked.length) throw new Error(`${format}: ranking produced zero players — refusing to touch existing cache`);
   const personnelAdjusted = applyPersonnelAdjustment(ranked, personnelAdjustmentByTeam);
   const scheduleAdjusted = applyScheduleAdjustment(personnelAdjusted, scheduleAdjustmentByName);
+  const paceAdjusted = applyPaceAdjustment(scheduleAdjusted, paceAdjustmentByTeam);
+  const playcallerAdjusted = applyPlaycallerAdjustment(paceAdjusted, playcallerAdjustmentByTeam);
 
-  const withInjury = await attachInjuryContext(scheduleAdjusted, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId);
+  const withInjury = await attachInjuryContext(playcallerAdjusted, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId);
 
   const rowsByPosition = {};
   for (const pos of POSITIONS) rowsByPosition[pos] = withInjury.filter((p) => p.position === pos);
@@ -121,6 +142,8 @@ async function refreshFormat(supabase, format, playersById, targetSeason, crossw
     injury_risk: p.injuryRisk,
     trending_add_count: p.trendingAddCount,
     personnel_note: p.personnelNote || null,
+    pace_note: p.paceNote || null,
+    playcaller_note: p.playcallerNote || null,
     updated_at: runStart,
   }));
 
@@ -193,9 +216,11 @@ export async function GET(request) {
     .eq("season", targetSeason);
   const personnelAdjustmentByTeam = buildPersonnelAdjustmentByTeam(personnelRows || []);
 
+  const { paceAdjustmentByTeam, playcallerAdjustmentByTeam } = await loadTendencyData();
+
   for (const format of FORMATS) {
     try {
-      results[format] = await refreshFormat(supabase, format, playersById, targetSeason, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId, ageById, scheduleAdjustmentByName, personnelAdjustmentByTeam);
+      results[format] = await refreshFormat(supabase, format, playersById, targetSeason, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId, ageById, scheduleAdjustmentByName, personnelAdjustmentByTeam, paceAdjustmentByTeam, playcallerAdjustmentByTeam);
     } catch (e) {
       results[format] = { error: e.message };
     }

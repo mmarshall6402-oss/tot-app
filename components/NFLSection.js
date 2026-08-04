@@ -429,6 +429,16 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                             {p.personnel_note}
                           </span>
                         )}
+                        {p.pace_note && (
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: "rgba(240,180,60,0.08)", color: "#F0B43C", border: "1px solid rgba(240,180,60,0.25)" }}>
+                            {p.pace_note}
+                          </span>
+                        )}
+                        {p.playcaller_note && (
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: "rgba(200,120,220,0.08)", color: "#C878DC", border: "1px solid rgba(200,120,220,0.25)" }}>
+                            {p.playcaller_note}
+                          </span>
+                        )}
                       </div>
                     </div>
                   );
