@@ -45,14 +45,13 @@ export async function GET(request) {
     const today = `${ctParts.find(x=>x.type==="year").value}-${ctParts.find(x=>x.type==="month").value}-${ctParts.find(x=>x.type==="day").value}`;
 
     const sb = getSupabase();
-    const [tierRes, recentRes, allTimeRes, allTimeAllRes, cacheRes, historicalCacheRes, emailRes, subRes] = await Promise.all([
+    const [tierRes, recentRes, allTimeRes, allTimeAllRes, cacheRes, historicalCacheRes, subRes] = await Promise.all([
       sb.from("model_tier_stats").select("*"),
       sb.from("model_picks").select("*").gte("date", sinceStr).order("date", { ascending: false }).order("edge", { ascending: false }).limit(5000),
       sb.from("model_picks").select("result").eq("is_bet", true),
       sb.from("model_picks").select("result"),
       sb.from("picks_cache").select("picks").eq("date", today).single(),
       sb.from("picks_cache").select("date, picks").gte("date", sinceStr).neq("date", "__odds__"),
-      sb.from("email_list").select("id", { count: "exact", head: true }),
       sb.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "active"),
     ]);
 
@@ -122,7 +121,6 @@ export async function GET(request) {
       byTier:     tierRes.data  || [],
       recent:     picks,
       todayPicks: cacheRes.data?.picks || [],
-      emailCount: emailRes.count ?? 0,
       subCount:   subRes.count   ?? 0,
     });
   }

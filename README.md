@@ -14,7 +14,6 @@ A production MLB betting picks platform featuring a statistical prediction model
 - **Stripe paywall** — full subscription flow with checkout, webhooks, and account management
 - **Access codes** — invite friends and family with code-based free access
 - **Twitter/X bot** — top 3 picks posted automatically at 10:15 AM CT daily
-- **Email delivery** — daily pick digest sent to free subscribers via Resend
 - **Record tracking** — W-L record with monthly calendar view and model performance analytics
 - **Admin panel** — manage picks, post tweets manually, view analytics, and monitor model accuracy
 
@@ -28,7 +27,6 @@ A production MLB betting picks platform featuring a statistical prediction model
 | Database & Auth | Supabase |
 | Payments | Stripe |
 | AI | Anthropic Claude |
-| Email | Resend |
 | Social | Twitter API v2 |
 | Deployment | Vercel |
 
@@ -44,7 +42,7 @@ Picks are generated once daily by a Vercel cron job at 3 PM UTC (10 AM CT):
 2. Runs the statistical model to score each game
 3. Calls Claude to generate a breakdown for qualifying picks
 4. Writes results to the `picks_cache` table in Supabase
-5. Sends the daily email digest and posts to Twitter
+5. Posts to Twitter
 
 The `/api/picks` route serves from cache on every request and overlays live scores in real time.
 
@@ -157,7 +155,6 @@ vercel env pull
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Stripe publishable key |
 | `ANTHROPIC_API_KEY` | Anthropic API key |
-| `RESEND_API_KEY` | Resend API key |
 | `TWITTER_*` | Twitter API v2 credentials |
 | `NEXT_PUBLIC_APP_URL` | Public URL (e.g. `https://tot-app.vercel.app`) |
 

@@ -225,9 +225,6 @@ export default function ToT() {
   const [calStats, setCalStats] = useState(null);
   const [calMonth, setCalMonth] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
   const [showAuth, setShowAuth] = useState(false);
-  const heroEmailRef = useRef(null);
-  const [subEmail, setSubEmail] = useState("");
-  const [subStatus, setSubStatus] = useState(null); // null | "loading" | "ok" | "err"
   const [accessCode, setAccessCode] = useState("");
   const [codeStatus, setCodeStatus] = useState(null); // null | "loading" | "ok" | "invalid"
   const [installPlatform, setInstallPlatform] = useState(null); // 'ios' | 'android'
@@ -852,7 +849,6 @@ export default function ToT() {
             </p>
             <div style={{ display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap",marginBottom:40 }}>
               <button className="cta-btn" onClick={() => { setShowAuth(true); setAuthMode("signup"); }}>Start free →</button>
-              <button className="ghost-btn" onClick={() => heroEmailRef.current?.scrollIntoView({ behavior:"smooth" })}>Get daily pick by email</button>
             </div>
             {modelRecord?.total > 0 && (
               <div style={{ display:"inline-flex",gap:28,background: "#10131a",border:"1px solid #242832",borderRadius:14,padding:"13px 24px",flexWrap:"wrap",justifyContent:"center" }}>
@@ -1013,7 +1009,7 @@ export default function ToT() {
                 <div style={{ fontSize:12,color:"#555",fontWeight:700,marginBottom:8,letterSpacing:1 }}>FREE</div>
                 <div style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:34,fontWeight:700,marginBottom:3 }}>$0</div>
                 <div style={{ fontSize:12,color:"#444",marginBottom:22 }}>forever</div>
-                {["1 free pick daily","Email digest every morning","Model record public stats"].map(f => (
+                {["1 free pick daily","Model record public stats"].map(f => (
                   <div key={f} style={{ display:"flex",gap:8,alignItems:"center",padding:"7px 0",borderBottom:"1px solid #1c1f26",fontSize:12,color:"#666" }}><span style={{ color:"#3d424f" }}>✓</span>{f}</div>
                 ))}
                 <button className="ghost-btn" style={{ marginTop:18,width:"100%",fontSize:13,padding:"11px" }} onClick={() => { setShowAuth(true); setAuthMode("signup"); }}>Get started free</button>
@@ -1043,35 +1039,6 @@ export default function ToT() {
               </div>
             </div>
 
-            {/* Email capture */}
-            <div className="l-glow" style={{ marginBottom:52 }} />
-            <div ref={heroEmailRef} style={{ maxWidth:420,margin:"0 auto" }}>
-              <h3 style={{ fontSize:22,fontWeight:800,letterSpacing:-.5,marginBottom:7 }}>Not ready to pay?</h3>
-              <p style={{ color:"#555",fontSize:14,marginBottom:22,lineHeight:1.6 }}>Get one sharp pick every morning — free. No account needed.</p>
-              {subStatus === "ok" ? (
-                <div style={{ background:"rgba(47,191,113,.08)",border:"1px solid rgba(47,191,113,.2)",borderRadius:14,padding:"18px",textAlign:"center" }}>
-                  <div style={{ fontSize:18,fontWeight:800,color:"#2FBF71" }}>You're in. ✓</div>
-                  <div style={{ fontSize:13,color:"#555",marginTop:5 }}>First pick lands tomorrow morning.</div>
-                </div>
-              ) : (
-                <form onSubmit={async e => {
-                  e.preventDefault();
-                  if (!subEmail.trim()) return;
-                  setSubStatus("loading");
-                  try {
-                    const r = await fetch("/api/subscribe", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ email:subEmail.trim() }) });
-                    setSubStatus(r.ok ? "ok" : "err");
-                  } catch { setSubStatus("err"); }
-                }} style={{ display:"flex",gap:10 }}>
-                  <input type="email" required placeholder="your@email.com" value={subEmail} onChange={e => setSubEmail(e.target.value)}
-                    style={{ flex:1,background: "#12141a",border:"1px solid #242832",borderRadius:12,padding:"13px 15px",color:"#fff",fontSize:14,outline:"none" }} />
-                  <button type="submit" disabled={subStatus==="loading"} className="cta-btn" style={{ flexShrink:0,fontSize:14,padding:"13px 18px" }}>
-                    {subStatus==="loading" ? "…" : "Send me picks"}
-                  </button>
-                </form>
-              )}
-              {subStatus === "err" && <div style={{ fontSize:12,color:"#D9645C",marginTop:7 }}>Something went wrong.</div>}
-            </div>
           </section>
 
           {/* FOOTER */}

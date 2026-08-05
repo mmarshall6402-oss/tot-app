@@ -72,8 +72,8 @@ function Btn({ onClick, disabled, state, labels, style = {} }) {
   );
 }
 
-const NAVS = ["overview", "picks", "games", "clv", "cal", "weights", "codes", "email", "tweet", "system"];
-const NAV_LABELS = { overview: "📊 Overview", picks: "⚾ Picks", games: "🗂️ Games", clv: "📈 CLV", cal: "📐 Calibration", weights: "🎛️ Weights", codes: "🔑 Codes", email: "✉️ Email", tweet: "𝕏 Tweet", system: "⚙️ System" };
+const NAVS = ["overview", "picks", "games", "clv", "cal", "weights", "codes", "tweet", "system"];
+const NAV_LABELS = { overview: "📊 Overview", picks: "⚾ Picks", games: "🗂️ Games", clv: "📈 CLV", cal: "📐 Calibration", weights: "🎛️ Weights", codes: "🔑 Codes", tweet: "𝕏 Tweet", system: "⚙️ System" };
 
 export default function AdminDash() {
   const [auth, setAuth]   = useState(false);
@@ -85,7 +85,6 @@ export default function AdminDash() {
   const [stats, setStats]   = useState(null);
   const [codes, setCodes]   = useState([]);
   const [picks, setPicks]   = useState([]);
-  const [emailCount, setEC] = useState(null);
   const [subCount, setSC]   = useState(null);
   const [allTimePicks, setATP] = useState([]);
   const [modelRec, setModelRec] = useState(null);
@@ -103,14 +102,12 @@ export default function AdminDash() {
   // form state
   const [codeLabel, setCL]      = useState("");
   const [codeMax, setCM]        = useState("");
-  const [testEmail, setTE]      = useState("");
 
   // action state
   const [regenS, setRegenS]     = useState(null);
   const [playerIdxS, setPlayerIdxS] = useState(null);
   const [resolveS, setResolveS] = useState(null);
   const [createS, setCreateS]   = useState(null);
-  const [testS, setTestS]       = useState(null);
   const [copied, setCopied]     = useState({});
   const [autoToggleS, setAutoToggleS] = useState(null);
   const [activateS, setActivateS]     = useState(null); // { id, state: "loading"|"ok"|"err" }
@@ -126,7 +123,6 @@ export default function AdminDash() {
       if (email && ADMIN_EMAILS.includes(email)) {
         setAuth(true);
         setToken(session.access_token);
-        setTE(session.user.email);
         load(session.access_token, true);
       } else {
         setBusy(false);
@@ -181,7 +177,6 @@ export default function AdminDash() {
     setStats(statsR);
     setCodes(codesR.codes || []);
     setPicks(todayPicks);
-    setEC(statsR?.emailCount ?? 0);
     setSC(statsR?.subCount   ?? 0);
     setATP(statsR?.recent || []);
     setModelRec(recR ?? null);
@@ -424,21 +419,6 @@ export default function AdminDash() {
     setCodes(prev => prev.filter(c => c.id !== id));
   }
 
-  async function sendTest() {
-    if (!testEmail) return;
-    setTestS("loading");
-    try {
-      const r = await fetch("/api/admin/send-test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ to: testEmail }),
-      });
-      const d = await r.json();
-      setTestS(d.ok ? "ok" : `err:${d.error || "send failed"}`);
-    } catch (e) { setTestS(`err:${e.message}`); }
-    setTimeout(() => setTestS(null), 6000);
-  }
-
   // ──── RENDER ────────────────────────────────────────────────
 
   if (busy && !auth) return (
@@ -461,8 +441,6 @@ export default function AdminDash() {
   );
 
   const resolveLabel = resolveS?.startsWith("ok:") ? resolveS.slice(3) : resolveS === "loading" ? "Resolving…" : resolveS === "err" ? "✗ Failed" : "Resolve Yesterday";
-  const testLabel = testS?.startsWith("err:") ? `✗ ${testS.slice(4)}` : testS === "loading" ? "Sending…" : testS === "ok" ? "✓ Sent — check inbox" : "Send Test Email";
-  const testColor = testS === "ok" ? "#00FF87" : testS?.startsWith("err:") ? "#FF4D4D" : "#fff";
 
   return (
     <div style={S.page}>
@@ -540,7 +518,6 @@ export default function AdminDash() {
           <span style={S.lbl}>USERS</span>
           <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
             <Chip label="ACTIVE SUBS" value={subCount} color="#00FF87" />
-            <Chip label="EMAIL LIST"  value={emailCount} />
             <Chip label="CODES"       value={codes.length} />
           </div>
 
@@ -548,7 +525,6 @@ export default function AdminDash() {
           <div style={{ ...S.card, display: "flex", gap: 8, flexWrap: "wrap" }}>
             <Btn onClick={regen} state={regenS} style={{ flex: 1 }}
               labels={{ loading: "⏳ Generating…", ok: "✓ Done", err: "✗ Failed", default: "⚡ Regen Picks" }} />
-            <button onClick={() => setTab("email")}  style={{ ...S.btn, flex: 1 }}>✉️ Test Email</button>
             <button onClick={resolveYesterday}        style={{ ...S.btn, flex: 1 }}>{resolveLabel}</button>
             <Btn onClick={regenPlayerIndex} state={playerIdxS} style={{ flex: 1 }}
               labels={{ loading: "⏳ Crawling rosters…", ok: "✓ Done", err: "✗ Failed", default: "🔎 Rebuild Search Index" }} />
@@ -692,63 +668,6 @@ export default function AdminDash() {
                 </button>
               </div>
             ))}
-          </div>
-        </>
-      )}
-
-      {/* ── EMAIL ── */}
-      {tab === "email" && (
-        <>
-          <span style={S.lbl}>TEST EMAIL</span>
-          <div style={{ ...S.card, marginBottom: 14 }}>
-            <div style={{ fontSize: 12, color: "#666", marginBottom: 10, lineHeight: 1.6 }}>
-              Sends a test email with today's top pick to verify your Resend setup is working.
-              If this fails, your <code style={{ color: "#fff", background: "#111", padding: "1px 5px", borderRadius: 4 }}>RESEND_FROM</code> domain is not verified.
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input style={{ ...S.input }} placeholder="Send test to email…" value={testEmail} onChange={e => setTE(e.target.value)} />
-              <button onClick={sendTest} disabled={!testEmail || testS === "loading"}
-                style={{ ...S.btn, flexShrink: 0, color: testColor, background: testS === "ok" ? "rgba(0,255,135,0.08)" : testS?.startsWith("err:") ? "rgba(255,77,77,0.08)" : "#111", border: `1px solid ${testS === "ok" ? "rgba(0,255,135,0.3)" : testS?.startsWith("err:") ? "rgba(255,77,77,0.3)" : "#333"}` }}>
-                {testLabel}
-              </button>
-            </div>
-          </div>
-
-          <span style={S.lbl}>EMAIL CONFIGURATION</span>
-          <div style={S.card}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {[
-                ["From address",   "RESEND_FROM env var (defaults to onboarding@resend.dev)"],
-                ["Subscribers",    `${emailCount ?? "?"} on email_list`],
-                ["Cron schedule",  "10:30 AM CT daily (30 15 * * * UTC)"],
-                ["Domain",         "thisthatpicks.com — must be verified in Resend dashboard"],
-              ].map(([k, v]) => (
-                <div key={k} style={S.row}>
-                  <span style={{ fontSize: 12, color: "#555", flexShrink: 0 }}>{k}</span>
-                  <span style={{ fontSize: 12, color: "#888", textAlign: "right" }}>{v}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <span style={S.lbl}>HOW TO FIX DOMAIN (if emails fail)</span>
-          <div style={S.card}>
-            <div style={{ fontSize: 12, color: "#666", lineHeight: 1.8 }}>
-              1. Go to <a href="https://resend.com/domains" target="_blank">resend.com/domains</a><br/>
-              2. Add domain <code style={{ color: "#fff" }}>thisthatpicks.com</code><br/>
-              3. Add the DNS records they give you to your domain registrar<br/>
-              4. Once verified, set env var in Vercel:<br/>
-              <code style={{ color: "#00FF87" }}>RESEND_FROM = T|T Picks &lt;picks@thisthatpicks.com&gt;</code>
-            </div>
-          </div>
-
-          <span style={S.lbl}>OR — USE YOUR OWN EMAIL (no domain needed)</span>
-          <div style={S.card}>
-            <div style={{ fontSize: 12, color: "#666", lineHeight: 1.8, marginBottom: 8 }}>
-              Resend allows sending from any email you registered with. Set this in Vercel env vars:
-            </div>
-            <pre style={{ ...S.mono, fontSize: 11, color: "#00FF87", background: "#060606", padding: "10px 12px", borderRadius: 8, lineHeight: 1.6 }}>RESEND_FROM = T|T Picks &lt;mmarshall1011@icloud.com&gt;</pre>
-            <div style={{ fontSize: 11, color: "#444", marginTop: 6 }}>Note: Resend free plan requires your own email or a verified domain.</div>
           </div>
         </>
       )}
@@ -1296,7 +1215,6 @@ export default function AdminDash() {
             {[
               ["⚾ Picks + Breakdowns", "0 15 * * *",  "10:00 AM CT"],
               ["🔍 Resolve Results",    "0 8 * * *",   "3:00 AM CT"],
-              ["✉️ Email Digest",       "30 15 * * *", "10:30 AM CT"],
               ["𝕏 Tweet Bot",          "15 15 * * *", "10:15 AM CT (disabled — X requires paid plan)"],
               ["📸 CLV Snapshot",       "0 23 * * *",  "6:00 PM CT — captures closing odds"],
             ].map(([name, sched, ct]) => (
@@ -1316,7 +1234,6 @@ export default function AdminDash() {
               ["Vercel Cron Logs", "https://vercel.com/mmarshall6402-7451s-projects/tot-app/settings/crons"],
               ["Vercel Env Vars",  "https://vercel.com/mmarshall6402-7451s-projects/tot-app/settings/environment-variables"],
               ["Supabase Tables",  "https://supabase.com/dashboard/project/yazpmhcdvdbnqwhvrfdp/editor"],
-              ["Resend Domains",   "https://resend.com/domains"],
               ["Stripe Dashboard", "https://dashboard.stripe.com"],
             ].map(([label, url]) => (
               <div key={label} style={{ padding: "8px 0", borderBottom: "1px solid #0a0a0a" }}>

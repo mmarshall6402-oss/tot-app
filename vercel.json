@@ -17,10 +17,6 @@
       "schedule": "30 8 * * *"
     },
     {
-      "path": "/api/cron/email",
-      "schedule": "30 15 * * *"
-    },
-    {
       "path": "/api/cron/tweet",
       "schedule": "15 15 * * *"
     },
@@ -35,10 +31,6 @@
     {
       "path": "/api/cron/nfl-resolve",
       "schedule": "0 13 * * *"
-    },
-    {
-      "path": "/api/cron/weekly",
-      "schedule": "0 15 * * 0"
     },
     {
       "path": "/api/cron/tune-weights",
@@ -63,12 +55,10 @@
     "app/api/props/route.js": { "maxDuration": 60 },
     "app/api/cron/resolve/route.js": { "maxDuration": 60 },
     "app/api/cron/recalibrate/route.js": { "maxDuration": 60 },
-    "app/api/cron/email/route.js": { "maxDuration": 60 },
     "app/api/cron/tweet/route.js": { "maxDuration": 60 },
     "app/api/cron/snapshot/route.js": { "maxDuration": 60 },
     "app/api/cron/nfl-picks/route.js": { "maxDuration": 300 },
     "app/api/cron/nfl-resolve/route.js": { "maxDuration": 60 },
-    "app/api/cron/weekly/route.js": { "maxDuration": 60 },
     "app/api/cron/tune-weights/route.js": { "maxDuration": 60 },
     "app/api/admin/backtest/route.js": { "maxDuration": 300 },
     "app/api/cron/player-index/route.js": { "maxDuration": 120 },

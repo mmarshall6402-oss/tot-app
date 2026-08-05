@@ -1,36 +1,16 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { SHARED_BUTTON_CSS, FONT_IMPORT_URL, tokens } from "../../lib/ui-theme.js";
 import { LockIcon } from "../../components/icons.js";
 
 export default function Landing() {
   const [freePick, setFreePick]   = useState(null);
   const [record, setRecord]       = useState(null);
-  const [email, setEmail]         = useState("");
-  const [subStatus, setSubStatus] = useState(null);
-  const [errMsg, setErrMsg]       = useState("");
-  const heroEmailRef = useRef(null);
 
   useEffect(() => {
     fetch("/api/free-pick").then(r => r.json()).then(d => setFreePick(d.pick || null)).catch(() => {});
     fetch("/api/model-record").then(r => r.json()).then(d => setRecord(d)).catch(() => {});
   }, []);
-
-  const subscribe = async (e) => {
-    e.preventDefault();
-    if (!email.trim()) return;
-    setSubStatus("loading");
-    try {
-      const res = await fetch("/api/subscribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() }),
-      });
-      const d = await res.json();
-      if (res.ok) { setSubStatus("ok"); }
-      else { setSubStatus("err"); setErrMsg(d.error || "Something went wrong."); }
-    } catch { setSubStatus("err"); setErrMsg("Network error."); }
-  };
 
   const verdictColor = { CLEAN: "#2FBF71", BET: "#D6B23D" };
   const verdictLabel = { CLEAN: "Value Pick", BET: "Solid Pick" };
@@ -106,9 +86,6 @@ export default function Landing() {
 
         <div className="fade-up-4" style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", marginBottom: 48 }}>
           <a href="/" className="cta-btn">Start free →</a>
-          <button className="ghost-btn" onClick={() => heroEmailRef.current?.scrollIntoView({ behavior: "smooth" })}>
-            Get daily pick by email
-          </button>
         </div>
 
         {/* Hero stat strip */}
@@ -431,7 +408,7 @@ Sports betting carries extreme variance — MLB and NFL alike. Even 60% pickers 
             <div style={{ fontSize: 13, color: "#555", fontWeight: 700, marginBottom: 10, letterSpacing: 1 }}>FREE</div>
             <div style={{ fontFamily: tokens.font.mono, fontSize: 36, fontWeight: 700, marginBottom: 4 }}>$0</div>
             <div style={{ fontSize: 12, color: "#444", marginBottom: 24 }}>forever</div>
-            {["1 free pick daily", "Email digest every morning", "Model record public stats"].map(f => (
+            {["1 free pick daily", "Model record public stats"].map(f => (
               <div key={f} style={{ display: "flex", gap: 8, alignItems: "center", padding: "7px 0", borderBottom: "1px solid #1c1f26", fontSize: 13, color: "#666" }}>
                 <span style={{ color: "#3d424f", fontSize: 14 }}>✓</span> {f}
               </div>
@@ -471,36 +448,6 @@ Sports betting carries extreme variance — MLB and NFL alike. Even 60% pickers 
 
         {/* Divider */}
         <div className="glow-line" style={{ marginBottom: 60 }} />
-
-        {/* Email capture */}
-        <div ref={heroEmailRef} style={{ maxWidth: 440, margin: "0 auto" }}>
-          <h3 style={{ fontSize: 24, fontWeight: 600, letterSpacing: -0.3, marginBottom: 8, fontFamily: tokens.font.display }}>Not ready to pay?</h3>
-          <p style={{ color: "#555", fontSize: 14, marginBottom: 24, lineHeight: 1.6 }}>
-            Get one sharp pick every morning — free. No account needed. Unsubscribe any time.
-          </p>
-
-          {subStatus === "ok" ? (
-            <div style={{ background: "rgba(47,191,113,0.08)", border: "1px solid rgba(47,191,113,0.2)", borderRadius: 14, padding: "20px", textAlign: "center" }}>
-              <div style={{ fontSize: 20, fontWeight: 800, color: "#2FBF71" }}>You're in. ✓</div>
-              <div style={{ fontSize: 13, color: "#555", marginTop: 6 }}>First pick lands tomorrow morning.</div>
-            </div>
-          ) : (
-            <form onSubmit={subscribe} style={{ display: "flex", gap: 10 }}>
-              <input
-                type="email"
-                placeholder="your@email.com"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                required
-                style={{ flex: 1, background: "#12141a", border: "1px solid #242832", borderRadius: 12, padding: "14px 16px", color: "#fff", fontSize: 14, outline: "none" }}
-              />
-              <button type="submit" disabled={subStatus === "loading"} className="cta-btn" style={{ flexShrink: 0, fontSize: 14, padding: "14px 20px" }}>
-                {subStatus === "loading" ? "…" : "Send me picks"}
-              </button>
-            </form>
-          )}
-          {subStatus === "err" && <div style={{ fontSize: 12, color: "#D9645C", marginTop: 8 }}>{errMsg}</div>}
-        </div>
       </section>
 
       {/* ─── FOOTER ───────────────────────────────────── */}
