@@ -180,6 +180,7 @@ const SIGNAL_FILTERS = [
   { id: "PERSONNEL", label: "Personnel", test: (p) => !!p.personnel_note },
   { id: "PACE", label: "Pace", test: (p) => !!p.pace_note },
   { id: "PLAYCALLER", label: "Playcaller", test: (p) => !!p.playcaller_note },
+  { id: "TUNED", label: "Hand-Tuned", test: (p) => !!p.manual_override_note },
 ];
 
 export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgradeModal, savePick, saving, selectedDate, onTeamClick }) {
@@ -599,6 +600,11 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                         {p.playcaller_note && (
                           <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: "rgba(200,120,220,0.08)", color: "#C878DC", border: "1px solid rgba(200,120,220,0.25)" }}>
                             {p.playcaller_note}
+                          </span>
+                        )}
+                        {p.manual_override_note && (
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: "rgba(0,255,135,0.08)", color: "#00FF87", border: "1px solid rgba(0,255,135,0.25)" }}>
+                            ⚙️ {p.manual_override_note}
                           </span>
                         )}
                       </div>
