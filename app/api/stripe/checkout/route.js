@@ -1,4 +1,4 @@
-import { getStripe, PLANS, seasonPassCancelAt } from "../../../../lib/stripe.js";
+import { getStripe, PLANS, seasonPassCancelAt, assertSeasonPriceWontOverbill } from "../../../../lib/stripe.js";
 import { requireAuth } from "../../../../lib/auth.js";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ||
@@ -13,11 +13,15 @@ export async function POST(request) {
     const priceId = PLANS[plan];
     if (!priceId) return Response.json({ error: "invalid plan" }, { status: 400 });
 
+    const stripe = getStripe();
+
     const subscription_data = plan === "season"
       ? { metadata: { userId: user.id }, cancel_at: seasonPassCancelAt() }
       : { metadata: { userId: user.id } };
 
-    const session = await getStripe().checkout.sessions.create({
+    if (plan === "season") await assertSeasonPriceWontOverbill(stripe, priceId);
+
+    const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       payment_method_types: ["card"],
       line_items: [{ price: priceId, quantity: 1 }],

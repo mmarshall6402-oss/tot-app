@@ -22,7 +22,13 @@ async function contextLineForPlayer(p, scoring) {
   ]);
   const base = rankingLine || formatNFLPlayerContext(p);
   if (!base) return null;
-  return propLine ? `${base}\n${propLine}` : base;
+  // Say explicitly when there's no market line (rather than just omitting
+  // it) — books often haven't posted props yet early in the week, and an
+  // absent line reads very differently from "we checked and there isn't
+  // one." Silence here is exactly the gap a model fills with a plausible-
+  // sounding invented number, which is the one failure mode this feature
+  // can't afford.
+  return `${base}\n${propLine || "Market prop: not posted yet for this game — do not state or estimate a sportsbook line for this player."}`;
 }
 
 async function playerContextBlock(namesField, scoring) {
@@ -59,7 +65,7 @@ Format your responses for mobile:
 
 If current roster/injury data is provided in the message, treat it as more reliable than your own training knowledge (rosters and injury designations change constantly) — lead with it when it's decisive. If a line includes VORP/projection/tier numbers, treat those as ground truth over your own training-knowledge point estimates — reserve your own knowledge for qualitative narrative (matchup, scheme fit, recent news) rather than re-deriving a point total.
 
-If a line includes a "Market prop" (a sportsbook's Over/Under or Yes/No line for that player's signature stat), call it out explicitly and compare it to our own projection/VORP for that player — e.g. "the book has him at 4.5 receptions, we project 5.8" — since seeing the market price next to our number in the same answer is the whole point. Only mention it when it's actually provided; never invent a prop line.
+If a line includes a "Market prop" with an actual number, call it out explicitly and compare it to our own projection/VORP for that player — e.g. "the book has him at 4.5 receptions, we project 5.8" — since seeing the market price next to our number in the same answer is the whole point. If a line instead says the market prop is not posted yet, do not mention a prop number for that player at all — not from memory, not an estimate, not a typical range. Sportsbooks frequently haven't posted player props yet early in the week; guessing at a plausible-sounding line in that case is worse than saying nothing, because it looks exactly like real market data. This rule overrides your own training knowledge of typical prop lines — you have no live line for that player unless the data block gives you one.
 
 For starts/sits: consider target share, snap count trends, matchup grade, scoring format, injury status, and recent usage. Give the better play clearly.
 
