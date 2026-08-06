@@ -24,7 +24,10 @@ function chunks(arr, size) {
 // Crawls one sport's live roster index and replaces that sport's rows in
 // player_index. Wrapped independently per sport so an MLB-side failure (e.g.
 // statsapi.mlb.com unreachable) can't block the NFL refresh, or vice versa.
-async function refreshSport(supabase, sport, buildIndex, toRow) {
+// onRowsBuilt (optional): called with the freshly-built rows right before
+// the upsert, so a caller can diff them against whatever was there before
+// this run overwrites it (see logInjuryTransitions below).
+async function refreshSport(supabase, sport, buildIndex, toRow, onRowsBuilt) {
   const runStart = new Date().toISOString();
   const index = await buildIndex();
   // Skip entries with no id (NFL athletes occasionally lack one) — they'd all
@@ -38,6 +41,8 @@ async function refreshSport(supabase, sport, buildIndex, toRow) {
   // leave last run's data serving search.
   if (rows.length === 0) throw new Error("crawl returned zero players — refusing to touch existing cache");
 
+  if (onRowsBuilt) await onRowsBuilt(rows);
+
   for (const batch of chunks(rows, CHUNK)) {
     const { error } = await supabase.from("player_index").upsert(batch, { onConflict: "sport,player_id" });
     if (error) throw new Error(`${sport} upsert failed: ${error.message}`);
@@ -48,6 +53,55 @@ async function refreshSport(supabase, sport, buildIndex, toRow) {
   await supabase.from("player_index").delete().eq("sport", sport).lt("updated_at", runStart);
 
   return rows.length;
+}
+
+// NFL season "year" runs Sept-Feb; before March it's still last season's
+// playoffs/offseason. Mirrors currentNflSeason() in
+// app/api/cron/nfl-fantasy-rankings/route.js (kept local — pulling in that
+// whole route just for this one helper isn't worth the coupling).
+function currentNflSeason(now = new Date()) {
+  return now.getMonth() >= 2 ? now.getFullYear() : now.getFullYear() - 1;
+}
+
+// Diffs the freshly-crawled NFL rows against whatever player_index already
+// had for injury_status and logs every change to nfl_fantasy_injury_log —
+// the source of truth for the tracker's news feed and teammate-impact
+// alerts (lib/nfl-fantasy/teammate-impact.js). Best-effort: a logging
+// failure shouldn't fail the whole player-index refresh.
+async function logInjuryTransitions(supabase, newRows) {
+  try {
+    const { data: previous, error } = await supabase
+      .from("player_index")
+      .select("player_id, injury_status")
+      .eq("sport", "nfl");
+    if (error) throw error;
+
+    const previousByEspnId = new Map((previous || []).map(r => [r.player_id, r.injury_status]));
+    const season = currentNflSeason();
+    const changes = [];
+    for (const row of newRows) {
+      const prevStatus = previousByEspnId.get(row.player_id) || null;
+      const newStatus = row.injury_status || null;
+      if (prevStatus === newStatus) continue;
+      changes.push({
+        espn_id: row.player_id,
+        name: row.name,
+        team: row.team,
+        position: row.position,
+        old_status: prevStatus,
+        new_status: newStatus,
+        season,
+      });
+    }
+    if (!changes.length) return 0;
+
+    const { error: insertError } = await supabase.from("nfl_fantasy_injury_log").insert(changes);
+    if (insertError) throw insertError;
+    return changes.length;
+  } catch (e) {
+    console.warn("[cron/player-index] injury transition logging failed:", e.message);
+    return 0;
+  }
 }
 
 export async function GET(request) {
@@ -73,14 +127,20 @@ export async function GET(request) {
   }
 
   try {
-    results.nfl = await refreshSport(supabase, "nfl", buildNFLIndex, (p) => ({
-      player_id: String(p.id),
-      name: p.name,
-      name_lower: p.name.toLowerCase(),
-      team: p.team,
-      position: p.position,
-      injury_status: p.injuryStatus || null,
-    }));
+    let injuryChanges = 0;
+    results.nfl = await refreshSport(
+      supabase, "nfl", buildNFLIndex,
+      (p) => ({
+        player_id: String(p.id),
+        name: p.name,
+        name_lower: p.name.toLowerCase(),
+        team: p.team,
+        position: p.position,
+        injury_status: p.injuryStatus || null,
+      }),
+      async (rows) => { injuryChanges = await logInjuryTransitions(supabase, rows); }
+    );
+    results.nflInjuryChanges = injuryChanges;
   } catch (e) {
     results.nfl = { error: e.message };
   }

@@ -415,6 +415,10 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
               ))}
             </div>
 
+            <a href="/fantasy-tracker" style={{ fontSize: 12, color: NFL_ORANGE, textDecoration: "none", alignSelf: "flex-end" }}>
+              Open Season Tracker (difficulty vs. actuals, gut check, injury news) →
+            </a>
+
             {fantasyMode === "startSit" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>

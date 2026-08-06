@@ -9,8 +9,10 @@
 // upsert-then-delete-stale pattern as /api/cron/player-index.
 import { readFile } from "fs/promises";
 import { join } from "path";
+import * as XLSX_NS from "xlsx";
 import { createClient } from "@supabase/supabase-js";
 import { timingSafeEqual } from "../../../../lib/auth.js";
+import { weeklyFantasyPoints } from "../../../../lib/nfl-fantasy/scoring.js";
 import { buildPlayerIndex } from "../../../../lib/nfl-roster.js";
 import { buildIdCrosswalk } from "../../../../lib/nfl-fantasy/id-map.js";
 import { groupByPlayer, buildRankings, POSITIONS } from "../../../../lib/nfl-fantasy/rankings.js";
@@ -30,6 +32,8 @@ const getSupabase = () => createClient(
 const FORMATS = ["ppr", "half_ppr", "standard"];
 const DATA_DIR = join(process.cwd(), "data/nflverse");
 const TENDENCY_DATA_DIR = join(process.cwd(), "data/nfl-fantasy");
+const XLSX = XLSX_NS.default ?? XLSX_NS;
+const NFLVERSE_RELEASE_BASE = "https://github.com/nflverse/nflverse-data/releases/download";
 
 // NFL season "year" runs Sept-Feb; before March it's still last season's
 // playoffs/offseason, so rankings should target the season about to start.
@@ -165,6 +169,61 @@ async function refreshFormat(supabase, format, playersById, targetSeason, crossw
   return rows.length;
 }
 
+// Unlike loadCachedData() above (prior seasons, checked-in JSON refreshed
+// manually via `npm run fantasy-fetch`), the CURRENT season's player_stats
+// release updates through the season — so the in-season tracker needs a
+// live fetch here rather than the stale checked-in snapshot. Same fetchCsv
+// approach as scripts/nfl-fantasy/fetch-nflverse.js, just for one season's
+// ~1.6MB file instead of five, and persisted straight to Supabase instead of
+// written to disk (a Vercel function's filesystem isn't writable/durable).
+async function fetchCurrentSeasonPlayerStats(season) {
+  const res = await fetch(`${NFLVERSE_RELEASE_BASE}/player_stats/player_stats_${season}.csv`, { signal: AbortSignal.timeout(60000) });
+  if (!res.ok) throw new Error(`player_stats_${season}.csv -> ${res.status}`);
+  const text = await res.text();
+  const wb = XLSX.read(text, { type: "string" });
+  return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+}
+
+// Persists real per-week fantasy points (weeklyFantasyPoints from
+// lib/nfl-fantasy/scoring.js, already used season-wide by the backtest) into
+// nfl_fantasy_weekly_actual (sql/017) so the in-season tracker can compare
+// them against schedule/matchup difficulty over time. Same
+// refuse-to-touch-cache-on-empty-crawl posture as refreshFormat above.
+async function refreshWeeklyActuals(supabase, targetSeason) {
+  const runStart = new Date().toISOString();
+  const statRows = await fetchCurrentSeasonPlayerStats(targetSeason);
+  if (!statRows.length) throw new Error("player_stats fetch returned zero rows — refusing to touch existing cache");
+
+  const upsertRows = [];
+  for (const r of statRows) {
+    const playerId = r.player_id;
+    const week = Number(r.week);
+    if (!playerId || !Number.isFinite(week)) continue;
+    for (const format of FORMATS) {
+      upsertRows.push({
+        player_id: playerId,
+        name: r.player_name || null,
+        season: targetSeason,
+        week,
+        scoring_format: format,
+        actual_points: weeklyFantasyPoints(r, format),
+        opponent: r.opponent_team || null,
+        updated_at: runStart,
+      });
+    }
+  }
+  if (!upsertRows.length) throw new Error("no valid player-week rows to persist — refusing to touch existing cache");
+
+  const CHUNK = 500;
+  for (let i = 0; i < upsertRows.length; i += CHUNK) {
+    const { error } = await supabase
+      .from("nfl_fantasy_weekly_actual")
+      .upsert(upsertRows.slice(i, i + CHUNK), { onConflict: "player_id,season,week,scoring_format" });
+    if (error) throw new Error(`weekly actuals upsert failed: ${error.message}`);
+  }
+  return upsertRows.length;
+}
+
 export async function GET(request) {
   const authHeader = request.headers.get("authorization")?.replace("Bearer ", "");
   if (!timingSafeEqual(authHeader, process.env.CRON_SECRET)) {
@@ -224,6 +283,12 @@ export async function GET(request) {
     } catch (e) {
       results[format] = { error: e.message };
     }
+  }
+
+  try {
+    results.weeklyActuals = await refreshWeeklyActuals(supabase, targetSeason);
+  } catch (e) {
+    results.weeklyActuals = { error: e.message };
   }
 
   return Response.json({ targetSeason, ...results });
