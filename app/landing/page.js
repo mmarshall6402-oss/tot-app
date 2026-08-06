@@ -240,7 +240,7 @@ export default function Landing() {
 
           {/* Bottom CTA inside mockup */}
           <div style={{ marginTop: 12, background: "rgba(47,191,113,0.06)", border: "1px solid rgba(47,191,113,0.12)", borderRadius: 12, padding: "12px", textAlign: "center" }}>
-            <div style={{ fontSize: 11, color: "#2FBF71", fontWeight: 700, marginBottom: 4 }}>Unlock all picks for $2/mo</div>
+            <div style={{ fontSize: 11, color: "#2FBF71", fontWeight: 700, marginBottom: 4 }}>Unlock all picks for $10/mo</div>
             <div style={{ fontSize: 10, color: "#444" }}>Full breakdowns · props · steals · fantasy tools · parlay builder</div>
           </div>
         </div>
@@ -280,6 +280,11 @@ export default function Landing() {
               title: "Player props",
               body: "Poisson-based projections for pitcher strikeouts and anytime home runs, blended toward the sportsbook's own price the same way our moneyline model respects the market.",
               tag: "MLB PROPS",
+            },
+            {
+              title: "Start/sit meets the prop market",
+              body: "Every start/sit and trade verdict is grounded in the same market prop line sportsbooks are offering that player — receptions, rushing yards, receiving yards — right next to our own projection. No other fantasy tool shows both in one answer.",
+              tag: "FANTASY + PROPS",
             },
             {
               title: "Steals",
@@ -431,7 +436,7 @@ Sports betting carries extreme variance — MLB and NFL alike. Even 60% pickers 
             <div style={{ fontSize: 13, color: "#555", fontWeight: 700, marginBottom: 10, letterSpacing: 1 }}>FREE</div>
             <div style={{ fontFamily: tokens.font.mono, fontSize: 36, fontWeight: 700, marginBottom: 4 }}>$0</div>
             <div style={{ fontSize: 12, color: "#444", marginBottom: 24 }}>forever</div>
-            {["1 free pick daily", "Email digest every morning", "Model record public stats"].map(f => (
+            {["1 free pick daily", "Fantasy cheat sheet + 3 start/sit calls/week", "Email digest every morning", "Model record public stats"].map(f => (
               <div key={f} style={{ display: "flex", gap: 8, alignItems: "center", padding: "7px 0", borderBottom: "1px solid #1c1f26", fontSize: 13, color: "#666" }}>
                 <span style={{ color: "#3d424f", fontSize: 14 }}>✓</span> {f}
               </div>
@@ -445,27 +450,27 @@ Sports betting carries extreme variance — MLB and NFL alike. Even 60% pickers 
               <div style={{ fontSize: 13, color: "#2FBF71", fontWeight: 700, letterSpacing: 1 }}>PRO MONTHLY</div>
               <div style={{ fontSize: 10, color: "#555", fontWeight: 600 }}>Most popular</div>
             </div>
-            <div style={{ fontFamily: tokens.font.mono, fontSize: 36, fontWeight: 700, marginBottom: 4, color: "#2FBF71" }}>$2</div>
+            <div style={{ fontFamily: tokens.font.mono, fontSize: 36, fontWeight: 700, marginBottom: 4, color: "#2FBF71" }}>$10</div>
             <div style={{ fontSize: 12, color: "#555", marginBottom: 24 }}>per month</div>
-            {["All picks + full breakdowns", "Edge scores + variance data", "CLEAN / BET / PASS filter", "Player props (Ks & HRs)", "Steals — curated top-edge feed", "NFL fantasy assistant + cheat sheet", "Parlay builder (CLEAN only)", "Personal tracker + P&L", "Access on all devices"].map(f => (
+            {["All picks + full breakdowns", "Edge scores + variance data", "CLEAN / BET / PASS filter", "Player props (MLB Ks/HRs, NFL fantasy props)", "Steals — curated top-edge feed", "Unlimited fantasy start/sit + trade + cheat sheet", "Parlay builder (CLEAN only)", "Personal tracker + P&L", "Access on all devices"].map(f => (
               <div key={f} style={{ display: "flex", gap: 8, alignItems: "center", padding: "7px 0", borderBottom: "1px solid rgba(47,191,113,0.06)", fontSize: 13, color: "#888" }}>
                 <span style={{ color: "#2FBF71", fontSize: 14 }}>✓</span> {f}
               </div>
             ))}
-            <a href="/" className="cta-btn" style={{ marginTop: 20, width: "100%", display: "block", textAlign: "center" }}>Start for $2/mo →</a>
+            <a href="/" className="cta-btn" style={{ marginTop: 20, width: "100%", display: "block", textAlign: "center" }}>Start for $10/mo →</a>
           </div>
 
-          {/* Annual */}
+          {/* Season Pass */}
           <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 20, padding: "28px 28px", flex: "1 1 220px", maxWidth: 280, textAlign: "left" }}>
-            <div style={{ fontSize: 13, color: "#555", fontWeight: 700, marginBottom: 10, letterSpacing: 1 }}>PRO ANNUAL</div>
-            <div style={{ fontFamily: tokens.font.mono, fontSize: 36, fontWeight: 700, marginBottom: 4 }}>$19.99</div>
-            <div style={{ fontSize: 12, color: "#444", marginBottom: 24 }}>$1.67/mo · 2 months free</div>
-            {["Everything in Pro Monthly", "Best value for the season", "Cancel anytime"].map(f => (
+            <div style={{ fontSize: 13, color: "#555", fontWeight: 700, marginBottom: 10, letterSpacing: 1 }}>SEASON PASS</div>
+            <div style={{ fontFamily: tokens.font.mono, fontSize: 36, fontWeight: 700, marginBottom: 4 }}>$45</div>
+            <div style={{ fontSize: 12, color: "#444", marginBottom: 24 }}>Sept–Jan · pay once, no renewal</div>
+            {["Everything in Pro Monthly", "Covers the full fantasy + NFL season", "Ends automatically after the season"].map(f => (
               <div key={f} style={{ display: "flex", gap: 8, alignItems: "center", padding: "7px 0", borderBottom: "1px solid #1c1f26", fontSize: 13, color: "#666" }}>
                 <span style={{ color: "#3d424f", fontSize: 14 }}>✓</span> {f}
               </div>
             ))}
-            <a href="/" className="ghost-btn" style={{ marginTop: 20, width: "100%", display: "block", textAlign: "center", fontSize: 13, padding: "12px" }}>Get annual →</a>
+            <a href="/" className="ghost-btn" style={{ marginTop: 20, width: "100%", display: "block", textAlign: "center", fontSize: 13, padding: "12px" }}>Get season pass →</a>
           </div>
         </div>
 

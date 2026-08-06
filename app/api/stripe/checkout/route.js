@@ -1,4 +1,4 @@
-import { getStripe, PLANS } from "../../../../lib/stripe.js";
+import { getStripe, PLANS, seasonPassCancelAt } from "../../../../lib/stripe.js";
 import { requireAuth } from "../../../../lib/auth.js";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ||
@@ -13,13 +13,17 @@ export async function POST(request) {
     const priceId = PLANS[plan];
     if (!priceId) return Response.json({ error: "invalid plan" }, { status: 400 });
 
+    const subscription_data = plan === "season"
+      ? { metadata: { userId: user.id }, cancel_at: seasonPassCancelAt() }
+      : { metadata: { userId: user.id } };
+
     const session = await getStripe().checkout.sessions.create({
       mode: "subscription",
       payment_method_types: ["card"],
       line_items: [{ price: priceId, quantity: 1 }],
       customer_email: email || user.email,
       metadata: { userId: user.id },
-      subscription_data: { metadata: { userId: user.id } },
+      subscription_data,
       success_url: `${APP_URL}/?checkout=success`,
       cancel_url:  `${APP_URL}/`,
     });

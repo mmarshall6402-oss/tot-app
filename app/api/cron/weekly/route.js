@@ -73,7 +73,7 @@ function buildWeeklyHtml(wins, losses, bestPick, weekLabel) {
 
     <div style="background:#060606;border:1px solid #111;border-radius:12px;padding:16px;margin-bottom:24px;text-align:center;">
       <div style="font-size:12px;color:#444;margin-bottom:8px;">Want all picks + AI breakdowns + edge scores?</div>
-      <a href="${APP_URL}/landing" style="font-size:13px;color:#00FF87;text-decoration:none;font-weight:700;">Upgrade to Pro — $2/month →</a>
+      <a href="${APP_URL}/landing" style="font-size:13px;color:#00FF87;text-decoration:none;font-weight:700;">Upgrade to Pro — $10/month →</a>
     </div>
 
     <div style="text-align:center;font-size:11px;color:#222;line-height:1.8;">

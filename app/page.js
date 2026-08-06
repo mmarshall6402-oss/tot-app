@@ -928,7 +928,7 @@ export default function ToT() {
                 </div>
               ))}
               <div style={{ marginTop:10,background:"rgba(47,191,113,.05)",border:"1px solid rgba(47,191,113,.1)",borderRadius:11,padding:"11px",textAlign:"center" }}>
-                <div style={{ fontSize:11,color:"#2FBF71",fontWeight:700,marginBottom:3 }}>Unlock all picks for $2/mo</div>
+                <div style={{ fontSize:11,color:"#2FBF71",fontWeight:700,marginBottom:3 }}>Unlock all picks for $10/mo</div>
                 <div style={{ fontSize:10,color:"#444" }}>Full breakdowns · edge scores · parlay builder</div>
               </div>
             </div>
@@ -1013,7 +1013,7 @@ export default function ToT() {
                 <div style={{ fontSize:12,color:"#555",fontWeight:700,marginBottom:8,letterSpacing:1 }}>FREE</div>
                 <div style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:34,fontWeight:700,marginBottom:3 }}>$0</div>
                 <div style={{ fontSize:12,color:"#444",marginBottom:22 }}>forever</div>
-                {["1 free pick daily","Email digest every morning","Model record public stats"].map(f => (
+                {["1 free pick daily","Fantasy cheat sheet + 3 start/sit calls/week","Email digest every morning","Model record public stats"].map(f => (
                   <div key={f} style={{ display:"flex",gap:8,alignItems:"center",padding:"7px 0",borderBottom:"1px solid #1c1f26",fontSize:12,color:"#666" }}><span style={{ color:"#3d424f" }}>✓</span>{f}</div>
                 ))}
                 <button className="ghost-btn" style={{ marginTop:18,width:"100%",fontSize:13,padding:"11px" }} onClick={() => { setShowAuth(true); setAuthMode("signup"); }}>Get started free</button>
@@ -1024,22 +1024,22 @@ export default function ToT() {
                   <div style={{ fontSize:12,color:"#2FBF71",fontWeight:700,letterSpacing:1 }}>PRO MONTHLY</div>
                   <div style={{ fontSize:10,color:"#555",fontWeight:600,letterSpacing:0.5 }}>Most popular</div>
                 </div>
-                <div style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:34,fontWeight:700,marginBottom:3,color:"#2FBF71" }}>$2</div>
+                <div style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:34,fontWeight:700,marginBottom:3,color:"#2FBF71" }}>$10</div>
                 <div style={{ fontSize:12,color:"#555",marginBottom:22 }}>per month</div>
-                {["All picks + full breakdowns","Edge scores + variance data","CLEAN / BET / PASS filter","Parlay builder (CLEAN only)","Personal tracker + P&L"].map(f => (
+                {["All picks + full breakdowns","Edge scores + variance data","CLEAN / BET / PASS filter","Player props (Ks, HRs, NFL fantasy props)","Unlimited fantasy start/sit + trade calls","Parlay builder (CLEAN only)","Personal tracker + P&L"].map(f => (
                   <div key={f} style={{ display:"flex",gap:8,alignItems:"center",padding:"7px 0",borderBottom:"1px solid rgba(47,191,113,.06)",fontSize:12,color:"#888" }}><span style={{ color:"#2FBF71" }}>✓</span>{f}</div>
                 ))}
-                <button className="cta-btn" style={{ marginTop:18,width:"100%",fontSize:14 }} onClick={() => { setShowAuth(true); setAuthMode("signup"); }}>Start for $2/mo →</button>
+                <button className="cta-btn" style={{ marginTop:18,width:"100%",fontSize:14 }} onClick={() => { setShowAuth(true); setAuthMode("signup"); }}>Start for $10/mo →</button>
               </div>
-              {/* Annual */}
+              {/* Season Pass */}
               <div style={{ background:"#15171d",border:"1px solid #242832",borderRadius:20,padding:"26px 24px",flex:"1 1 200px",maxWidth:260,textAlign:"left" }}>
-                <div style={{ fontSize:12,color:"#555",fontWeight:700,marginBottom:8,letterSpacing:1 }}>PRO ANNUAL</div>
-                <div style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:34,fontWeight:700,marginBottom:3 }}>$19.99</div>
-                <div style={{ fontSize:12,color:"#444",marginBottom:22 }}>$1.67/mo · 2 months free</div>
-                {["Everything in Pro Monthly","Best value for the season","Cancel anytime"].map(f => (
+                <div style={{ fontSize:12,color:"#555",fontWeight:700,marginBottom:8,letterSpacing:1 }}>SEASON PASS</div>
+                <div style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:34,fontWeight:700,marginBottom:3 }}>$45</div>
+                <div style={{ fontSize:12,color:"#444",marginBottom:22 }}>Sept–Jan · pay once, no renewal</div>
+                {["Everything in Pro Monthly","Covers the full fantasy + NFL season","Ends automatically after the season"].map(f => (
                   <div key={f} style={{ display:"flex",gap:8,alignItems:"center",padding:"7px 0",borderBottom:"1px solid #1c1f26",fontSize:12,color:"#666" }}><span style={{ color:"#3d424f" }}>✓</span>{f}</div>
                 ))}
-                <button className="ghost-btn" style={{ marginTop:18,width:"100%",fontSize:13,padding:"11px" }} onClick={() => { setShowAuth(true); setAuthMode("signup"); }}>Get annual →</button>
+                <button className="ghost-btn" style={{ marginTop:18,width:"100%",fontSize:13,padding:"11px" }} onClick={() => { setShowAuth(true); setAuthMode("signup"); }}>Get season pass →</button>
               </div>
             </div>
 
@@ -1548,7 +1548,7 @@ export default function ToT() {
             ))}
             <div style={{ background: "rgba(47,191,113,0.05)", border: "1px solid rgba(47,191,113,0.15)", borderRadius: 12, padding: "16px", textAlign: "center", cursor: "pointer" }}
               onClick={() => setUpgradeModal(true)}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "#2FBF71", marginBottom: 4 }}>Unlock all picks for $2/mo</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#2FBF71", marginBottom: 4 }}>Unlock all picks for $10/mo</div>
               <div style={{ fontSize: 12, color: "#555" }}>Full breakdowns · edge scores · parlay builder</div>
             </div>
           </div>
@@ -2837,19 +2837,19 @@ export default function ToT() {
                 <button onClick={() => startCheckout("monthly")} disabled={!!checkingOut}
                   style={{ flex: 1, background: "#15171d", border: "1px solid #242832", borderRadius: 14, padding: "16px 12px", cursor: "pointer", textAlign: "center" }}>
                   <div style={{ fontSize: 10, color: "#999", letterSpacing: 1, marginBottom: 4 }}>MONTHLY</div>
-                  <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 26, fontWeight: 700, color: "#fff" }}>$2</div>
+                  <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 26, fontWeight: 700, color: "#fff" }}>$10</div>
                   <div style={{ fontSize: 12, color: "#888", marginTop: 3 }}>per month</div>
                   {checkingOut === "monthly" && <div style={{ color: "#999", fontSize: 11, marginTop: 4 }}>Redirecting…</div>}
                 </button>
-                <button onClick={() => startCheckout("annual")} disabled={!!checkingOut}
+                <button onClick={() => startCheckout("season")} disabled={!!checkingOut}
                   style={{ flex: 1, background: "#0a1a0f", border: "1px solid rgba(47,191,113,0.35)", borderRadius: 14, padding: "16px 12px", cursor: "pointer", textAlign: "center" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-                    <div style={{ fontSize: 10, color: "#2FBF71", letterSpacing: 1 }}>ANNUAL</div>
-                    <div style={{ fontSize: 9, color: "#2FBF71", fontWeight: 700 }}>2 months free</div>
+                    <div style={{ fontSize: 10, color: "#2FBF71", letterSpacing: 1 }}>SEASON PASS</div>
+                    <div style={{ fontSize: 9, color: "#2FBF71", fontWeight: 700 }}>Sept–Jan</div>
                   </div>
-                  <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 26, fontWeight: 700, color: "#2FBF71" }}>$19.99</div>
-                  <div style={{ fontSize: 12, color: "#999", marginTop: 3 }}>$1.67/mo · 2 months free</div>
-                  {checkingOut === "annual" && <div style={{ color: "#2FBF71", fontSize: 11, marginTop: 4 }}>Redirecting…</div>}
+                  <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 26, fontWeight: 700, color: "#2FBF71" }}>$45</div>
+                  <div style={{ fontSize: 12, color: "#999", marginTop: 3 }}>Pay once, ends after the season</div>
+                  {checkingOut === "season" && <div style={{ color: "#2FBF71", fontSize: 11, marginTop: 4 }}>Redirecting…</div>}
                 </button>
               </div>
               <div style={{ fontSize: 11, color: "#3d424f", textAlign: "center", marginBottom: 14 }}>Cancel anytime · Secure payment via Stripe</div>

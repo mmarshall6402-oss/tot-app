@@ -15,7 +15,7 @@ export default function Terms() {
       </Section>
 
       <Section title="3. Subscription">
-        ToT Pro is a recurring subscription billed monthly ($2/month) or annually ($19.99/year). You may cancel at any time through the billing portal. Cancellation takes effect at the end of the current billing period. No refunds are issued for partial periods.
+        ToT Pro is billed monthly ($10/month) or as a one-time Season Pass ($45, covering September through January). The Season Pass does not renew automatically. You may cancel a monthly subscription at any time through the billing portal; cancellation takes effect at the end of the current billing period. No refunds are issued for partial periods.
       </Section>
 
       <Section title="4. No Liability for Losses">
