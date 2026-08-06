@@ -41,5 +41,31 @@ export async function GET(request) {
   const { data, error } = await query;
   if (error) return Response.json({ error: error.message }, { status: 500 });
 
-  return Response.json({ format, position: position || "ALL", rankings: data || [] });
+  const rankings = data || [];
+
+  // ADP is PPR-only for now (see sql/019_nfl_fantasy_adp.sql) — only merge
+  // it in when that's the format being requested. Left-join by player_id:
+  // rows with no ADP match (DEF/K, index gaps) just don't get the fields.
+  if (format === "ppr" && rankings.length) {
+    const season = rankings[0].season;
+    const playerIds = rankings.map((r) => r.player_id);
+    const { data: adpRows } = await supabase
+      .from("nfl_fantasy_adp")
+      .select("player_id, adp, adp_position_rank")
+      .eq("scoring_format", "ppr")
+      .eq("teams", 12)
+      .eq("season", season)
+      .in("player_id", playerIds);
+
+    const adpByPlayerId = new Map((adpRows || []).filter((r) => r.player_id).map((r) => [r.player_id, r]));
+    for (const r of rankings) {
+      const adp = adpByPlayerId.get(r.player_id);
+      if (adp) {
+        r.adp = adp.adp;
+        r.adp_position_rank = adp.adp_position_rank;
+      }
+    }
+  }
+
+  return Response.json({ format, position: position || "ALL", rankings });
 }

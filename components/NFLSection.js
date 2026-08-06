@@ -601,10 +601,29 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                             {p.playcaller_note}
                           </span>
                         )}
+                        {p.adp_position_rank != null && (() => {
+                          const delta = p.adp_position_rank - p.rank_position;
+                          const value = delta > 0;
+                          return (
+                            <span
+                              title="ADP from Fantasy Football Calculator's PPR mock drafts — not real-league draft results."
+                              style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6,
+                                background: value ? "rgba(47,191,113,0.08)" : "rgba(150,150,150,0.08)",
+                                color: value ? "#2FBF71" : "#888",
+                                border: `1px solid ${value ? "rgba(47,191,113,0.25)" : "rgba(150,150,150,0.25)"}` }}>
+                              ADP {p.position}{p.adp_position_rank} (we: {p.position}{p.rank_position})
+                            </span>
+                          );
+                        })()}
                       </div>
                     </div>
                   );
                 })}
+                {filteredCheatSheet?.length > 0 && filteredCheatSheet.some(p => p.adp_position_rank != null) && (
+                  <div style={{ fontSize: 11, color: "#555", textAlign: "center", padding: "4px 0" }}>
+                    ADP via <a href="https://fantasyfootballcalculator.com" target="_blank" rel="noopener noreferrer" style={{ color: "#777" }}>Fantasy Football Calculator</a>
+                  </div>
+                )}
               </div>
             )}
           </>
