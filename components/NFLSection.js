@@ -182,6 +182,63 @@ const SIGNAL_FILTERS = [
   { id: "PLAYCALLER", label: "Playcaller", test: (p) => !!p.playcaller_note },
 ];
 
+function fmtPropOdds(o) {
+  return o == null ? "" : o > 0 ? `+${o}` : `${o}`;
+}
+
+// Renders the actual prop digits from our own propLine data, never from
+// Claude's prose — see app/api/nfl/fantasy/route.js's playerContextAndProp
+// for why. A player with no posted line gets an explicit "no line yet" chip
+// instead of just not showing anything, so the gap reads as an honest
+// answer rather than a missing feature.
+function PropLineRow({ name, propLine }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "6px 0", fontSize: 12 }}>
+      <span style={{ color: "#888", fontWeight: 600 }}>{name}</span>
+      {propLine ? (
+        <span style={{ color: "#ccc", fontFamily: "monospace", fontSize: 11 }}>
+          {propLine.line} {propLine.label} <span style={{ color: "#555" }}>({propLine.bookmaker} O {fmtPropOdds(propLine.overOdds)}/U {fmtPropOdds(propLine.underOdds)})</span>
+        </span>
+      ) : (
+        <span style={{ color: "#555", fontSize: 10, fontWeight: 700, letterSpacing: 0.5, background: "#1c1f26", border: "1px solid #242832", borderRadius: 5, padding: "2px 7px" }}>
+          NO LINE POSTED YET
+        </span>
+      )}
+    </div>
+  );
+}
+
+// Shared renderer for the startSit/trade structured verdict — result is
+// either the {verdict,bullets,marketNote,confidence,players} object from
+// the API, or a plain "Error: ..." string from a failed call.
+function VerdictCard({ result, label, scoring }) {
+  if (typeof result === "string") {
+    return (
+      <div style={{ background: "#15171d", border: `1px solid rgba(217,117,74,0.25)`, borderRadius: 14, padding: 16 }}>
+        <div style={{ fontSize: 10, color: NFL_ORANGE, fontWeight: 700, letterSpacing: 1.5, marginBottom: 8 }}>{label} · {scoring}</div>
+        <div style={{ fontSize: 13, color: "#ccc", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{result}</div>
+      </div>
+    );
+  }
+  const { verdict, bullets, marketNote, confidence, players } = result;
+  return (
+    <div style={{ background: "#15171d", border: `1px solid rgba(217,117,74,0.25)`, borderRadius: 14, padding: 16 }}>
+      <div style={{ fontSize: 10, color: NFL_ORANGE, fontWeight: 700, letterSpacing: 1.5, marginBottom: 8 }}>{label} · {scoring}</div>
+      <div style={{ fontSize: 15, fontWeight: 800, color: "#fff", marginBottom: 8 }}>{verdict}</div>
+      {(bullets || []).map((b, i) => (
+        <div key={i} style={{ fontSize: 13, color: "#ccc", lineHeight: 1.6, marginBottom: 4 }}>• {b}</div>
+      ))}
+      {marketNote && <div style={{ fontSize: 12, color: "#999", fontStyle: "italic", marginTop: 8 }}>{marketNote}</div>}
+      {confidence && <div style={{ fontSize: 11, color: "#666", marginTop: 8 }}>{confidence}</div>}
+      {!!players?.length && (
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #242832" }}>
+          {players.map((p, i) => p.name && <PropLineRow key={i} name={p.name} propLine={p.propLine} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgradeModal, savePick, saving, selectedDate, onTeamClick }) {
   const [subTab, setSubTab] = useState("fantasy");
   const [scoring, setScoring] = useState("PPR");
@@ -431,12 +488,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                   onClick={runStartSit}>
                   {ssLoading ? "Analyzing…" : "Get verdict →"}
                 </button>
-                {ssResult && (
-                  <div style={{ background: "#15171d", border: `1px solid rgba(217,117,74,0.25)`, borderRadius: 14, padding: 16 }}>
-                    <div style={{ fontSize: 10, color: NFL_ORANGE, fontWeight: 700, letterSpacing: 1.5, marginBottom: 8 }}>START / SIT · {scoring}</div>
-                    <div style={{ fontSize: 13, color: "#ccc", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{ssResult}</div>
-                  </div>
-                )}
+                {ssResult && <VerdictCard result={ssResult} label="START / SIT" scoring={scoring} />}
               </div>
             )}
 
@@ -459,12 +511,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                   onClick={runTrade}>
                   {tradeLoading ? "Analyzing…" : "Analyze trade →"}
                 </button>
-                {tradeResult && (
-                  <div style={{ background: "#15171d", border: `1px solid rgba(217,117,74,0.25)`, borderRadius: 14, padding: 16 }}>
-                    <div style={{ fontSize: 10, color: NFL_ORANGE, fontWeight: 700, letterSpacing: 1.5, marginBottom: 8 }}>TRADE ANALYSIS · {scoring}</div>
-                    <div style={{ fontSize: 13, color: "#ccc", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{tradeResult}</div>
-                  </div>
-                )}
+                {tradeResult && <VerdictCard result={tradeResult} label="TRADE ANALYSIS" scoring={scoring} />}
               </div>
             )}
 
