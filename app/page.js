@@ -1497,8 +1497,8 @@ export default function ToT() {
                     </div>
                     {isEdge ? (
                       freePick.filter?.verdict === "CLEAN"
-                        ? <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 9px", borderRadius: 5, letterSpacing: 1.5, background: "rgba(47,191,113,0.15)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.3)" }}>CLEAN</span>
-                        : <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 9px", borderRadius: 5, letterSpacing: 1.5, background: "rgba(47,191,113,0.08)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.2)" }}>BET</span>
+                        ? <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 9px", borderRadius: 999, letterSpacing: 1.5, background: "rgba(47,191,113,0.15)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.3)" }}>CLEAN</span>
+                        : <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 9px", borderRadius: 999, letterSpacing: 1.5, background: "rgba(47,191,113,0.08)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.2)" }}>BET</span>
                     ) : (
                       <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 9px", borderRadius: 5, background: "rgba(214,178,61,0.08)", color: "#D6B23D", border: "1px solid rgba(214,178,61,0.2)" }}>LEAN</span>
                     )}
@@ -1552,7 +1552,7 @@ export default function ToT() {
                 </div>
                 <div style={{ filter: "blur(6px)", pointerEvents: "none", userSelect: "none" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                    <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, background: p.verdict === "CLEAN" ? "rgba(47,191,113,0.15)" : "rgba(47,191,113,0.08)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.3)" }}>{p.verdict === "CLEAN" ? "CLEAN" : "BET"}</span>
+                    <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999, letterSpacing: 1.5, background: p.verdict === "CLEAN" ? "rgba(47,191,113,0.15)" : "rgba(47,191,113,0.08)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.3)" }}>{p.verdict === "CLEAN" ? "CLEAN" : "BET"}</span>
                     <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: "#555" }}>+{p.edge}% edge</span>
                   </div>
                   <div style={S.cardMatchup}>{p.away} @ {p.home}</div>
@@ -1632,27 +1632,27 @@ export default function ToT() {
                 const badgeRow = (
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
                     {isLock && (
-                      <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, background: "rgba(214,178,61,0.15)", color: "#D6B23D", border: "1px solid rgba(214,178,61,0.5)" }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999, letterSpacing: 1.5, background: "rgba(214,178,61,0.15)", color: "#D6B23D", border: "1px solid rgba(214,178,61,0.5)" }}>
                         LOCK
                       </span>
                     )}
                     {pick.homeOdds == null && !pick.filter ? (
                       isScheduled ? (
-                        <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, background: "rgba(79,195,247,0.1)", color: "#4FC3F7", border: "1px solid rgba(79,195,247,0.3)" }}>
+                        <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999, letterSpacing: 1.5, background: "rgba(79,195,247,0.1)", color: "#4FC3F7", border: "1px solid rgba(79,195,247,0.3)" }}>
                           SCHEDULED
                         </span>
                       ) : (
-                        <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, background: "rgba(60,60,60,0.4)", color: "#555", border: "1px solid #2b2f3a" }}>
+                        <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999, letterSpacing: 1.5, background: "rgba(60,60,60,0.4)", color: "#555", border: "1px solid #2b2f3a" }}>
                           NO LINE
                         </span>
                       )
                     ) : pick.filter?.verdict === "CLEAN" ? (
-                      <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, background: "rgba(47,191,113,0.15)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.5)" }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999, letterSpacing: 1.5, background: "rgba(47,191,113,0.15)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.5)" }}>
                         CLEAN
                       </span>
                     ) : (
                       <span style={{
-                        fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5,
+                        fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999, letterSpacing: 1.5,
                         background: isBet ? "rgba(47,191,113,0.08)" : "rgba(50,50,50,0.5)",
                         color: isBet ? betColor : passColor,
                         border: `1px solid ${isBet ? "rgba(47,191,113,0.2)" : "#2b2f3a"}`,
@@ -1718,7 +1718,7 @@ export default function ToT() {
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           {pickResult && (
                             <span style={{
-                              fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5,
+                              fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999, letterSpacing: 1.5,
                               background: pickResult === "win" ? "rgba(47,191,113,0.12)" : pickResult === "loss" ? "rgba(217,100,92,0.12)" : "rgba(214,178,61,0.08)",
                               color: pickResult === "win" ? "#2FBF71" : pickResult === "loss" ? "#D9645C" : "#D6B23D",
                               border: `1px solid ${pickResult === "win" ? "rgba(47,191,113,0.3)" : pickResult === "loss" ? "rgba(217,100,92,0.3)" : "rgba(214,178,61,0.3)"}`,
@@ -2107,7 +2107,7 @@ export default function ToT() {
                     <div style={S.cardTop}>
                       <div style={{ flex: 1 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                          <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, background: "rgba(47,191,113,0.12)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.3)" }}>
+                          <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999, letterSpacing: 1.5, background: "rgba(47,191,113,0.12)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.3)" }}>
                             BET
                           </span>
                           <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: "#999" }}>
