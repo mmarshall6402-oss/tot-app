@@ -21,6 +21,7 @@ import { buildScheduleAdjustmentByName, applyScheduleAdjustment } from "../../..
 import { buildPersonnelAdjustmentByTeam, applyPersonnelAdjustment } from "../../../../lib/nfl-fantasy/personnel-adjustment.js";
 import { buildPaceAdjustmentByTeam, applyPaceAdjustment } from "../../../../lib/nfl-fantasy/pace-adjustment.js";
 import { buildPlaycallerAdjustmentByTeam, applyPlaycallerAdjustment } from "../../../../lib/nfl-fantasy/playcaller-adjustment.js";
+import { buildAdpByName, attachAdp } from "../../../../lib/nfl-fantasy/adp-compare.js";
 
 const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -107,7 +108,7 @@ function computeHistoricalMissedRate(playersById, targetSeason, lookbackSeasons 
   return rates;
 }
 
-async function refreshFormat(supabase, format, playersById, targetSeason, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId, ageById, scheduleAdjustmentByName, personnelAdjustmentByTeam, paceAdjustmentByTeam, playcallerAdjustmentByTeam) {
+async function refreshFormat(supabase, format, playersById, targetSeason, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId, ageById, scheduleAdjustmentByName, personnelAdjustmentByTeam, paceAdjustmentByTeam, playcallerAdjustmentByTeam, adpByName) {
   const runStart = new Date().toISOString();
   const ranked = buildRankings(playersById, { targetSeason, format, ageById });
   if (!ranked.length) throw new Error(`${format}: ranking produced zero players — refusing to touch existing cache`);
@@ -115,8 +116,11 @@ async function refreshFormat(supabase, format, playersById, targetSeason, crossw
   const scheduleAdjusted = applyScheduleAdjustment(personnelAdjusted, scheduleAdjustmentByName);
   const paceAdjusted = applyPaceAdjustment(scheduleAdjusted, paceAdjustmentByTeam);
   const playcallerAdjusted = applyPlaycallerAdjustment(paceAdjusted, playcallerAdjustmentByTeam);
+  // Comparison overlay only — attached after ranking is final, never folded
+  // into ceilingVorp (see lib/nfl-fantasy/adp-compare.js for why).
+  const withAdp = attachAdp(playcallerAdjusted, adpByName);
 
-  const withInjury = await attachInjuryContext(playcallerAdjusted, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId);
+  const withInjury = await attachInjuryContext(withAdp, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId);
 
   const rowsByPosition = {};
   for (const pos of POSITIONS) rowsByPosition[pos] = withInjury.filter((p) => p.position === pos);
@@ -144,6 +148,8 @@ async function refreshFormat(supabase, format, playersById, targetSeason, crossw
     personnel_note: p.personnelNote || null,
     pace_note: p.paceNote || null,
     playcaller_note: p.playcallerNote || null,
+    adp: p.adp,
+    adp_diff: p.adpDiff,
     updated_at: runStart,
   }));
 
@@ -218,9 +224,15 @@ export async function GET(request) {
 
   const { paceAdjustmentByTeam, playcallerAdjustmentByTeam } = await loadTendencyData();
 
+  const { data: adpRows } = await supabase
+    .from("nfl_fantasy_adp")
+    .select("name, position, adp")
+    .eq("season", targetSeason);
+  const adpByName = buildAdpByName(adpRows || []);
+
   for (const format of FORMATS) {
     try {
-      results[format] = await refreshFormat(supabase, format, playersById, targetSeason, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId, ageById, scheduleAdjustmentByName, personnelAdjustmentByTeam, paceAdjustmentByTeam, playcallerAdjustmentByTeam);
+      results[format] = await refreshFormat(supabase, format, playersById, targetSeason, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId, ageById, scheduleAdjustmentByName, personnelAdjustmentByTeam, paceAdjustmentByTeam, playcallerAdjustmentByTeam, adpByName);
     } catch (e) {
       results[format] = { error: e.message };
     }

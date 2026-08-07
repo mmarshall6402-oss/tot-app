@@ -479,6 +479,7 @@ export default function AdminDash() {
           <a href="/admin/backtest" style={{ fontSize: 11, color: "#444" }}>Backtest →</a>
           <a href="/admin/fantasy-schedule" style={{ fontSize: 11, color: "#444" }}>Fantasy Schedule →</a>
           <a href="/admin/fantasy-personnel" style={{ fontSize: 11, color: "#444" }}>Fantasy Personnel →</a>
+          <a href="/admin/fantasy-adp" style={{ fontSize: 11, color: "#444" }}>Fantasy ADP →</a>
           <a href="/" style={{ fontSize: 11, color: "#444" }}>← App</a>
         </div>
       </div>
