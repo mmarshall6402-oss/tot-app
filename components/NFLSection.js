@@ -285,14 +285,30 @@ function scoringToFormat(scoring) {
 // Cheat Sheet "signal" filter — narrows the list to players carrying a
 // specific ceilingVorp-adjustment badge (see lib/nfl-fantasy/*-adjustment.js)
 // instead of scrolling the full board looking for them.
+// "Value"/"Reach" thresholds: a player has to be off market ADP by a full
+// round (10 picks) before it's worth surfacing as a signal rather than
+// normal rank/ADP noise.
+const ADP_SIGNAL_THRESHOLD = 10;
+
 const SIGNAL_FILTERS = [
   { id: "ALL", label: "All", test: () => true },
+  { id: "VALUE", label: "ADP Value", test: (p) => p.adp_diff >= ADP_SIGNAL_THRESHOLD },
+  { id: "REACH", label: "ADP Reach", test: (p) => p.adp_diff <= -ADP_SIGNAL_THRESHOLD },
   { id: "TRENDING", label: "Trending", test: (p) => p.trending_add_count > 0 },
   { id: "INJURY", label: "Injury Risk", test: (p) => !!p.injury_status },
   { id: "PERSONNEL", label: "Personnel", test: (p) => !!p.personnel_note },
   { id: "PACE", label: "Pace", test: (p) => !!p.pace_note },
   { id: "PLAYCALLER", label: "Playcaller", test: (p) => !!p.playcaller_note },
 ];
+
+// adp_diff = market ADP − our rank. Positive: the market is drafting him
+// later than we'd take him (a value). Negative: the market is drafting him
+// ahead of our rank (a reach).
+function adpDiffStyle(diff) {
+  if (diff >= ADP_SIGNAL_THRESHOLD) return { color: "#2FBF71", bg: "rgba(47,191,113,0.08)", border: "rgba(47,191,113,0.25)" };
+  if (diff <= -ADP_SIGNAL_THRESHOLD) return { color: "#D9645C", bg: "rgba(217,100,92,0.1)", border: "rgba(217,100,92,0.3)" };
+  return { color: "#888", bg: "rgba(136,136,136,0.08)", border: "rgba(136,136,136,0.25)" };
+}
 
 function fmtPropOdds(o) {
   return o == null ? "" : o > 0 ? `+${o}` : `${o}`;
@@ -727,9 +743,18 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                         <div style={{ display: "flex", gap: 12, marginTop: 4, fontSize: 11, color: "#888", fontFamily: tokens.font.mono, flexWrap: "wrap" }}>
                           <span>Proj {p.projected_points?.toFixed(1)}</span>
                           <span>Ceil {p.ceiling_points?.toFixed(1)} / Floor {p.floor_points?.toFixed(1)}</span>
+                          {p.adp != null && <span>ADP {p.adp.toFixed(1)}</span>}
                         </div>
                       </div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end", flexShrink: 0 }}>
+                        {p.adp_diff != null && Math.abs(p.adp_diff) >= ADP_SIGNAL_THRESHOLD && (() => {
+                          const s = adpDiffStyle(p.adp_diff);
+                          return (
+                            <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>
+                              {p.adp_diff > 0 ? `+${Math.round(p.adp_diff)} vs ADP` : `${Math.round(p.adp_diff)} vs ADP`}
+                            </span>
+                          );
+                        })()}
                         {p.injury_status && (
                           <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: "rgba(217,100,92,0.1)", color: "#D9645C", border: "1px solid rgba(217,100,92,0.3)" }}>
                             {p.injury_status}
