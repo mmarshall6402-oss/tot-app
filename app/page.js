@@ -2018,8 +2018,9 @@ export default function ToT() {
               <>
                 {trendingProps.length > 0 && (
                   <div style={{ marginBottom: 20 }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: "#2FBF71", letterSpacing: 2, marginBottom: 4 }}>
-                      STAR PLAYERS — {trendingProps.length} TOP EDGE PICK{trendingProps.length !== 1 ? "S" : ""}
+                    <div style={S.sectionLabel}>
+                      <span aria-hidden="true" style={{ color: "#2FBF71" }}>★</span>
+                      Star Players — {trendingProps.length} top edge pick{trendingProps.length !== 1 ? "s" : ""}
                     </div>
                     {trendingProps.map((pick, i) => (
                       <div key={`star-${pick.marketType}-${pick.playerId ?? pick.player}-${i}`}
@@ -2033,8 +2034,9 @@ export default function ToT() {
                   </div>
                 )}
 
-                <div style={{ fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 2, marginBottom: 8 }}>
-                  ALL PROPS TODAY — {rest.length}
+                <div style={S.sectionLabel}>
+                  <span aria-hidden="true" style={{ color: "#888" }}>⚾</span>
+                  All Props Today — {rest.length}
                 </div>
                 {rest.length > 3 && (
                   <input
@@ -2180,7 +2182,7 @@ export default function ToT() {
               {/* Parlay Cards with combined odds */}
               {steals.length >= 2 && (
                 <div style={{ marginTop: 8 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "#777", letterSpacing: 1.5, marginBottom: 10 }}>PARLAY CARDS</div>
+                  <div style={S.sectionLabel}><span aria-hidden="true" style={{ color: "#2FBF71" }}>★</span> Parlay Cards</div>
                   {[
                     { label: "SAFE", legs: steals.slice(0, 2), color: "#2FBF71" },
                     { label: "BALANCED", legs: steals.slice(0, 3), color: "#D6B23D" },
@@ -2287,7 +2289,7 @@ export default function ToT() {
                 </div>
 
                 {/* All games */}
-                <div style={{ fontSize: 10, fontWeight: 700, color: "#777", letterSpacing: 1.5, marginBottom: 8 }}>ALL GAMES — {fmtDateLabel(selectedDate).toUpperCase()}</div>
+                <div style={S.sectionLabel}><span aria-hidden="true" style={{ color: "#888" }}>⚾</span> All Games — {fmtDateLabel(selectedDate)}</div>
                 {picks.length === 0 ? (
                   <div style={{ color: "#777", fontSize: 13, textAlign: "center", padding: 24 }}>No games for this date</div>
                 ) : picks.map(game => {
