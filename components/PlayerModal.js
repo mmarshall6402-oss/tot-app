@@ -9,7 +9,9 @@ import { useState, useEffect } from "react";
 import { ChevronLeftIcon } from "./icons.js";
 import PropCard from "./PropCard.js";
 import PlayerHeadshot from "./PlayerHeadshot.js";
-import { computeHitRateBreakdown, hitRateAtLine, PROP_STAT_FIELD } from "../lib/prop-probability.js";
+import { computeHitRateBreakdown, hitRateAtLine, repriceAtLine, PROP_STAT_FIELD } from "../lib/prop-probability.js";
+
+const fmtOdds = (o) => (o == null ? "—" : o > 0 ? `+${o}` : `${o}`);
 
 const MLB_GREEN = "#2FBF71";
 const NFL_ORANGE = "#D9754A";
@@ -66,6 +68,9 @@ export default function PlayerModal({ open, sport, playerId, playerName, onClose
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [customLine, setCustomLine] = useState(null);
+  const [savedLine, setSavedLine] = useState(null);
+  const [saveState, setSaveState] = useState("idle"); // idle | saving | saved | error
+  const [saveError, setSaveError] = useState(null);
 
   const accent = sport === "nfl" ? NFL_ORANGE : MLB_GREEN;
 
@@ -77,6 +82,9 @@ export default function PlayerModal({ open, sport, playerId, playerName, onClose
     setData(null);
     setSubTab("overview");
     setCustomLine(null);
+    setSavedLine(null);
+    setSaveState("idle");
+    setSaveError(null);
     (async () => {
       try {
         const authHeaders = await getAuthHeaders();
@@ -101,6 +109,48 @@ export default function PlayerModal({ open, sport, playerId, playerName, onClose
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
+  // Pitcher-K is the only market repriceAtLine currently handles (see its
+  // doc comment) — only fetch/save a custom line for that market.
+  const trendingMarketType = data?.trendingPick?.marketType || null;
+  useEffect(() => {
+    if (!open || !playerId || trendingMarketType !== "pitcher_k") return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const authHeaders = await getAuthHeaders();
+        const res = await fetch(`/api/prop-lines?playerId=${encodeURIComponent(playerId)}&marketType=pitcher_k`, { headers: authHeaders });
+        const json = await res.json();
+        if (!cancelled && res.ok && json.customLine != null) {
+          setSavedLine(json.customLine);
+          setCustomLine(json.customLine);
+        }
+      } catch {
+        // Live preview still works off the book line; saved-line lookup is best-effort.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [open, playerId, trendingMarketType]);
+
+  async function handleSaveLine(line) {
+    setSaveState("saving");
+    setSaveError(null);
+    try {
+      const authHeaders = await getAuthHeaders();
+      const res = await fetch("/api/prop-lines", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        body: JSON.stringify({ playerId, marketType: "pitcher_k", customLine: line }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setSaveState("error"); setSaveError(json.error || "Could not save line."); return; }
+      setSavedLine(json.customLine);
+      setSaveState("saved");
+    } catch {
+      setSaveState("error");
+      setSaveError("Could not save line.");
+    }
+  }
+
   if (!open) return null;
 
   const market = sport === "mlb" ? marketForGroup(data?.seasonStatGroup) : null;
@@ -113,6 +163,14 @@ export default function PlayerModal({ open, sport, playerId, playerName, onClose
   // moves off it a half-point at a time either way.
   const activeLine = customLine != null ? customLine : (marketPick?.line ?? Math.round(breakdown.avg ?? 0));
   const customResult = statField ? hitRateAtLine(data?.gameLog, statField, activeLine) : null;
+  // Only pitcher_k has a lambda repriceAtLine knows how to use (see its doc
+  // comment) — and only with today's real line is there a book price to
+  // bound the slider around, so both are required before the slider/model
+  // panel/save button show up. Other markets keep the plain +/- stepper.
+  const canReprice = market === "pitcher_k" && marketPick?.line != null && marketPick?.lambda != null;
+  const sliderMin = canReprice ? Math.max(0.5, marketPick.line - 3) : null;
+  const sliderMax = canReprice ? marketPick.line + 3 : null;
+  const repriced = canReprice ? repriceAtLine(marketPick.lambda, activeLine) : null;
   const chartGames = (data?.gameLog || []).slice(0, 5).reverse();
   const chartMax = statField
     ? Math.max(activeLine, 1, ...chartGames.map(g => Number(g.stat?.[statField]) || 0))
@@ -239,12 +297,12 @@ export default function PlayerModal({ open, sport, playerId, playerName, onClose
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                     <button
-                      onClick={() => setCustomLine(activeLine + 1)}
+                      onClick={() => setCustomLine(canReprice ? Math.min(sliderMax, activeLine + 0.5) : activeLine + 1)}
                       aria-label="Increase line"
                       style={{ width: 22, height: 16, borderRadius: 4, background: "#181b22", border: "1px solid #333947", color: "#999", fontSize: 10, lineHeight: 1, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
                     >▲</button>
                     <button
-                      onClick={() => setCustomLine(Math.max(0, activeLine - 1))}
+                      onClick={() => setCustomLine(canReprice ? Math.max(sliderMin, activeLine - 0.5) : Math.max(0, activeLine - 1))}
                       aria-label="Decrease line"
                       style={{ width: 22, height: 16, borderRadius: 4, background: "#181b22", border: "1px solid #333947", color: "#999", fontSize: 10, lineHeight: 1, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
                     >▼</button>
@@ -264,11 +322,61 @@ export default function PlayerModal({ open, sport, playerId, playerName, onClose
                 </div>
               </div>
 
+              {canReprice && (
+                <div style={{ marginBottom: 14 }}>
+                  <input
+                    type="range"
+                    aria-label="Custom line"
+                    min={sliderMin}
+                    max={sliderMax}
+                    step={0.5}
+                    value={activeLine}
+                    onChange={(e) => setCustomLine(parseFloat(e.target.value))}
+                    style={{ width: "100%", accentColor: "#2FBF71" }}
+                  />
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666" }}>
+                    <span>{sliderMin}</span>
+                    <span>{sliderMax}</span>
+                  </div>
+                </div>
+              )}
+
               {marketPick?.line != null && marketPick.line !== activeLine && (
                 <button
                   onClick={() => setCustomLine(marketPick.line)}
                   style={{ background: "none", border: "none", color: "#2FBF71", fontSize: 11, padding: 0, marginBottom: 14, cursor: "pointer" }}
                 >Jump to today&apos;s line ({marketPick.line})</button>
+              )}
+
+              {canReprice && repriced && (
+                <div style={{ ...S.card, borderColor: "#242832", marginBottom: 14 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 1.5, marginBottom: 8 }}>MODEL PROJECTION AT {activeLine}</div>
+                  <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: repriced.pick === "higher" ? "#2FBF71" : "#D9645C" }}>
+                      {repriced.pick === "higher" ? "Higher" : "Lower"} · {repriced.confidencePct}%
+                    </div>
+                    <div style={{ fontSize: 13, color: "#999", fontFamily: "'JetBrains Mono',monospace" }}>{fmtOdds(repriced.odds)}</div>
+                  </div>
+                  <div style={{ fontSize: 11, color: "#666", marginTop: 4 }}>
+                    Model-derived fair odds — {marketPick.line === activeLine ? "today's real book line" : "not a bettable sportsbook price"}.
+                  </div>
+
+                  <button
+                    onClick={() => handleSaveLine(activeLine)}
+                    disabled={saveState === "saving"}
+                    style={{
+                      marginTop: 12, width: "100%", padding: "10px 0", borderRadius: 10, border: "none",
+                      background: savedLine === activeLine && saveState === "saved" ? "#181b22" : "#2FBF71",
+                      color: savedLine === activeLine && saveState === "saved" ? "#2FBF71" : "#06170e",
+                      fontWeight: 700, fontSize: 13, cursor: saveState === "saving" ? "default" : "pointer",
+                    }}
+                  >
+                    {saveState === "saving" ? "Saving…" : savedLine === activeLine && saveState === "saved" ? "Saved ✓" : "Save my line"}
+                  </button>
+                  {saveState === "error" && saveError && (
+                    <div style={{ fontSize: 11, color: "#D9645C", marginTop: 8 }}>{saveError}</div>
+                  )}
+                </div>
               )}
 
               {chartGames.length > 0 && (
