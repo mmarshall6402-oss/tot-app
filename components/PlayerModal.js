@@ -93,6 +93,12 @@ export default function PlayerModal({ open, sport, playerId, playerName, onClose
         if (cancelled) return;
         if (!res.ok) { setError(json.error || "Could not load player."); return; }
         setData(json);
+        // Open straight to Prop Lines when there's one to show, instead of
+        // making the user tap past Overview to see it.
+        const mkt = sport === "mlb" ? marketForGroup(json?.seasonStatGroup) : null;
+        const sf = mkt ? PROP_STAT_FIELD[mkt] : null;
+        const hasPropLines = sf && computeHitRateBreakdown(json?.gameLog, sf).games > 0;
+        if (hasPropLines) setSubTab("proplines");
       } catch {
         if (!cancelled) setError("Could not load player.");
       } finally {
