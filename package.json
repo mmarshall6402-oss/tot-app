@@ -12,6 +12,7 @@
     "recalibrate": "node --env-file=.env.local scripts/backtest/recalibrate.js",
     "fantasy-fetch": "node --env-file=.env.local scripts/nfl-fantasy/fetch-nflverse.js",
     "fantasy-backtest": "node --env-file=.env.local scripts/nfl-fantasy/backtest.js",
+    "poll-odds": "node --env-file=.env.local scripts/odds/poll-odds.js",
     "elo-splits": "node scripts/backtest/compute-elo-splits.js",
     "calibration-curve": "node scripts/backtest/compute-calibration-curve.js"
   },
