@@ -205,9 +205,9 @@ export default function PlayerModal({ open, sport, playerId, playerName, onClose
 
           <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
             {[
+              ...(showPropLines ? [{ id: "proplines", label: "Prop Lines" }] : []),
               { id: "overview", label: "Overview" },
               { id: "gamelog", label: "Game Log" },
-              ...(showPropLines ? [{ id: "proplines", label: "Prop Lines" }] : []),
             ].map(({ id, label }) => (
               <button
                 key={id}
