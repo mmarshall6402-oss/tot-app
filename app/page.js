@@ -1500,7 +1500,7 @@ export default function ToT() {
                         ? <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 9px", borderRadius: 999, letterSpacing: 1.5, background: "rgba(47,191,113,0.15)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.3)" }}>CLEAN</span>
                         : <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 9px", borderRadius: 999, letterSpacing: 1.5, background: "rgba(47,191,113,0.08)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.2)" }}>BET</span>
                     ) : (
-                      <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 9px", borderRadius: 5, background: "rgba(214,178,61,0.08)", color: "#D6B23D", border: "1px solid rgba(214,178,61,0.2)" }}>LEAN</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 9px", borderRadius: 999, background: "rgba(214,178,61,0.08)", color: "#D6B23D", border: "1px solid rgba(214,178,61,0.2)" }}>LEAN</span>
                     )}
                   </div>
                   <div style={S.cardMatchup}>
@@ -1856,7 +1856,7 @@ export default function ToT() {
                           {isClean && f.halfSize && (
                             <div style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 4 }}>
                               <div style={{ fontSize: 10, color: "#2FBF71" }}>✓ All conditions passed — disciplined bet</div>
-                              <div style={{ fontSize: 10, fontWeight: 700, color: "#D6B23D", background: "rgba(214,178,61,0.08)", border: "1px solid rgba(214,178,61,0.25)", borderRadius: 6, padding: "3px 8px", display: "inline-block" }}>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: "#D6B23D", background: "rgba(214,178,61,0.08)", border: "1px solid rgba(214,178,61,0.25)", borderRadius: 999, padding: "3px 8px", display: "inline-block" }}>
                                 ⚠ HALF SIZE — pick-side bullpen ERA &gt;6.00, variance elevated
                               </div>
                             </div>
