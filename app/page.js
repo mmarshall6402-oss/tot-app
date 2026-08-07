@@ -1209,8 +1209,21 @@ export default function ToT() {
       )}
 
       <div style={S.nav}>
-        <div style={S.navLogo}>T<span style={{ color: "#2FBF71" }}>|</span>T</div>
-        <div style={{ display: "flex", gap: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div
+            aria-hidden="true"
+            style={{
+              width: 30, height: 30, borderRadius: "50%", flexShrink: 0,
+              background: "rgba(47,191,113,0.14)", border: "1px solid rgba(47,191,113,0.35)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontFamily: tokens.font.mono, fontSize: 12, fontWeight: 700, color: "#2FBF71",
+            }}
+          >
+            {(user?.email?.[0] || "T").toUpperCase()}
+          </div>
+          <div style={S.navLogo}>T<span style={{ color: "#2FBF71" }}>|</span>T</div>
+        </div>
+        <div style={{ display: "flex", gap: 6 }}>
           {[
             { id: "mlb", icon: "⚾", label: "MLB", color: "#2FBF71", tab: "picks" },
             { id: "nfl", icon: "🏈", label: "NFL", color: "#D9754A", tab: "nfl" },
@@ -1221,11 +1234,12 @@ export default function ToT() {
                 key={id}
                 onClick={() => setActiveTab(tab)}
                 style={{
-                  display: "flex", alignItems: "center", gap: 4,
-                  padding: "5px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700,
-                  background: active ? `${color}1a` : "transparent",
+                  display: "flex", alignItems: "center", gap: 5,
+                  padding: "6px 12px", borderRadius: 999, fontSize: 11, fontWeight: 700,
+                  background: active ? color : "transparent",
                   border: `1px solid ${active ? color : "#3d424f"}`,
-                  color: active ? color : "#888", cursor: "pointer",
+                  color: active ? "#0b0c10" : "#888", cursor: "pointer",
+                  transition: tokens.transition,
                 }}
               >
                 <span style={{ fontSize: 12 }}>{icon}</span>{label}
@@ -2926,7 +2940,7 @@ export default function ToT() {
           {isPro ? (
             top3.length > 0 && (
               <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#999", letterSpacing: 0.5, marginBottom: 10 }}>TOP 3 TODAY</div>
+                <div style={S.sectionLabel}><span aria-hidden="true" style={{ color: "#2FBF71" }}>★</span> Top 3 Today</div>
                 <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 2 }}>
                   {top3.map(({ p, sport }) => (
                     <div key={`${sport}-${p.id}`} style={{ width: 220, flexShrink: 0 }}>
@@ -3136,12 +3150,19 @@ export default function ToT() {
               aria-label={label}
               aria-current={active ? "page" : undefined}
               style={{
-                flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
-                background: "none", border: "none", cursor: "pointer", padding: "8px 4px",
+                flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+                background: "none", border: "none", cursor: "pointer", padding: "8px 4px 6px",
                 color: active ? "#2FBF71" : "#555",
               }}
             >
-              <Icon size={18} />
+              <span style={{
+                display: "flex", alignItems: "center", justifyContent: "center",
+                width: 34, height: 22, borderRadius: 999,
+                background: active ? "rgba(47,191,113,0.14)" : "transparent",
+                transition: tokens.transition,
+              }}>
+                <Icon size={18} />
+              </span>
               <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.2 }}>{label}</span>
             </button>
           );

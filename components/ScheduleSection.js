@@ -6,8 +6,8 @@
 // own `S` style tokens rather than this component guessing at theme values.
 
 import { useState, useEffect } from "react";
-import { TeamMatchupLink } from "./TeamModal.js";
-import { tokens, tabButtonStyle } from "../lib/ui-theme.js";
+import TeamLogo from "./TeamLogo.js";
+import { tokens, tabButtonStyle, sectionLabelStyle } from "../lib/ui-theme.js";
 
 const MLB_GREEN = tokens.color.brand;
 const NFL_ORANGE = tokens.color.orange;
@@ -99,44 +99,57 @@ export default function ScheduleSection({ S, getAuthHeaders, onTeamClick }) {
           {sport === "nfl" ? "No games scheduled in this window — check back during the season." : "No games scheduled in this window."}
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
           {byDate.map(day => (
             <div key={day.date}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 1.5, marginBottom: 8 }}>
-                {fmtDayLabel(day.date).toUpperCase()}
+              <div style={sectionLabelStyle()}>
+                <span aria-hidden="true" style={{ color: accent }}>{sport === "nfl" ? "🏈" : "⚾"}</span>
+                {fmtDayLabel(day.date)}
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {day.games.map(g => (
-                  <div key={g.id} style={{ ...S.card, borderColor: "#242832" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <div>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>
-                          <TeamMatchupLink sport={sport} awayTeam={g.awayTeam} homeTeam={g.homeTeam} onPick={onTeamClick} />
-                        </div>
-                        <div style={{ fontSize: 11, color: "#666", marginTop: 3 }}>
-                          {g.status === "Final" || g.status?.startsWith("Final") ? (
-                            <span style={{ color: "#888" }}>
-                              Final — {g.awayTeam?.split(" ").pop()} {g.awayScore} · {g.homeTeam?.split(" ").pop()} {g.homeScore}
-                            </span>
-                          ) : g.status === "In Progress" || g.status === "Live" ? (
-                            <span style={{ color: accent, display: "inline-flex", alignItems: "center", gap: 5 }}>
-                              <span style={{ width: 6, height: 6, borderRadius: "50%", background: accent, display: "inline-block" }} />
-                              Live — {g.awayScore ?? 0}-{g.homeScore ?? 0}
-                            </span>
-                          ) : (
-                            <>{fmtTime(g.commenceTime)}{g.venue ? ` · ${g.venue}` : ""}</>
-                          )}
-                        </div>
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                {day.games.map((g, i) => {
+                  const isFinal = g.status === "Final" || g.status?.startsWith("Final");
+                  const isLive = g.status === "In Progress" || g.status === "Live";
+                  const teamRow = (team, score, odds, onTop) => (
+                    <button
+                      type="button"
+                      onClick={() => onTeamClick?.(sport, team)}
+                      style={{
+                        display: "flex", alignItems: "center", justifyContent: "space-between",
+                        width: "100%", background: "none", border: "none", padding: onTop ? "0 0 8px" : "8px 0 0",
+                        cursor: onTeamClick ? "pointer" : "default", fontFamily: "inherit", textAlign: "left",
+                      }}
+                    >
+                      <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                        <TeamLogo team={team} sport={sport} size={22} />
+                        <span style={{ fontSize: 14, color: "#eee", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{team}</span>
+                      </span>
+                      <span style={{ fontFamily: tokens.font.mono, fontSize: 14, fontWeight: 700, color: (isFinal || isLive) ? "#eee" : "#999", flexShrink: 0, marginLeft: 8 }}>
+                        {isFinal || isLive ? (score ?? 0) : fmtOdds(odds)}
+                      </span>
+                    </button>
+                  );
+                  return (
+                    <div key={g.id} style={{ display: "flex", gap: 12, padding: "12px 0", borderTop: i > 0 ? `1px solid ${tokens.color.border}` : "none" }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        {teamRow(g.awayTeam, g.awayScore, g.awayOdds, true)}
+                        {teamRow(g.homeTeam, g.homeScore, g.homeOdds, false)}
                       </div>
-                      {(g.homeOdds != null || g.awayOdds != null) && (
-                        <div style={{ textAlign: "right", fontFamily: tokens.font.mono, fontSize: 12 }}>
-                          <div style={{ color: "#999" }}>{fmtOdds(g.awayOdds)}</div>
-                          <div style={{ color: "#999", marginTop: 2 }}>{fmtOdds(g.homeOdds)}</div>
-                        </div>
-                      )}
+                      <div style={{ width: 74, flexShrink: 0, textAlign: "right", paddingTop: 2 }}>
+                        {isFinal ? (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: "#888", letterSpacing: 0.3 }}>FINAL</span>
+                        ) : isLive ? (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: accent, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                            <span style={{ width: 6, height: 6, borderRadius: "50%", background: accent, display: "inline-block" }} />
+                            LIVE
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: 12, color: "#999" }}>{fmtTime(g.commenceTime)}</span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))}
