@@ -136,7 +136,7 @@ export async function POST(request) {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { mode, playerA, playerB, playerAInfo, playerBInfo, scoring, tradeGive, tradeGet, tradeGiveInfo, tradeGetInfo, question } = body;
+  const { mode, playerA, playerB, playerAInfo, playerBInfo, scoring, tradeGiveInfos, tradeGetInfos, question } = body;
 
   // Start/Sit is the free tier's rate-limited feature (3/week, see
   // lib/auth.js) — Trade, Ask, and the cheat sheet stay unmetered.
@@ -170,24 +170,29 @@ export async function POST(request) {
     }
 
     if (mode === "trade") {
-      if (!tradeGive || !tradeGet) return Response.json({ error: "tradeGive and tradeGet required" }, { status: 400 });
-      const [give, get] = await Promise.all([playerContext(tradeGive, tradeGiveInfo, scoring), playerContext(tradeGet, tradeGetInfo, scoring)]);
-      const context = [give.text, get.text].filter(Boolean).join("\n");
+      const giveInfos = Array.isArray(tradeGiveInfos) ? tradeGiveInfos.filter(isResolvedPlayer) : [];
+      const getInfos = Array.isArray(tradeGetInfos) ? tradeGetInfos.filter(isResolvedPlayer) : [];
+      if (!giveInfos.length || !getInfos.length) return Response.json({ error: "At least one player is required on each side" }, { status: 400 });
+
+      const [giveBundles, getBundles] = await Promise.all([
+        Promise.all(giveInfos.map(p => playerContextAndProp(p, scoring))),
+        Promise.all(getInfos.map(p => playerContextAndProp(p, scoring))),
+      ]);
+      const context = [...giveBundles, ...getBundles].map(b => b.text).filter(Boolean).join("\n");
+      const giveNames = giveBundles.map(b => b.name).filter(Boolean).join(", ");
+      const getNames = getBundles.map(b => b.name).filter(Boolean).join(", ");
       const userMessage = `Scoring format: ${scoring || "PPR"}\n\n` +
         (context ? `Current roster/injury/projection data:\n${context}\n\n` : "") +
-        `Trade analysis: I'm giving ${tradeGive} and receiving ${tradeGet}. Should I accept or decline?`;
+        `Trade analysis: I'm giving ${giveNames} and receiving ${getNames}. Should I accept or decline?`;
 
-      const anyRealLine = !!(give.propLine || get.propLine);
+      const anyRealLine = [...giveBundles, ...getBundles].some(b => b.propLine);
       const raw = await getStructuredVerdict(userMessage);
       const verdict = sanitizeVerdict(raw, anyRealLine);
 
       return Response.json({
         result: {
           ...verdict,
-          players: [
-            { name: give.name || tradeGive, propLine: give.propLine },
-            { name: get.name || tradeGet, propLine: get.propLine },
-          ],
+          players: [...giveBundles, ...getBundles].map(b => ({ name: b.name, propLine: b.propLine })),
         },
       });
     }
