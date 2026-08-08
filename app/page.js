@@ -1209,8 +1209,21 @@ export default function ToT() {
       )}
 
       <div style={S.nav}>
-        <div style={S.navLogo}>T<span style={{ color: "#2FBF71" }}>|</span>T</div>
-        <div style={{ display: "flex", gap: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div
+            aria-hidden="true"
+            style={{
+              width: 30, height: 30, borderRadius: "50%", flexShrink: 0,
+              background: "rgba(47,191,113,0.14)", border: "1px solid rgba(47,191,113,0.35)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontFamily: tokens.font.mono, fontSize: 12, fontWeight: 700, color: "#2FBF71",
+            }}
+          >
+            {(user?.email?.[0] || "T").toUpperCase()}
+          </div>
+          <div style={S.navLogo}>T<span style={{ color: "#2FBF71" }}>|</span>T</div>
+        </div>
+        <div style={{ display: "flex", gap: 6 }}>
           {[
             { id: "mlb", icon: "⚾", label: "MLB", color: "#2FBF71", tab: "picks" },
             { id: "nfl", icon: "🏈", label: "NFL", color: "#D9754A", tab: "nfl" },
@@ -1221,11 +1234,12 @@ export default function ToT() {
                 key={id}
                 onClick={() => setActiveTab(tab)}
                 style={{
-                  display: "flex", alignItems: "center", gap: 4,
-                  padding: "5px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700,
-                  background: active ? `${color}1a` : "transparent",
+                  display: "flex", alignItems: "center", gap: 5,
+                  padding: "6px 12px", borderRadius: 999, fontSize: 11, fontWeight: 700,
+                  background: active ? color : "transparent",
                   border: `1px solid ${active ? color : "#3d424f"}`,
-                  color: active ? color : "#888", cursor: "pointer",
+                  color: active ? "#0b0c10" : "#888", cursor: "pointer",
+                  transition: tokens.transition,
                 }}
               >
                 <span style={{ fontSize: 12 }}>{icon}</span>{label}
@@ -1483,10 +1497,10 @@ export default function ToT() {
                     </div>
                     {isEdge ? (
                       freePick.filter?.verdict === "CLEAN"
-                        ? <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 9px", borderRadius: 5, letterSpacing: 1.5, background: "rgba(47,191,113,0.15)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.3)" }}>CLEAN</span>
-                        : <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 9px", borderRadius: 5, letterSpacing: 1.5, background: "rgba(47,191,113,0.08)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.2)" }}>BET</span>
+                        ? <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 9px", borderRadius: 999, letterSpacing: 1.5, background: "rgba(47,191,113,0.15)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.3)" }}>CLEAN</span>
+                        : <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 9px", borderRadius: 999, letterSpacing: 1.5, background: "rgba(47,191,113,0.08)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.2)" }}>BET</span>
                     ) : (
-                      <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 9px", borderRadius: 5, background: "rgba(214,178,61,0.08)", color: "#D6B23D", border: "1px solid rgba(214,178,61,0.2)" }}>LEAN</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 9px", borderRadius: 999, background: "rgba(214,178,61,0.08)", color: "#D6B23D", border: "1px solid rgba(214,178,61,0.2)" }}>LEAN</span>
                     )}
                   </div>
                   <div style={S.cardMatchup}>
@@ -1538,7 +1552,7 @@ export default function ToT() {
                 </div>
                 <div style={{ filter: "blur(6px)", pointerEvents: "none", userSelect: "none" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                    <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, background: p.verdict === "CLEAN" ? "rgba(47,191,113,0.15)" : "rgba(47,191,113,0.08)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.3)" }}>{p.verdict === "CLEAN" ? "CLEAN" : "BET"}</span>
+                    <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999, letterSpacing: 1.5, background: p.verdict === "CLEAN" ? "rgba(47,191,113,0.15)" : "rgba(47,191,113,0.08)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.3)" }}>{p.verdict === "CLEAN" ? "CLEAN" : "BET"}</span>
                     <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: "#555" }}>+{p.edge}% edge</span>
                   </div>
                   <div style={S.cardMatchup}>{p.away} @ {p.home}</div>
@@ -1618,27 +1632,27 @@ export default function ToT() {
                 const badgeRow = (
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
                     {isLock && (
-                      <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, background: "rgba(214,178,61,0.15)", color: "#D6B23D", border: "1px solid rgba(214,178,61,0.5)" }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999, letterSpacing: 1.5, background: "rgba(214,178,61,0.15)", color: "#D6B23D", border: "1px solid rgba(214,178,61,0.5)" }}>
                         LOCK
                       </span>
                     )}
                     {pick.homeOdds == null && !pick.filter ? (
                       isScheduled ? (
-                        <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, background: "rgba(79,195,247,0.1)", color: "#4FC3F7", border: "1px solid rgba(79,195,247,0.3)" }}>
+                        <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999, letterSpacing: 1.5, background: "rgba(79,195,247,0.1)", color: "#4FC3F7", border: "1px solid rgba(79,195,247,0.3)" }}>
                           SCHEDULED
                         </span>
                       ) : (
-                        <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, background: "rgba(60,60,60,0.4)", color: "#555", border: "1px solid #2b2f3a" }}>
+                        <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999, letterSpacing: 1.5, background: "rgba(60,60,60,0.4)", color: "#555", border: "1px solid #2b2f3a" }}>
                           NO LINE
                         </span>
                       )
                     ) : pick.filter?.verdict === "CLEAN" ? (
-                      <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, background: "rgba(47,191,113,0.15)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.5)" }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999, letterSpacing: 1.5, background: "rgba(47,191,113,0.15)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.5)" }}>
                         CLEAN
                       </span>
                     ) : (
                       <span style={{
-                        fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5,
+                        fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999, letterSpacing: 1.5,
                         background: isBet ? "rgba(47,191,113,0.08)" : "rgba(50,50,50,0.5)",
                         color: isBet ? betColor : passColor,
                         border: `1px solid ${isBet ? "rgba(47,191,113,0.2)" : "#2b2f3a"}`,
@@ -1704,7 +1718,7 @@ export default function ToT() {
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           {pickResult && (
                             <span style={{
-                              fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5,
+                              fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999, letterSpacing: 1.5,
                               background: pickResult === "win" ? "rgba(47,191,113,0.12)" : pickResult === "loss" ? "rgba(217,100,92,0.12)" : "rgba(214,178,61,0.08)",
                               color: pickResult === "win" ? "#2FBF71" : pickResult === "loss" ? "#D9645C" : "#D6B23D",
                               border: `1px solid ${pickResult === "win" ? "rgba(47,191,113,0.3)" : pickResult === "loss" ? "rgba(217,100,92,0.3)" : "rgba(214,178,61,0.3)"}`,
@@ -1842,7 +1856,7 @@ export default function ToT() {
                           {isClean && f.halfSize && (
                             <div style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 4 }}>
                               <div style={{ fontSize: 10, color: "#2FBF71" }}>✓ All conditions passed — disciplined bet</div>
-                              <div style={{ fontSize: 10, fontWeight: 700, color: "#D6B23D", background: "rgba(214,178,61,0.08)", border: "1px solid rgba(214,178,61,0.25)", borderRadius: 6, padding: "3px 8px", display: "inline-block" }}>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: "#D6B23D", background: "rgba(214,178,61,0.08)", border: "1px solid rgba(214,178,61,0.25)", borderRadius: 999, padding: "3px 8px", display: "inline-block" }}>
                                 ⚠ HALF SIZE — pick-side bullpen ERA &gt;6.00, variance elevated
                               </div>
                             </div>
@@ -2004,8 +2018,9 @@ export default function ToT() {
               <>
                 {trendingProps.length > 0 && (
                   <div style={{ marginBottom: 20 }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: "#2FBF71", letterSpacing: 2, marginBottom: 4 }}>
-                      STAR PLAYERS — {trendingProps.length} TOP EDGE PICK{trendingProps.length !== 1 ? "S" : ""}
+                    <div style={S.sectionLabel}>
+                      <span aria-hidden="true" style={{ color: "#2FBF71" }}>★</span>
+                      Star Players — {trendingProps.length} top edge pick{trendingProps.length !== 1 ? "s" : ""}
                     </div>
                     {trendingProps.map((pick, i) => (
                       <div key={`star-${pick.marketType}-${pick.playerId ?? pick.player}-${i}`}
@@ -2019,8 +2034,9 @@ export default function ToT() {
                   </div>
                 )}
 
-                <div style={{ fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 2, marginBottom: 8 }}>
-                  ALL PROPS TODAY — {rest.length}
+                <div style={S.sectionLabel}>
+                  <span aria-hidden="true" style={{ color: "#888" }}>⚾</span>
+                  All Props Today — {rest.length}
                 </div>
                 {rest.length > 3 && (
                   <input
@@ -2091,7 +2107,7 @@ export default function ToT() {
                     <div style={S.cardTop}>
                       <div style={{ flex: 1 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                          <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5, background: "rgba(47,191,113,0.12)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.3)" }}>
+                          <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999, letterSpacing: 1.5, background: "rgba(47,191,113,0.12)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.3)" }}>
                             BET
                           </span>
                           <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: "#999" }}>
@@ -2166,7 +2182,7 @@ export default function ToT() {
               {/* Parlay Cards with combined odds */}
               {steals.length >= 2 && (
                 <div style={{ marginTop: 8 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "#777", letterSpacing: 1.5, marginBottom: 10 }}>PARLAY CARDS</div>
+                  <div style={S.sectionLabel}><span aria-hidden="true" style={{ color: "#2FBF71" }}>★</span> Parlay Cards</div>
                   {[
                     { label: "SAFE", legs: steals.slice(0, 2), color: "#2FBF71" },
                     { label: "BALANCED", legs: steals.slice(0, 3), color: "#D6B23D" },
@@ -2273,7 +2289,7 @@ export default function ToT() {
                 </div>
 
                 {/* All games */}
-                <div style={{ fontSize: 10, fontWeight: 700, color: "#777", letterSpacing: 1.5, marginBottom: 8 }}>ALL GAMES — {fmtDateLabel(selectedDate).toUpperCase()}</div>
+                <div style={S.sectionLabel}><span aria-hidden="true" style={{ color: "#888" }}>⚾</span> All Games — {fmtDateLabel(selectedDate)}</div>
                 {picks.length === 0 ? (
                   <div style={{ color: "#777", fontSize: 13, textAlign: "center", padding: 24 }}>No games for this date</div>
                 ) : picks.map(game => {
@@ -2926,7 +2942,7 @@ export default function ToT() {
           {isPro ? (
             top3.length > 0 && (
               <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#999", letterSpacing: 0.5, marginBottom: 10 }}>TOP 3 TODAY</div>
+                <div style={S.sectionLabel}><span aria-hidden="true" style={{ color: "#2FBF71" }}>★</span> Top 3 Today</div>
                 <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 2 }}>
                   {top3.map(({ p, sport }) => (
                     <div key={`${sport}-${p.id}`} style={{ width: 220, flexShrink: 0 }}>
@@ -3136,12 +3152,19 @@ export default function ToT() {
               aria-label={label}
               aria-current={active ? "page" : undefined}
               style={{
-                flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
-                background: "none", border: "none", cursor: "pointer", padding: "8px 4px",
+                flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+                background: "none", border: "none", cursor: "pointer", padding: "8px 4px 6px",
                 color: active ? "#2FBF71" : "#555",
               }}
             >
-              <Icon size={18} />
+              <span style={{
+                display: "flex", alignItems: "center", justifyContent: "center",
+                width: 34, height: 22, borderRadius: 999,
+                background: active ? "rgba(47,191,113,0.14)" : "transparent",
+                transition: tokens.transition,
+              }}>
+                <Icon size={18} />
+              </span>
               <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.2 }}>{label}</span>
             </button>
           );

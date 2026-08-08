@@ -7,6 +7,7 @@
 // component with its own sport toggle.
 
 import { useState, useEffect, useRef } from "react";
+import TeamLogo from "./TeamLogo.js";
 import { tokens, tabButtonStyle } from "../lib/ui-theme.js";
 
 const MLB_GREEN = tokens.color.brand;
@@ -81,22 +82,25 @@ export default function PlayersSection({ S, getAuthHeaders, onPlayerClick }) {
       ) : (results || []).length === 0 ? (
         <div style={{ color: "#777", fontSize: 13, textAlign: "center", padding: 24 }}>No players found.</div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {results.map(p => (
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          {results.map((p, i) => (
             <button
               key={p.id}
               onClick={() => onPlayerClick(sport, p.id, p.name)}
-              style={{ ...S.card, borderColor: "#242832", display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", textAlign: "left", cursor: "pointer", fontFamily: "inherit" }}
+              style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", textAlign: "left", cursor: "pointer", fontFamily: "inherit", background: "none", border: "none", padding: "10px 0", borderTop: i > 0 ? `1px solid ${tokens.color.border}` : "none" }}
             >
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: "#eee" }}>{p.name}</div>
-                <div style={{ fontSize: 11, color: "#666", marginTop: 2 }}>
-                  {p.team}{p.position ? ` · ${p.position}` : ""}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                <TeamLogo team={p.team} sport={sport} size={24} />
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: "#eee", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
+                  <div style={{ fontSize: 11, color: "#666", marginTop: 2 }}>
+                    {p.team}{p.position ? ` · ${p.position}` : ""}
+                  </div>
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
                 {p.injuryStatus && (
-                  <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: "rgba(217,100,92,0.1)", color: "#D9645C", border: "1px solid rgba(217,100,92,0.3)" }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 999, background: "rgba(217,100,92,0.1)", color: "#D9645C", border: "1px solid rgba(217,100,92,0.3)" }}>
                     {p.injuryStatus}
                   </span>
                 )}

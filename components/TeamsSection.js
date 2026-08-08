@@ -6,7 +6,8 @@
 // the subnav regardless of which top-level sport tab is active.
 
 import { useState, useEffect } from "react";
-import { tokens, tabButtonStyle } from "../lib/ui-theme.js";
+import TeamLogo from "./TeamLogo.js";
+import { tokens, tabButtonStyle, sectionLabelStyle } from "../lib/ui-theme.js";
 
 const MLB_GREEN = tokens.color.brand;
 const NFL_ORANGE = tokens.color.orange;
@@ -91,18 +92,22 @@ export default function TeamsSection({ S, getAuthHeaders, onTeamClick }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           {groups.map(({ division, teams: list }) => (
             <div key={division}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 1.5, marginBottom: 8 }}>
-                {division.toUpperCase()}
+              <div style={sectionLabelStyle()}>
+                <span aria-hidden="true" style={{ color: accent }}>{sport === "nfl" ? "🏈" : "⚾"}</span>
+                {division}
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {list.map(t => (
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                {list.map((t, i) => (
                   <button
                     key={t.name}
                     onClick={() => onTeamClick(sport, t.name)}
-                    style={{ ...S.card, borderColor: "#242832", display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", textAlign: "left", cursor: "pointer", fontFamily: "inherit" }}
+                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", textAlign: "left", cursor: "pointer", fontFamily: "inherit", background: "none", border: "none", padding: "10px 0", borderTop: i > 0 ? `1px solid ${tokens.color.border}` : "none" }}
                   >
-                    <span style={{ fontSize: 14, fontWeight: 700, color: "#eee" }}>{t.name}</span>
-                    <span style={{ color: accent, fontSize: 15 }}>›</span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                      <TeamLogo team={t.name} sport={sport} size={26} />
+                      <span style={{ fontSize: 14, fontWeight: 600, color: "#eee", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}</span>
+                    </span>
+                    <span style={{ color: accent, fontSize: 15, flexShrink: 0 }}>›</span>
                   </button>
                 ))}
               </div>

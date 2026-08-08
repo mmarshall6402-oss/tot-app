@@ -312,7 +312,7 @@ function PropLineRow({ name, propLine }) {
           {propLine.line} {propLine.label} <span style={{ color: "#555" }}>({propLine.bookmaker} O {fmtPropOdds(propLine.overOdds)}/U {fmtPropOdds(propLine.underOdds)})</span>
         </span>
       ) : (
-        <span style={{ color: "#555", fontSize: 10, fontWeight: 700, letterSpacing: 0.5, background: "#1c1f26", border: "1px solid #242832", borderRadius: 5, padding: "2px 7px" }}>
+        <span style={{ color: "#555", fontSize: 10, fontWeight: 700, letterSpacing: 0.5, background: "#1c1f26", border: "1px solid #242832", borderRadius: 999, padding: "2px 7px" }}>
           NO LINE POSTED YET
         </span>
       )}
@@ -720,7 +720,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                           <span style={{ fontWeight: 700, fontSize: 14 }}>{p.name}</span>
                           <span style={{ fontSize: 11, color: "#666" }}>{p.position} · {p.team || "FA"}</span>
-                          <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 5, background: t.bg, color: t.color, border: `1px solid ${t.color}33` }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: t.bg, color: t.color, border: `1px solid ${t.color}33` }}>
                             TIER {p.tier}
                           </span>
                         </div>
@@ -731,27 +731,27 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                       </div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end", flexShrink: 0 }}>
                         {p.injury_status && (
-                          <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: "rgba(217,100,92,0.1)", color: "#D9645C", border: "1px solid rgba(217,100,92,0.3)" }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 999, background: "rgba(217,100,92,0.1)", color: "#D9645C", border: "1px solid rgba(217,100,92,0.3)" }}>
                             {p.injury_status}
                           </span>
                         )}
                         {p.trending_add_count > 0 && (
-                          <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: "rgba(47,191,113,0.08)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.25)" }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 999, background: "rgba(47,191,113,0.08)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.25)" }}>
                             {p.trending_add_count} adds/24h
                           </span>
                         )}
                         {p.personnel_note && (
-                          <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: "rgba(120,140,255,0.08)", color: "#7C8CFF", border: "1px solid rgba(120,140,255,0.25)" }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 999, background: "rgba(120,140,255,0.08)", color: "#7C8CFF", border: "1px solid rgba(120,140,255,0.25)" }}>
                             {p.personnel_note}
                           </span>
                         )}
                         {p.pace_note && (
-                          <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: "rgba(240,180,60,0.08)", color: "#F0B43C", border: "1px solid rgba(240,180,60,0.25)" }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 999, background: "rgba(240,180,60,0.08)", color: "#F0B43C", border: "1px solid rgba(240,180,60,0.25)" }}>
                             {p.pace_note}
                           </span>
                         )}
                         {p.playcaller_note && (
-                          <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: "rgba(200,120,220,0.08)", color: "#C878DC", border: "1px solid rgba(200,120,220,0.25)" }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 999, background: "rgba(200,120,220,0.08)", color: "#C878DC", border: "1px solid rgba(200,120,220,0.25)" }}>
                             {p.playcaller_note}
                           </span>
                         )}
@@ -882,14 +882,14 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                     const badgeRow = (
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
                         <span style={{
-                          fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 6, letterSpacing: 1.5,
+                          fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999, letterSpacing: 1.5,
                           background: verdict === "TRAP" ? "rgba(217,100,92,0.1)" : isBet ? "rgba(47,191,113,0.08)" : "rgba(50,50,50,0.5)",
                           color: verdict === "TRAP" ? "#D9645C" : isBet ? "#2FBF71" : "#3d424f",
                           border: `1px solid ${verdict === "TRAP" ? "rgba(217,100,92,0.3)" : isBet ? "rgba(47,191,113,0.2)" : "#2b2f3a"}`,
                         }}>
                           {verdict === "TRAP" ? "TRAP" : isBet ? "BET" : "PASS"}
                         </span>
-                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 5, background: "#181b22", color: "#888", letterSpacing: 0.5 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: "#181b22", color: "#888", letterSpacing: 0.5 }}>
                           {pick.marketType === "spread" ? "SPREAD" : pick.marketType === "total" ? "TOTAL" : "MONEYLINE"}
                         </span>
                       </div>
