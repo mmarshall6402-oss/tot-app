@@ -505,53 +505,67 @@ function TeamSwitchBar({ team, accent, onChange }) {
 // tackles or DT/NT. Slots sharing a fallback code claim it in the order
 // they're defined (see layoutFormation), which is what makes the three
 // "WR" slots land the first three receivers on the depth chart rather than
-// all three showing the same one. The full depth chart (every player at
-// every position, not just what fits on the field) still renders below the
-// field so nothing from the original list view is lost.
+// all three showing the same one. x stays within [8,92] and chips are 54px
+// wide so nothing clips the field's rounded edge at typical phone widths.
 const OFFENSE_SLOTS = [
-  { key: "LT", label: "LT", x: 20, y: 60, codes: ["LT", "OT", "OL"] },
+  { key: "WR1", label: "WR", x: 8, y: 52, codes: ["WR"], showBackup: true },
+  { key: "WR2", label: "WR", x: 92, y: 52, codes: ["WR"], showBackup: true },
+  { key: "LT", label: "LT", x: 22, y: 61, codes: ["LT", "OT", "OL"] },
   { key: "LG", label: "LG", x: 36, y: 63, codes: ["LG", "OG", "OL"] },
   { key: "C", label: "C", x: 50, y: 64, codes: ["C", "OL"] },
   { key: "RG", label: "RG", x: 64, y: 63, codes: ["RG", "OG", "OL"] },
-  { key: "RT", label: "RT", x: 80, y: 60, codes: ["RT", "OT", "OL"] },
-  { key: "TE", label: "TE", x: 92, y: 56, codes: ["TE"] },
-  { key: "WR1", label: "WR", x: 6, y: 47, codes: ["WR"] },
-  { key: "WR2", label: "WR", x: 94, y: 47, codes: ["WR"] },
-  { key: "WR3", label: "WR", x: 72, y: 71, codes: ["WR"] },
-  { key: "FB", label: "FB", x: 38, y: 80, codes: ["FB"] },
-  { key: "RB", label: "RB", x: 55, y: 84, codes: ["RB"] },
-  { key: "QB", label: "QB", x: 50, y: 94, codes: ["QB"] },
+  { key: "RT", label: "RT", x: 78, y: 61, codes: ["RT", "OT", "OL"] },
+  { key: "TE", label: "TE", x: 90, y: 68, codes: ["TE"], showBackup: true },
+  { key: "WR3", label: "WR", x: 66, y: 78, codes: ["WR"], showBackup: true },
+  { key: "FB", label: "FB", x: 28, y: 78, codes: ["FB"], showBackup: true },
+  { key: "RB", label: "RB", x: 50, y: 85, codes: ["RB"], showBackup: true },
+  { key: "QB", label: "QB", x: 50, y: 94, codes: ["QB"], showBackup: true },
 ];
 
 const DEFENSE_SLOTS = [
-  { key: "DE1", label: "DE", x: 18, y: 40, codes: ["DE", "DL"] },
-  { key: "DT1", label: "DT", x: 38, y: 37, codes: ["DT", "NT", "DL"] },
-  { key: "DT2", label: "DT", x: 62, y: 37, codes: ["DT", "NT", "DL"] },
-  { key: "DE2", label: "DE", x: 82, y: 40, codes: ["DE", "DL"] },
-  { key: "OLB1", label: "LB", x: 24, y: 24, codes: ["OLB", "LB"] },
+  { key: "DE1", label: "DE", x: 15, y: 39, codes: ["DE", "DL"] },
+  { key: "DT1", label: "DT", x: 36, y: 36, codes: ["DT", "NT", "DL"] },
+  { key: "DT2", label: "DT", x: 64, y: 36, codes: ["DT", "NT", "DL"] },
+  { key: "DE2", label: "DE", x: 85, y: 39, codes: ["DE", "DL"] },
+  { key: "OLB1", label: "LB", x: 22, y: 24, codes: ["OLB", "LB"] },
   { key: "MLB", label: "LB", x: 50, y: 21, codes: ["MLB", "ILB", "LB"] },
-  { key: "OLB2", label: "LB", x: 76, y: 24, codes: ["OLB", "LB"] },
-  { key: "CB1", label: "CB", x: 8, y: 10, codes: ["CB", "DB"] },
-  { key: "FS", label: "FS", x: 37, y: 6, codes: ["FS", "S", "DB"] },
-  { key: "SS", label: "SS", x: 63, y: 6, codes: ["SS", "S", "DB"] },
-  { key: "CB2", label: "CB", x: 92, y: 10, codes: ["CB", "DB"] },
+  { key: "OLB2", label: "LB", x: 78, y: 24, codes: ["OLB", "LB"] },
+  { key: "CB1", label: "CB", x: 9, y: 9, codes: ["CB", "DB"] },
+  { key: "FS", label: "FS", x: 36, y: 6, codes: ["FS", "S", "DB"] },
+  { key: "SS", label: "SS", x: 64, y: 6, codes: ["SS", "S", "DB"] },
+  { key: "CB2", label: "CB", x: 91, y: 9, codes: ["CB", "DB"] },
 ];
 
-// Also captures the next player behind the one placed in a slot (from that
-// same position code's own list, not a fallback code) so each chip can show
-// a 2-deep look — the starter plus who's next up — without needing a
-// separate list of every position underneath the field.
+const ST_SLOTS = [
+  { key: "K", label: "K", codes: ["K"] },
+  { key: "P", label: "P", codes: ["P"] },
+  { key: "LS", label: "LS", codes: ["LS"] },
+];
+
+// Only fantasy-relevant slots (QB/RB/FB/WR/TE) opt into showBackup — showing
+// a "next up" line under every O-line/D-line/DB chip too just turned the
+// field into visual noise nobody was reading. Two-pass: first assign each
+// slot its starter and remember which position code it actually matched
+// (post-fallback), then only the LAST slot to claim a given code shows that
+// code's next player as its backup — otherwise, e.g., the WR1 slot would
+// show WR2's own starter as WR1's "backup" (the same player rendered twice).
 function layoutFormation(slots, byPosition) {
   const used = {};
-  return slots.map(slot => {
-    let player = null, backup = null;
+  const placed = slots.map(slot => {
+    let player = null, matchedCode = null;
     for (const code of slot.codes) {
       const list = byPosition[code];
       if (!list) continue;
       const idx = used[code] || 0;
-      if (list[idx]) { player = list[idx]; backup = list[idx + 1] || null; used[code] = idx + 1; break; }
+      if (list[idx]) { player = list[idx]; matchedCode = code; used[code] = idx + 1; break; }
     }
-    return { ...slot, player, backup };
+    return { ...slot, player, matchedCode };
+  });
+  const lastSlotForCode = {};
+  placed.forEach((s, i) => { if (s.matchedCode) lastSlotForCode[s.matchedCode] = i; });
+  return placed.map((s, i) => {
+    if (!s.showBackup || !s.matchedCode || lastSlotForCode[s.matchedCode] !== i) return { ...s, backup: null };
+    return { ...s, backup: byPosition[s.matchedCode][used[s.matchedCode]] || null };
   });
 }
 
@@ -561,26 +575,34 @@ function lastName(name) {
   return parts[parts.length - 1];
 }
 
+// hex "#rrggbb" -> "rgba(r,g,b,alpha)", used to tint a starter chip with its
+// accent color instead of the flat dark box the first version used.
+function tint(hex, alpha) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+}
+
 function FormationChip({ slot, accent }) {
   const { label, x, y, player, backup } = slot;
   return (
     <div style={{
       position: "absolute", left: `${x}%`, top: `${y}%`, transform: "translate(-50%, -50%)",
-      display: "flex", flexDirection: "column", alignItems: "center", gap: 2, width: 60, zIndex: 1,
+      display: "flex", flexDirection: "column", alignItems: "center", gap: 1, width: 54, zIndex: 1,
     }}>
-      <div style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: 0.5, color: player ? accent : "#4a5568" }}>{label}</div>
+      <div style={{ fontSize: 7.5, fontWeight: 800, letterSpacing: 0.4, color: player ? accent : "#3d4453", marginBottom: 1 }}>{label}</div>
       <div style={{
-        background: player ? "rgba(11,12,16,0.85)" : "rgba(11,12,16,0.5)",
-        border: `1px solid ${player ? accent : "#333"}`,
-        borderRadius: 7, padding: "3px 6px", fontSize: 10, fontWeight: 700,
-        color: player ? "#fff" : "#4a5568", whiteSpace: "nowrap", overflow: "hidden",
-        textOverflow: "ellipsis", maxWidth: 60, textAlign: "center",
+        background: player ? tint(accent, 0.16) : "rgba(255,255,255,0.03)",
+        border: `1px solid ${player ? tint(accent, 0.65) : "rgba(255,255,255,0.08)"}`,
+        boxShadow: player ? "0 1px 3px rgba(0,0,0,0.35)" : "none",
+        borderRadius: 6, padding: "3px 5px", fontSize: 9.5, fontWeight: 700,
+        color: player ? "#fff" : "#3d4453", whiteSpace: "nowrap", overflow: "hidden",
+        textOverflow: "ellipsis", maxWidth: 54, textAlign: "center",
       }}>
         {player ? lastName(player.name) : "—"}
       </div>
-      {player?.injuryStatus && <div style={{ fontSize: 7.5, fontWeight: 700, color: "#D9645C" }}>{player.injuryStatus}</div>}
+      {player?.injuryStatus && <div style={{ fontSize: 7, fontWeight: 700, color: "#D9645C", marginTop: 1 }}>{player.injuryStatus}</div>}
       {backup && (
-        <div style={{ fontSize: 8, color: "#5a6270", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 60 }}>
+        <div style={{ fontSize: 7.5, color: "#525a68", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 54, marginTop: 1 }}>
           {lastName(backup.name)}
         </div>
       )}
@@ -590,34 +612,24 @@ function FormationChip({ slot, accent }) {
 
 const DEFENSE_ACCENT = "#5B8DEF";
 const ST_ACCENT = "#B8862F";
-const ST_SLOTS = [
-  { key: "K", label: "K", codes: ["K"] },
-  { key: "P", label: "P", codes: ["P"] },
-  { key: "LS", label: "LS", codes: ["LS"] },
-];
 
 // Special teams don't have a formation spot the way offense/defense do, so
-// they get their own small chip row below the field rather than being
-// forced onto it — still chips, not a position-by-position list.
+// they get their own small chip row in the card footer rather than being
+// forced onto the field.
 function SpecialTeamsChip({ slot, accent }) {
-  const { label, player, backup } = slot;
+  const { label, player } = slot;
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, width: 60 }}>
-      <div style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: 0.5, color: player ? accent : "#4a5568" }}>{label}</div>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1, width: 54 }}>
+      <div style={{ fontSize: 7.5, fontWeight: 800, letterSpacing: 0.4, color: player ? accent : "#3d4453" }}>{label}</div>
       <div style={{
-        background: player ? "#15171d" : "transparent",
-        border: `1px solid ${player ? accent : "#242832"}`,
-        borderRadius: 7, padding: "3px 6px", fontSize: 10, fontWeight: 700,
-        color: player ? "#fff" : "#4a5568", whiteSpace: "nowrap", overflow: "hidden",
-        textOverflow: "ellipsis", maxWidth: 60, textAlign: "center",
+        background: player ? tint(accent, 0.14) : "transparent",
+        border: `1px solid ${player ? tint(accent, 0.6) : "#242832"}`,
+        borderRadius: 6, padding: "3px 5px", fontSize: 9.5, fontWeight: 700,
+        color: player ? "#fff" : "#3d4453", whiteSpace: "nowrap", overflow: "hidden",
+        textOverflow: "ellipsis", maxWidth: 54, textAlign: "center",
       }}>
         {player ? lastName(player.name) : "—"}
       </div>
-      {backup && (
-        <div style={{ fontSize: 8, color: "#5a6270", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 60 }}>
-          {lastName(backup.name)}
-        </div>
-      )}
     </div>
   );
 }
@@ -631,27 +643,41 @@ function DepthChartField({ positions, accent }) {
   const specialTeams = layoutFormation(ST_SLOTS, byPosition);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+    <div style={{ background: "#111318", border: "1px solid #1c1f26", borderRadius: 16, padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={{
-        position: "relative", width: "100%", aspectRatio: "3 / 4",
-        background: "linear-gradient(180deg, #163020 0%, #14291d 50%, #0f2318 100%)",
-        backgroundImage: "repeating-linear-gradient(0deg, rgba(255,255,255,0.035) 0, rgba(255,255,255,0.035) 1px, transparent 1px, transparent 12.5%)",
-        border: "1px solid #1f3a28", borderRadius: 16, overflow: "hidden",
+        position: "relative", width: "100%", aspectRatio: "1 / 1.02",
+        background: "linear-gradient(180deg, #16301f 0%, #132c1c 50%, #0f2318 100%)",
+        backgroundImage: "repeating-linear-gradient(0deg, rgba(255,255,255,0.03) 0, rgba(255,255,255,0.03) 1px, transparent 1px, transparent 12.5%)",
+        border: "1px solid #21422b", borderRadius: 12, overflow: "hidden",
       }}>
-        <div style={{ position: "absolute", left: 0, right: 0, top: "50%", borderTop: "2px dashed rgba(255,255,255,0.25)" }} />
-        <div style={{ position: "absolute", left: 10, top: "calc(50% + 4px)", fontSize: 8, fontWeight: 700, letterSpacing: 1, color: "rgba(255,255,255,0.3)" }}>LOS</div>
-        <div style={{ position: "absolute", left: 10, top: 8, fontSize: 8.5, fontWeight: 800, letterSpacing: 1.5, color: "rgba(255,255,255,0.25)" }}>DEFENSE</div>
-        <div style={{ position: "absolute", left: 10, bottom: 8, fontSize: 8.5, fontWeight: 800, letterSpacing: 1.5, color: "rgba(255,255,255,0.25)" }}>OFFENSE</div>
+        <div style={{ position: "absolute", left: 0, right: 0, top: "50%", borderTop: "1.5px dashed rgba(255,255,255,0.22)" }} />
+        <div style={{ position: "absolute", left: 9, top: 7, fontSize: 7.5, fontWeight: 800, letterSpacing: 1.2, color: "rgba(255,255,255,0.22)" }}>DEF</div>
+        <div style={{ position: "absolute", left: 9, bottom: 7, fontSize: 7.5, fontWeight: 800, letterSpacing: 1.2, color: "rgba(255,255,255,0.22)" }}>OFF</div>
 
         {defense.map(slot => <FormationChip key={slot.key} slot={slot} accent={DEFENSE_ACCENT} />)}
         {offense.map(slot => <FormationChip key={slot.key} slot={slot} accent={accent} />)}
       </div>
 
-      {specialTeams.some(s => s.player) && (
-        <div style={{ display: "flex", gap: 14, justifyContent: "center", padding: "2px 0" }}>
-          {specialTeams.map(slot => <SpecialTeamsChip key={slot.key} slot={slot} accent={ST_ACCENT} />)}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 9.5, color: "#5a6270" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ width: 7, height: 7, borderRadius: 2, background: accent, display: "inline-block" }} /> Off
+          </span>
+          <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ width: 7, height: 7, borderRadius: 2, background: DEFENSE_ACCENT, display: "inline-block" }} /> Def
+          </span>
+          {specialTeams.some(s => s.player) && (
+            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <span style={{ width: 7, height: 7, borderRadius: 2, background: ST_ACCENT, display: "inline-block" }} /> ST
+            </span>
+          )}
         </div>
-      )}
+        {specialTeams.some(s => s.player) && (
+          <div style={{ display: "flex", gap: 10 }}>
+            {specialTeams.map(slot => <SpecialTeamsChip key={slot.key} slot={slot} accent={ST_ACCENT} />)}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1168,23 +1194,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                       <div style={{ fontSize: 13, color: "#555", lineHeight: 1.6 }}>Check back once the team's depth chart is posted.</div>
                     </div>
                   ) : (
-                    <div>
-                      <DepthChartField positions={depthChart.positions} accent={NFL_ORANGE} />
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8, fontSize: 10, color: "#555" }}>
-                        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                          <span style={{ width: 8, height: 8, borderRadius: 2, background: NFL_ORANGE, display: "inline-block" }} /> Offense
-                        </span>
-                        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                          <span style={{ width: 8, height: 8, borderRadius: 2, background: DEFENSE_ACCENT, display: "inline-block" }} /> Defense
-                        </span>
-                        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                          <span style={{ width: 8, height: 8, borderRadius: 2, background: ST_ACCENT, display: "inline-block" }} /> Special Teams
-                        </span>
-                      </div>
-                      <div style={{ fontSize: 10.5, color: "#555", marginTop: 6, lineHeight: 1.5 }}>
-                        Starter shown per slot, with the next player up in smaller text underneath.
-                      </div>
-                    </div>
+                    <DepthChartField positions={depthChart.positions} accent={NFL_ORANGE} />
                   )
                 )}
               </div>
@@ -1261,13 +1271,19 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                                   ) : (
                                     <>
                                       <span style={{ fontSize: 11, color: "#999" }}>
-                                        {g.commenceTime ? new Date(g.commenceTime).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""}
+                                        {g.commenceTime
+                                          ? new Date(g.commenceTime).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+                                          : ""}
                                       </span>
-                                      {(thisSpread != null || g.total != null) && (
+                                      {thisSpread != null || g.total != null ? (
                                         <span style={{ fontSize: 10.5, color: NFL_ORANGE, fontFamily: tokens.font.mono }}>
                                           {thisSpread != null && (thisSpread > 0 ? `+${thisSpread}` : thisSpread)}
                                           {thisSpread != null && g.total != null ? " · " : ""}
                                           {g.total != null && `O/U ${g.total}`}
+                                        </span>
+                                      ) : (
+                                        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.3, color: "#555", background: "#1c1f26", border: "1px solid #242832", borderRadius: 999, padding: "2px 7px" }}>
+                                          LINE NOT POSTED YET
                                         </span>
                                       )}
                                     </>
