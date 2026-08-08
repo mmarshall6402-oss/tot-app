@@ -24,6 +24,7 @@ import { accentButtonStyle, tabButtonStyle, tokens, iconButtonStyle } from "../l
 import { CheckIcon, RefreshIcon } from "./icons.js";
 import { nflHeadshotUrl } from "../lib/nfl-roster.js";
 import PlayerHeadshot from "./PlayerHeadshot.js";
+import MyTeamPanel from "./MyTeamPanel.js";
 
 function pickOddsFor(pick) {
   if (pick.marketType === "spread") return pick.pick === pick.homeTeam ? pick.homeSpreadOdds : pick.awaySpreadOdds;
@@ -1216,6 +1217,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
             {/* Mode selector */}
             <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2, borderBottom: `1px solid ${tokens.color.border}` }}>
               {[
+                { id: "myTeam",     label: "My Team" },
                 { id: "news",       label: "News" },
                 { id: "startSit",   label: "Start/Sit" },
                 { id: "trade",      label: "Trade" },
@@ -1227,6 +1229,8 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                 <button key={id} onClick={() => setFantasyMode(id)} style={{ ...tabButtonStyle({ active: fantasyMode === id, accent: NFL_ORANGE }), flexShrink: 0 }}>{label}</button>
               ))}
             </div>
+
+            {fantasyMode === "myTeam" && <MyTeamPanel getAuthHeaders={getAuthHeaders} />}
 
             {fantasyMode === "news" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>

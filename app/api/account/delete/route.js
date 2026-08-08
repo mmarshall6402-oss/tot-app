@@ -33,6 +33,8 @@ export async function POST(request) {
     }
 
     await supabase.from("saved_picks").delete().eq("user_id", user.id);
+    await supabase.from("sleeper_league_selections").delete().eq("user_id", user.id);
+    await supabase.from("sleeper_links").delete().eq("user_id", user.id);
     await supabase.from("subscriptions").delete().eq("user_id", user.id);
     if (user.email) {
       await supabase.from("email_list").delete().eq("email", user.email);
