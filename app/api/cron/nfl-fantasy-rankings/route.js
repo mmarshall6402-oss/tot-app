@@ -14,6 +14,7 @@ import { timingSafeEqual } from "../../../../lib/auth.js";
 import { buildPlayerIndex } from "../../../../lib/nfl-roster.js";
 import { buildIdCrosswalk } from "../../../../lib/nfl-fantasy/id-map.js";
 import { groupByPlayer, buildRankings, POSITIONS } from "../../../../lib/nfl-fantasy/rankings.js";
+import { assignTiers } from "../../../../lib/nfl-fantasy/tiers.js";
 import { injuryAdjustedGames, classifyInjuryRisk } from "../../../../lib/nfl-fantasy/injury.js";
 import { fetchSleeperPlayerIndex, buildEspnIdIndex, fetchTrendingAdds } from "../../../../lib/nfl-fantasy/sleeper.js";
 import { buildAgeById } from "../../../../lib/nfl-fantasy/age.js";
@@ -121,6 +122,18 @@ async function refreshFormat(supabase, format, playersById, targetSeason, crossw
   const rowsByPosition = {};
   for (const pos of POSITIONS) rowsByPosition[pos] = withInjury.filter((p) => p.position === pos);
 
+  // Cheat Sheet tiers per position filter: `tier` above is computed across
+  // ALL positions (see lib/nfl-fantasy/tiers.js), so filtering the board down
+  // to one position leaves whatever gaps happened to land there — often
+  // sparse and non-contiguous (RB tiers 1, 3, 3, 7...) since those breaks
+  // were found against other positions' players that the filter just
+  // dropped. Rerunning assignTiers within each position's own list gives a
+  // clean, contiguous 1, 2, 3... tiering for the position-filtered view.
+  const tierPositionByPlayerId = new Map();
+  for (const pos of POSITIONS) {
+    for (const p of assignTiers(rowsByPosition[pos])) tierPositionByPlayerId.set(p.playerId, p.tier);
+  }
+
   const rows = withInjury.map((p) => ({
     player_id: p.playerId,
     espn_id: p.espnId,
@@ -138,6 +151,7 @@ async function refreshFormat(supabase, format, playersById, targetSeason, crossw
     rank_overall: p.rankOverall,
     rank_position: rowsByPosition[p.position].findIndex((x) => x.playerId === p.playerId) + 1,
     tier: p.tier,
+    tier_position: tierPositionByPlayerId.get(p.playerId) ?? null,
     injury_status: p.injuryStatus,
     injury_risk: p.injuryRisk,
     trending_add_count: p.trendingAddCount,
