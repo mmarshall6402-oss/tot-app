@@ -84,6 +84,23 @@ export async function GET(request) {
         const newPicks = [];
         await Promise.all(gamesNeedingHr.map(async (mlb) => {
           const eventId = eventIdByGameId.get(String(mlb.gameId));
+
+          // Claim this event before firing a live The Odds API call — cold
+          // starts mean lib/odds-props.js's in-memory cache doesn't dedupe
+          // across serverless instances, so without this every concurrent
+          // request for a game whose lineup just posted fires its own live
+          // fetch. If another instance already holds the claim, skip: its
+          // write lands in prop_picks_cache shortly and the next request
+          // picks it up from cache instead of re-fetching. Fails open (RPC
+          // error treated as claimed) so a DB hiccup or the migration not
+          // being run yet degrades to today's behavior, not a broken feature.
+          let claimed = true;
+          try {
+            const { data } = await supabase.rpc("claim_prop_fetch", { p_event_id: eventId, p_ttl_seconds: 60 });
+            claimed = data !== false;
+          } catch { /* fail open */ }
+          if (!claimed) return;
+
           let props;
           try { props = await fetchEventPlayerProps(eventId); } catch { return; }
           const [homeBatters, awayBatters] = await Promise.all([
