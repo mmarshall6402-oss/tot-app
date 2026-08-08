@@ -559,9 +559,9 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
 
         {/* Scoring format */}
         {(subTab === "fantasy") && (
-          <div style={{ display: "flex", borderBottom: `1px solid ${tokens.color.border}` }}>
+          <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2, borderBottom: `1px solid ${tokens.color.border}` }}>
             {["PPR", "Half-PPR", "Standard"].map(fmt => (
-              <button key={fmt} onClick={() => setScoring(fmt)} style={{ ...tabButtonStyle({ active: scoring === fmt, accent: NFL_ORANGE }), flex: 1, textAlign: "center" }}>{fmt}</button>
+              <button key={fmt} onClick={() => setScoring(fmt)} style={{ ...tabButtonStyle({ active: scoring === fmt, accent: NFL_ORANGE }), flexShrink: 0 }}>{fmt}</button>
             ))}
           </div>
         )}
@@ -570,24 +570,24 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
         {subTab === "fantasy" && (
           <>
             {/* Mode selector */}
-            <div style={{ display: "flex", borderBottom: `1px solid ${tokens.color.border}` }}>
+            <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2, borderBottom: `1px solid ${tokens.color.border}` }}>
               {[
                 { id: "startSit",   label: "Start/Sit" },
                 { id: "trade",      label: "Trade" },
                 { id: "ask",        label: "Ask AI" },
                 { id: "cheatSheet", label: "Cheat Sheet" },
               ].map(({ id, label }) => (
-                <button key={id} onClick={() => setFantasyMode(id)} style={{ ...tabButtonStyle({ active: fantasyMode === id, accent: NFL_ORANGE }), flex: 1, textAlign: "center" }}>{label}</button>
+                <button key={id} onClick={() => setFantasyMode(id)} style={{ ...tabButtonStyle({ active: fantasyMode === id, accent: NFL_ORANGE }), flexShrink: 0 }}>{label}</button>
               ))}
             </div>
 
             {fantasyMode === "startSit" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   <PlayerSearchInput style={inputStyle} placeholder="Player A (e.g. Justin Jefferson)" value={playerA}
                     onChangeText={setPlayerA} onSelectPlayer={setPlayerAInfo}
                     getAuthHeaders={getAuthHeaders} onEnter={runStartSit} />
-                  <span style={{ color: "#444", fontWeight: 700, flexShrink: 0 }}>vs</span>
+                  <div style={{ textAlign: "center", fontSize: 11, color: "#444", fontWeight: 700, letterSpacing: 0.5 }}>VS</div>
                   <PlayerSearchInput style={inputStyle} placeholder="Player B (e.g. CeeDee Lamb)" value={playerB}
                     onChangeText={setPlayerB} onSelectPlayer={setPlayerBInfo}
                     getAuthHeaders={getAuthHeaders} onEnter={runStartSit} />
