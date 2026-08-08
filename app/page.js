@@ -15,8 +15,8 @@ import SkipSummary from "../components/SkipSummary.js";
 import { impliedWinPct, oddsMovement } from "../lib/odds-display.js";
 import { translateReasons } from "../lib/reason-labels.js";
 import { shouldBetNow } from "../lib/fair-odds.js";
-import { S, tokens, SHARED_BUTTON_CSS, FONT_IMPORT_URL, tabButtonStyle, statTileStyle, iconButtonStyle } from "../lib/ui-theme.js";
-import { CheckIcon, XIcon, TrashIcon, RefreshIcon, ChevronLeftIcon, CloseIcon, HomeIcon, GamesIcon, WalletIcon, UserIcon, TrendingUpIcon, ClockIcon, LockIcon, SearchIcon } from "../components/icons.js";
+import { S, tokens, SHARED_BUTTON_CSS, FONT_IMPORT_URL, tabButtonStyle, statTileStyle } from "../lib/ui-theme.js";
+import { CheckIcon, XIcon, TrashIcon, RefreshIcon, ChevronLeftIcon, CloseIcon, HomeIcon, GamesIcon, WalletIcon, UserIcon, LockIcon, SearchIcon } from "../components/icons.js";
 
 // Single shared instance — sign-out and auth listeners must share the same client
 // so state changes propagate correctly. Calling createClient() on every request
@@ -233,8 +233,6 @@ export default function ToT() {
   const [installPlatform, setInstallPlatform] = useState(null); // 'ios' | 'android'
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [upgradeModal, setUpgradeModal] = useState(false);
-  const [generating, setGenerating] = useState(false);
-  const [genPicksResult, setGenPicksResult] = useState(null);
   const [generatingProps, setGeneratingProps] = useState(false);
   const [genPropsResult, setGenPropsResult] = useState(null);
   const [activatingPro, setActivatingPro] = useState(false);
@@ -706,18 +704,6 @@ export default function ToT() {
     const betas = (process.env.NEXT_PUBLIC_BETA_EMAILS || "").split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
     setIsBeta(betas.includes(user.email.toLowerCase()));
   }, [user?.email]);
-
-  const generatePicks = async () => {
-    setGenerating(true);
-    try {
-      const headers = await getAuthHeaders();
-      const res = await fetch("/api/admin/regen", { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify({}) });
-      const data = await res.json().catch(() => ({}));
-      setGenPicksResult(data);
-      await fetchPicks(selectedDate, true);
-    } catch (e) { setGenPicksResult({ error: e.message }); }
-    setGenerating(false);
-  };
 
   // Admin-only diagnostic: force-regenerates today+tomorrow props and
   // surfaces the cron's raw result (including its "reason" string when a
@@ -1394,33 +1380,6 @@ export default function ToT() {
             </button>
           ))}
         </div>
-        {activeTab === "picks" && (
-          <div style={{ display: "flex", gap: 4 }}>
-            {["edge", "time"].map(s2 => (
-              <button
-                key={s2}
-                style={iconButtonStyle({ active: sortBy === s2 })}
-                onClick={() => setSortBy(s2)}
-                title={s2 === "edge" ? "Sort by edge" : "Sort by time"}
-              >
-                {s2 === "edge" ? <TrendingUpIcon size={14} /> : <ClockIcon size={14} />}
-              </button>
-            ))}
-            <button
-              style={iconButtonStyle({})}
-              onClick={() => fetchPicks(selectedDate, true)}
-              title="Refresh picks"
-            ><RefreshIcon size={14} /></button>
-            {isAdmin && (
-              <button
-                style={{ ...iconButtonStyle({ active: generating }), fontSize: 11 }}
-                onClick={generatePicks}
-                disabled={generating}
-                title="Force-generate picks for today + tomorrow"
-              >{generating ? "…" : "Gen"}</button>
-            )}
-          </div>
-        )}
       </div>}
 
       {navGroup(activeTab) === "portfolio" && <div style={S.subNav}>
@@ -1566,12 +1525,6 @@ export default function ToT() {
               <div style={{ fontSize: 12, color: "#555" }}>Full breakdowns · edge scores · parlay builder</div>
             </div>
           </div>
-        )}
-
-        {activeTab === "picks" && isAdmin && genPicksResult && (
-          <pre style={{ fontSize: 11, color: "#888", marginBottom: 12, fontFamily: "'JetBrains Mono',monospace", whiteSpace: "pre-wrap", background: "#0e0f13", border: "1px solid #242832", borderRadius: 6, padding: 8 }}>
-            {JSON.stringify(genPicksResult, null, 2)}
-          </pre>
         )}
 
         {activeTab === "picks" && isPro && (
