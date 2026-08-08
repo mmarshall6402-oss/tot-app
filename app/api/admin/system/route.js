@@ -1,14 +1,26 @@
 // app/api/admin/system/route.js
-// Private admin route — powers the System tab on /admin.
-// action=health: live-probes The Odds API / SportsGameOdds / ESPN and reports
-//   Supabase odds-cache staleness for MLB + NFL.
-// action=errors: recent rows from error_log (see sql/020_error_log.sql and
-//   lib/error-log.js) — self-logged failures, since Vercel Hobby doesn't expose
-//   durable runtime logs via API.
+// Private admin route — powers the System tab and Rate Limits tab on /admin.
+//
+// action=health: live-probes The Odds API / SportsGameOdds / ESPN (MLB) and
+//   reports Supabase odds-cache staleness for MLB + NFL. Cheap, used by the
+//   System tab.
+// action=extended-health: everything in health, plus NFL TOA/SGO probes and
+//   an Anthropic probe. Pricier (more live calls), used by the Rate Limits tab.
+// action=quota-trend: api_quota_log history (sql/022) — snapshots captured off
+//   real traffic, not dedicated probes, so reading this doesn't spend quota.
+// action=claim-stats: prop_claim_daily_stats (sql/023) — claimed-vs-skipped
+//   counts from the claim_prop_fetch dedup (sql/021).
+// action=errors: recent rows from error_log (sql/020) — self-logged failures,
+//   since Vercel Hobby doesn't expose durable runtime logs via API.
+// POST action=bust-cache: deletes the Supabase odds-cache row for a sport so
+//   the next request fetches live instead of serving stale data.
+//
 // Supersedes the old app/api/admin/debug-odds route, which had no auth check.
 
 import { createClient } from "@supabase/supabase-js";
+import Anthropic from "@anthropic-ai/sdk";
 import { requireAuth } from "../../../../lib/auth.js";
+import { logQuotaSnapshot } from "../../../../lib/quota-log.js";
 
 const TOA_KEY  = process.env.THE_ODDS_API_KEY;
 const TOA_BASE = "https://api.the-odds-api.com/v4";
@@ -29,13 +41,17 @@ async function checkAuth(request) {
   return admins.includes(user.email?.toLowerCase());
 }
 
-async function probeTOA() {
+// sportPath: "baseball_mlb" or "americanfootball_nfl". Logs the real quota
+// headers off this call — it's a live TOA request either way, so might as
+// well feed the trend rather than waste it.
+async function probeTOA(sportPath = "baseball_mlb") {
   try {
     if (!TOA_KEY) throw new Error("THE_ODDS_API_KEY env var not set");
-    const url = `${TOA_BASE}/sports/baseball_mlb/odds?apiKey=${TOA_KEY}&regions=us&markets=h2h&oddsFormat=american&dateFormat=iso`;
+    const url = `${TOA_BASE}/sports/${sportPath}/odds?apiKey=${TOA_KEY}&regions=us&markets=h2h&oddsFormat=american&dateFormat=iso`;
     const r = await fetch(url);
     const remaining = r.headers.get("x-requests-remaining");
     const used = r.headers.get("x-requests-used");
+    logQuotaSnapshot("toa", remaining, used);
     if (!r.ok) {
       const body = await r.text().catch(() => "");
       return { ok: false, status: r.status, error: body.slice(0, 200) };
@@ -52,10 +68,10 @@ async function probeTOA() {
   }
 }
 
-async function probeSGO() {
+async function probeSGO(leagueID = "MLB") {
   try {
     if (!SGO_KEY) throw new Error("SPORTSGAMEODDS_API_KEY env var not set");
-    const params = new URLSearchParams({ leagueID: "MLB", oddID: "points-home-game-ml-home,points-away-game-ml-away", oddsAvailable: "true", limit: "50", apiKey: SGO_KEY });
+    const params = new URLSearchParams({ leagueID, oddID: "points-home-game-ml-home,points-away-game-ml-away", oddsAvailable: "true", limit: "50", apiKey: SGO_KEY });
     const r = await fetch(`${SGO_BASE}/events?${params}`);
     if (!r.ok) return { ok: false, status: r.status };
     const json = await r.json();
@@ -84,6 +100,23 @@ async function probeESPN() {
   }
 }
 
+// Minimal-cost reachability probe (max_tokens: 1) — just needs to confirm
+// the key is valid and not quota'd, not produce real output.
+async function probeAnthropic() {
+  try {
+    if (!process.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY env var not set");
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 1,
+      messages: [{ role: "user", content: "hi" }],
+    });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, status: e.status || null, error: e.message };
+  }
+}
+
 async function cacheAge(sb, table) {
   const { data } = await sb.from(table).select("generated_at").eq("date", "__odds__").single();
   if (!data?.generated_at) return { generatedAt: null, ageMin: null, stale: true };
@@ -100,15 +133,55 @@ export async function GET(request) {
   const action = searchParams.get("action") || "health";
   const sb = getSupabase();
 
-  if (action === "health") {
-    const [toa, sgo, espn, mlbCache, nflCache] = await Promise.all([
-      probeTOA(),
-      probeSGO(),
+  if (action === "health" || action === "extended-health") {
+    const extended = action === "extended-health";
+    const probes = [
+      probeTOA("baseball_mlb"),
+      probeSGO("MLB"),
       probeESPN(),
       cacheAge(sb, "picks_cache").catch(() => ({ generatedAt: null, ageMin: null, stale: true })),
       cacheAge(sb, "nfl_picks_cache").catch(() => ({ generatedAt: null, ageMin: null, stale: true })),
-    ]);
-    return Response.json({ checkedAt: new Date().toISOString(), sources: { toa, sgo, espn }, cache: { mlb: mlbCache, nfl: nflCache } });
+    ];
+    if (extended) {
+      probes.push(probeTOA("americanfootball_nfl"), probeSGO("NFL"), probeAnthropic());
+    }
+    const results = await Promise.all(probes);
+    const [toa, sgo, espn, mlbCache, nflCache, nflToa, nflSgo, anthropic] = results;
+    const body = { checkedAt: new Date().toISOString(), sources: { toa, sgo, espn }, cache: { mlb: mlbCache, nfl: nflCache } };
+    if (extended) {
+      body.sources.nflToa = nflToa;
+      body.sources.nflSgo = nflSgo;
+      body.sources.anthropic = anthropic;
+    }
+    return Response.json(body);
+  }
+
+  if (action === "quota-trend") {
+    const hours = Math.min(parseInt(searchParams.get("hours") || "48"), 168);
+    const source = searchParams.get("source") || "toa";
+    const since = new Date(Date.now() - hours * 3600 * 1000).toISOString();
+    const { data, error } = await sb
+      .from("api_quota_log")
+      .select("requests_remaining, requests_used, recorded_at")
+      .eq("source", source)
+      .gte("recorded_at", since)
+      .order("recorded_at", { ascending: true })
+      .limit(500);
+    if (error) return Response.json({ points: [], windowHours: hours, tableMissing: true });
+    return Response.json({ points: data || [], windowHours: hours });
+  }
+
+  if (action === "claim-stats") {
+    const days = Math.min(parseInt(searchParams.get("days") || "7"), 30);
+    const since = new Date(Date.now() - days * 86400000).toISOString().split("T")[0];
+    const { data, error } = await sb
+      .from("prop_claim_daily_stats")
+      .select("*")
+      .gte("date", since)
+      .order("date", { ascending: true });
+    if (error) return Response.json({ days: [], totals: { claimed: 0, skipped: 0 }, tableMissing: true });
+    const totals = (data || []).reduce((a, r) => ({ claimed: a.claimed + r.claimed_count, skipped: a.skipped + r.skipped_count }), { claimed: 0, skipped: 0 });
+    return Response.json({ days: data || [], totals });
   }
 
   if (action === "errors") {
@@ -132,4 +205,27 @@ export async function GET(request) {
   }
 
   return Response.json({ error: "Unknown action" }, { status: 400 });
+}
+
+const BUSTABLE = {
+  mlb: { table: "picks_cache" },
+  nfl: { table: "nfl_picks_cache" },
+};
+
+export async function POST(request) {
+  if (!await checkAuth(request)) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = await request.json().catch(() => ({}));
+  if (body.action !== "bust-cache") {
+    return Response.json({ error: "Unknown action" }, { status: 400 });
+  }
+  const target = BUSTABLE[body.sport];
+  if (!target) return Response.json({ error: "sport must be mlb or nfl" }, { status: 400 });
+
+  const sb = getSupabase();
+  const { error } = await sb.from(target.table).delete().eq("date", "__odds__");
+  if (error) return Response.json({ error: error.message }, { status: 500 });
+  return Response.json({ ok: true, sport: body.sport });
 }

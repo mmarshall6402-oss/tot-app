@@ -105,6 +105,10 @@ export async function GET(request) {
             logError("rate-limit-guard", e.message, { route: "/api/props:claim_prop_fetch" });
           }
 
+          // Fire-and-forget — proves the dedup is doing something (Rate
+          // Limits tab), not on the request's critical path.
+          supabase.rpc("record_prop_claim", { p_date: date, p_claimed: claimed }).then(() => {}).catch(() => {});
+
           if (!claimed) {
             // Lost the claim — another instance is already fetching this
             // event. Wait briefly and re-read the cache once instead of

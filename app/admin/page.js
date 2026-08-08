@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 let _sb = null;
@@ -72,8 +72,74 @@ function Btn({ onClick, disabled, state, labels, style = {} }) {
   );
 }
 
-const NAVS = ["overview", "picks", "games", "clv", "cal", "weights", "codes", "email", "tweet", "system"];
-const NAV_LABELS = { overview: "📊 Overview", picks: "⚾ Picks", games: "🗂️ Games", clv: "📈 CLV", cal: "📐 Calibration", weights: "🎛️ Weights", codes: "🔑 Codes", email: "✉️ Email", tweet: "𝕏 Tweet", system: "⚙️ System" };
+// Single-series line — no legend needed (the section title above it names the
+// series). Direct-labels the current value instead of a legend box, and
+// carries a hover crosshair+tooltip since an SVG chart should be interactive.
+// The caller renders a table-view toggle alongside this for the accessibility
+// fallback rather than baking it in here.
+function QuotaSparkline({ points }) {
+  const containerRef = useRef(null);
+  const [hoverIdx, setHoverIdx] = useState(null);
+  const W = 600, H = 90, PAD = 10;
+
+  const valid = (points || []).filter(p => p.requests_remaining != null);
+  if (valid.length < 2) {
+    return <div style={{ color: "#555", fontSize: 12, padding: "24px 0", textAlign: "center" }}>Not enough snapshots yet — needs at least two live calls to plot a trend.</div>;
+  }
+
+  const times = valid.map(p => new Date(p.recorded_at).getTime());
+  const vals  = valid.map(p => p.requests_remaining);
+  const tMin = Math.min(...times), tMax = Math.max(...times);
+  const vMin = Math.min(...vals), vMax = Math.max(...vals);
+  const vSpan = vMax - vMin || 1;
+
+  const xOf = t => tMax === tMin ? W / 2 : PAD + ((t - tMin) / (tMax - tMin)) * (W - PAD * 2);
+  const yOf = v => H - PAD - ((v - vMin) / vSpan) * (H - PAD * 2);
+
+  const coords = valid.map((p, i) => ({ x: xOf(times[i]), y: yOf(vals[i]), v: vals[i], t: times[i] }));
+  const path = coords.map((c, i) => `${i === 0 ? "M" : "L"} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`).join(" ");
+  const last = coords[coords.length - 1];
+  const hovered = hoverIdx != null ? coords[hoverIdx] : null;
+
+  function handleMove(e) {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const px = ((e.clientX - rect.left) / rect.width) * W;
+    let nearest = 0, best = Infinity;
+    coords.forEach((c, i) => { const d = Math.abs(c.x - px); if (d < best) { best = d; nearest = i; } });
+    setHoverIdx(nearest);
+  }
+
+  return (
+    <div ref={containerRef} style={{ position: "relative" }} onMouseMove={handleMove} onMouseLeave={() => setHoverIdx(null)}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: 90, display: "block" }} preserveAspectRatio="none">
+        <line x1={PAD} y1={H - PAD} x2={W - PAD} y2={H - PAD} stroke="#1a1a1a" strokeWidth="1" />
+        <path d={path} fill="none" stroke="#00FF87" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        {hovered ? (
+          <>
+            <line x1={hovered.x} y1={PAD} x2={hovered.x} y2={H - PAD} stroke="#333" strokeWidth="1" />
+            <circle cx={hovered.x} cy={hovered.y} r="4" fill="#00FF87" stroke="#000" strokeWidth="1.5" />
+          </>
+        ) : (
+          <circle cx={last.x} cy={last.y} r="3" fill="#00FF87" />
+        )}
+      </svg>
+      <div style={{ position: "absolute", top: 0, right: 0, fontSize: 11, ...S.mono, color: "#00FF87", fontWeight: 700 }}>{last.v} left</div>
+      {hovered && (
+        <div style={{
+          position: "absolute", left: `${(hovered.x / W) * 100}%`, top: 0, transform: "translateX(-50%)",
+          background: "#111", border: "1px solid #333", borderRadius: 6, padding: "4px 8px", fontSize: 10,
+          ...S.mono, color: "#fff", whiteSpace: "nowrap", pointerEvents: "none",
+        }}>
+          {hovered.v} · {new Date(hovered.t).toLocaleTimeString("en-US", { timeZone: "America/Chicago", hour: "numeric", minute: "2-digit" })} CT
+        </div>
+      )}
+    </div>
+  );
+}
+
+const NAVS = ["overview", "picks", "games", "clv", "cal", "weights", "codes", "email", "tweet", "system", "ratelimits"];
+const NAV_LABELS = { overview: "📊 Overview", picks: "⚾ Picks", games: "🗂️ Games", clv: "📈 CLV", cal: "📐 Calibration", weights: "🎛️ Weights", codes: "🔑 Codes", email: "✉️ Email", tweet: "𝕏 Tweet", system: "⚙️ System", ratelimits: "🚦 Rate Limits" };
 
 export default function AdminDash() {
   const [auth, setAuth]   = useState(false);
@@ -102,6 +168,12 @@ export default function AdminDash() {
   const [sysHealth, setSysHealth] = useState(null);
   const [sysErrors, setSysErrors] = useState(null);
   const [sysLoading, setSysLoading] = useState(false);
+  const [rlHealth, setRlHealth] = useState(null);
+  const [rlTrend, setRlTrend] = useState(null);
+  const [rlClaims, setRlClaims] = useState(null);
+  const [rlLoading, setRlLoading] = useState(false);
+  const [rlBustS, setRlBustS] = useState(null); // { sport, state: "loading"|"ok"|"err" }
+  const [rlTrendView, setRlTrendView] = useState("chart"); // "chart" | "table"
 
   // form state
   const [codeLabel, setCL]      = useState("");
@@ -172,6 +244,47 @@ export default function AdminDash() {
       setSysErrors(null);
     }
     setSysLoading(false);
+  }
+
+  // Lazy-loaded on first visit to the Rate Limits tab. Uses action=extended-health
+  // (pricier than System's action=health — includes NFL + Anthropic probes),
+  // so this genuinely shouldn't run more than "when someone opens this tab."
+  useEffect(() => {
+    if (tab === "ratelimits" && auth && !rlHealth && !rlLoading) {
+      loadRateLimits(token);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, auth]);
+
+  async function loadRateLimits(tok) {
+    setRlLoading(true);
+    const h = { Authorization: `Bearer ${tok}` };
+    try {
+      const [healthR, trendR, claimsR] = await Promise.all([
+        fetch("/api/admin/system?action=extended-health", { headers: h }).then(r => r.json()).catch(() => null),
+        fetch("/api/admin/system?action=quota-trend&hours=48", { headers: h }).then(r => r.json()).catch(() => null),
+        fetch("/api/admin/system?action=claim-stats&days=7", { headers: h }).then(r => r.json()).catch(() => null),
+      ]);
+      setRlHealth(healthR);
+      setRlTrend(trendR);
+      setRlClaims(claimsR);
+    } catch {
+      setRlHealth(null); setRlTrend(null); setRlClaims(null);
+    }
+    setRlLoading(false);
+  }
+
+  async function bustCache(sport) {
+    setRlBustS({ sport, state: "loading" });
+    try {
+      const r = await fetch("/api/admin/system", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: "bust-cache", sport }),
+      });
+      setRlBustS({ sport, state: r.ok ? "ok" : "err" });
+    } catch { setRlBustS({ sport, state: "err" }); }
+    setTimeout(() => setRlBustS(null), 3000);
   }
 
   async function loadGames(tok, page) {
@@ -814,6 +927,124 @@ export default function AdminDash() {
               )}
             </>
           )}
+        </>
+      )}
+
+      {/* ── RATE LIMITS ── */}
+      {tab === "ratelimits" && (
+        <>
+          <div style={{ ...S.row, marginBottom: 14 }}>
+            <span style={S.lbl}>NFL ODDS + ANTHROPIC HEALTH</span>
+            <button onClick={() => loadRateLimits(token)} disabled={rlLoading}
+              style={{ ...S.btn, padding: "5px 10px", fontSize: 11, opacity: rlLoading ? 0.5 : 1 }}>
+              {rlLoading ? "…" : "↻ Refresh"}
+            </button>
+          </div>
+          <div style={{ fontSize: 10, color: "#333", marginBottom: 10, lineHeight: 1.6 }}>
+            Each refresh here fires real live requests (NFL TOA + SGO + a 1-token Anthropic call) — costs a small
+            amount of quota to check, so it's manual-only, not auto-polled.
+          </div>
+
+          {rlLoading && !rlHealth && <div style={{ color: "#555", fontSize: 12, marginBottom: 14 }}>Checking…</div>}
+
+          {rlHealth && (
+            <>
+              {["nflToa", "nflSgo", "anthropic"].map(key => {
+                const s = rlHealth.sources?.[key];
+                const label = { nflToa: "The Odds API (NFL)", nflSgo: "SportsGameOdds (NFL)", anthropic: "Anthropic" }[key];
+                const ok = s?.ok;
+                return (
+                  <div key={key} style={{ ...S.card, marginBottom: 8 }}>
+                    <div style={{ ...S.row, marginBottom: s?.error ? 6 : 0 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700 }}>{label}</span>
+                      <span style={{ ...S.mono, fontSize: 11, fontWeight: 700, color: ok ? "#00FF87" : "#FF4D4D" }}>
+                        {ok ? "✓ OK" : `✗ ${s?.status || "DOWN"}`}
+                      </span>
+                    </div>
+                    {s?.error && <div style={{ fontSize: 11, color: "#FF4D4D", lineHeight: 1.5 }}>{s.error}</div>}
+                    {ok && key === "nflToa" && (
+                      <div style={{ fontSize: 11, color: "#888" }}>{s.games} games · {s.requestsRemaining ?? "?"} requests remaining (account-wide, shared with MLB)</div>
+                    )}
+                    {ok && key === "nflSgo" && <div style={{ fontSize: 11, color: "#888" }}>{s.games} games</div>}
+                  </div>
+                );
+              })}
+            </>
+          )}
+
+          <div style={{ ...S.row, marginBottom: 10, marginTop: 14 }}>
+            <span style={S.lbl}>TOA QUOTA — LAST 48H</span>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button onClick={() => setRlTrendView("chart")}
+                style={{ ...S.btn, padding: "4px 10px", fontSize: 10, background: rlTrendView === "chart" ? "#00FF87" : "#111", color: rlTrendView === "chart" ? "#000" : "#666" }}>Chart</button>
+              <button onClick={() => setRlTrendView("table")}
+                style={{ ...S.btn, padding: "4px 10px", fontSize: 10, background: rlTrendView === "table" ? "#00FF87" : "#111", color: rlTrendView === "table" ? "#000" : "#666" }}>Table</button>
+            </div>
+          </div>
+          <div style={{ fontSize: 10, color: "#333", marginBottom: 10 }}>
+            Plotted from headers on real traffic (crons + live user requests) — reading this never spends quota itself.
+          </div>
+          {rlTrend?.tableMissing && (
+            <div style={{ ...S.card, marginBottom: 14, border: "1px solid rgba(255,214,0,0.2)", background: "rgba(255,214,0,0.04)" }}>
+              <div style={{ fontSize: 12, color: "#FFD600" }}>⚠️ api_quota_log table not found — run sql/022_api_quota_log.sql against Supabase.</div>
+            </div>
+          )}
+          {rlTrend && !rlTrend.tableMissing && (
+            <div style={{ ...S.card, marginBottom: 14 }}>
+              {rlTrendView === "chart" ? (
+                <QuotaSparkline points={rlTrend.points} />
+              ) : (
+                <div style={{ maxHeight: 220, overflowY: "auto" }}>
+                  {(!rlTrend.points || rlTrend.points.length === 0) && <div style={{ color: "#555", fontSize: 12 }}>No snapshots yet</div>}
+                  {rlTrend.points?.slice().reverse().map((p, i) => (
+                    <div key={i} style={{ ...S.row, padding: "6px 0", borderBottom: "1px solid #111", fontSize: 11 }}>
+                      <span style={{ color: "#666" }}>{new Date(p.recorded_at).toLocaleString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} CT</span>
+                      <span style={{ ...S.mono, color: "#00FF87", fontWeight: 700 }}>{p.requests_remaining ?? "—"} left</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <span style={S.lbl}>PROP-FETCH CLAIM DEDUP — LAST 7 DAYS</span>
+          <div style={{ fontSize: 10, color: "#333", marginBottom: 10, lineHeight: 1.6 }}>
+            &quot;Skipped&quot; = a request that would otherwise have fired its own live The Odds API call for a game
+            another instance was already fetching. Proves the claim_prop_fetch lock (sql/021) is working.
+          </div>
+          {rlClaims?.tableMissing && (
+            <div style={{ ...S.card, marginBottom: 14, border: "1px solid rgba(255,214,0,0.2)", background: "rgba(255,214,0,0.04)" }}>
+              <div style={{ fontSize: 12, color: "#FFD600" }}>⚠️ prop_claim_daily_stats table not found — run sql/023_prop_claim_stats.sql against Supabase.</div>
+            </div>
+          )}
+          {rlClaims && !rlClaims.tableMissing && (
+            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+              <Chip label="LIVE FETCHES" value={rlClaims.totals.claimed} />
+              <Chip label="SKIPPED (DEDUPED)" value={rlClaims.totals.skipped} color={rlClaims.totals.skipped > 0 ? "#00FF87" : "#fff"} />
+              <Chip label="DEDUP RATE"
+                value={rlClaims.totals.claimed + rlClaims.totals.skipped > 0
+                  ? `${Math.round(100 * rlClaims.totals.skipped / (rlClaims.totals.claimed + rlClaims.totals.skipped))}%`
+                  : "—"} />
+            </div>
+          )}
+
+          <span style={S.lbl}>QUOTA ALERT</span>
+          <div style={{ ...S.card, marginBottom: 14, fontSize: 12, color: "#888", lineHeight: 1.8 }}>
+            Checks daily at noon UTC (<code style={{ color: "#fff" }}>/api/cron/quota-alert</code>) — emails the admin
+            list if TOA requests remaining drops below <code style={{ color: "#fff" }}>TOA_QUOTA_ALERT_THRESHOLD</code>
+            {" "}(default 20). Set that env var in Vercel to change the threshold.
+          </div>
+
+          <span style={S.lbl}>FORCE-REFRESH ODDS CACHE</span>
+          <div style={{ fontSize: 10, color: "#333", marginBottom: 10 }}>
+            Deletes the Supabase odds-cache row so the next request fetches live instead of serving stale data — use during an incident, not routinely.
+          </div>
+          <div style={{ ...S.card, display: "flex", gap: 8 }}>
+            <Btn onClick={() => bustCache("mlb")} state={rlBustS?.sport === "mlb" ? rlBustS.state : null} style={{ flex: 1 }}
+              labels={{ loading: "Busting…", ok: "✓ Busted", err: "✗ Failed", default: "Bust MLB Cache" }} />
+            <Btn onClick={() => bustCache("nfl")} state={rlBustS?.sport === "nfl" ? rlBustS.state : null} style={{ flex: 1 }}
+              labels={{ loading: "Busting…", ok: "✓ Busted", err: "✗ Failed", default: "Bust NFL Cache" }} />
+          </div>
         </>
       )}
 
