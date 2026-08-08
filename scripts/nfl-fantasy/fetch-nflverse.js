@@ -15,13 +15,11 @@
 // (outbound access to github.com/ESPN is blocked by this sandbox's egress
 // policy). Run this script once with network access (locally or in CI) and
 // check the logged column report before trusting the output.
-import * as XLSX_NS from "xlsx";
-const XLSX = XLSX_NS.default ?? XLSX_NS;
 import { writeFile, mkdir, readFile } from "fs/promises";
 import { join } from "path";
 import { aggregatePlayByPlay, attachPositions } from "../../lib/nfl-fantasy/pbp-aggregate.js";
+import { RELEASE_BASE, fetchCsv, checkColumns as checkColumnsShared } from "../../lib/nfl-fantasy/nflverse-client.js";
 
-const RELEASE_BASE = "https://github.com/nflverse/nflverse-data/releases/download";
 const OUT_DIR = join(process.cwd(), "data/nflverse");
 
 const SEASONS = (() => {
@@ -32,15 +30,6 @@ const SEASONS = (() => {
   // Last 5 completed seasons by default — enough lookback for recency-weighted projections.
   return Array.from({ length: 5 }, (_, i) => currentYear - 1 - i);
 })();
-
-async function fetchCsv(url) {
-  const res = await fetch(url, { signal: AbortSignal.timeout(120000) });
-  if (!res.ok) throw new Error(`fetch ${url} -> ${res.status}`);
-  const text = await res.text();
-  const wb = XLSX.read(text, { type: "string" });
-  const sheetName = wb.SheetNames[0];
-  return XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
-}
 
 // Play-by-play files run 90MB+ (vs ~1.6MB for one season's aggregated
 // stats) — deliberately not parsed through XLSX (see
@@ -90,17 +79,7 @@ const EXPECTED_COLUMNS = {
 };
 
 function checkColumns(label, rows) {
-  if (!rows.length) {
-    console.warn(`[fetch-nflverse] ${label}: 0 rows returned`);
-    return;
-  }
-  const actual = new Set(Object.keys(rows[0]));
-  const missing = (EXPECTED_COLUMNS[label] || []).filter(c => !actual.has(c));
-  if (missing.length) {
-    console.warn(`[fetch-nflverse] ${label}: missing expected columns ${missing.join(", ")} — nflverse may have renamed these. Actual columns: ${[...actual].join(", ")}`);
-  } else {
-    console.log(`[fetch-nflverse] ${label}: ${rows.length} rows, columns OK`);
-  }
+  checkColumnsShared(label, rows, EXPECTED_COLUMNS[label]);
 }
 
 async function main() {
