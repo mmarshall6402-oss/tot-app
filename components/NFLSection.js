@@ -14,7 +14,7 @@
 // pitchVs, expDivider, expSection, sortBtn) rather than this component guessing at
 // values that could silently drift from the host's actual theme.
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Fragment } from "react";
 import { impliedWinPct, oddsMovement } from "../lib/odds-display.js";
 import { TeamMatchupLink } from "./TeamModal.js";
 import TeamLogo from "./TeamLogo.js";
@@ -294,6 +294,207 @@ const SIGNAL_FILTERS = [
   { id: "PLAYCALLER", label: "Playcaller", test: (p) => !!p.playcaller_note },
 ];
 
+// ── Cheat Sheet "draft board" ────────────────────────────────────────────
+// Two layouts sharing the same tier language as draftTierStyle above:
+//   ALL positions -> a real draft-board grid, tiers as horizontal bands,
+//   QB/RB/WR/TE as columns (scrolls horizontally on phones, same tradeoff a
+//   printed cheat sheet has).
+//   One position selected -> a single tier-sectioned column, grouped by
+//   tier_position (see sql/024_nfl_fantasy_position_tier.sql) rather than
+//   the cross-position `tier`, which leaves sparse, non-contiguous gaps
+//   once every other position has been filtered out.
+const BOARD_POSITIONS = ["QB", "RB", "WR", "TE"];
+
+function BoardChip({ p }) {
+  return (
+    <div style={{ background: "#12141a", border: "1px solid #242832", borderRadius: 8, padding: "6px 8px" }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
+        <span style={{ fontSize: 9, color: "#3d424f", fontFamily: tokens.font.mono, flexShrink: 0 }}>{p.rank_overall}</span>
+        <span style={{ fontSize: 11.5, fontWeight: 700, color: "#eee", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
+      </div>
+      <div style={{ fontSize: 9.5, color: "#666", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {p.team || "FA"}{p.injury_status ? ` · ${p.injury_status}` : ""}
+      </div>
+    </div>
+  );
+}
+
+function DraftBoardGrid({ players }) {
+  const grid = new Map();
+  for (const p of players) {
+    const t = p.tier ?? 0;
+    if (!grid.has(t)) grid.set(t, { QB: [], RB: [], WR: [], TE: [] });
+    const bucket = grid.get(t);
+    if (bucket[p.position]) bucket[p.position].push(p);
+  }
+  const tiers = [...grid.entries()].sort((a, b) => a[0] - b[0]);
+
+  return (
+    <div style={{ overflowX: "auto", paddingBottom: 4 }}>
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${BOARD_POSITIONS.length}, minmax(150px, 1fr))`, gap: 6, minWidth: BOARD_POSITIONS.length * 156 }}>
+        {BOARD_POSITIONS.map(pos => (
+          <div key={pos} style={{ fontSize: 11, fontWeight: 700, color: NFL_ORANGE, letterSpacing: 1, textAlign: "center", padding: "4px 0" }}>
+            {pos}
+          </div>
+        ))}
+        {tiers.map(([tierNum, byPos]) => {
+          const t = draftTierStyle(tierNum);
+          return (
+            <Fragment key={tierNum}>
+              <div style={{ gridColumn: "1 / -1", fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: t.color, background: t.bg, border: `1px solid ${t.color}33`, borderRadius: 6, padding: "4px 10px", marginTop: 6 }}>
+                TIER {tierNum}
+              </div>
+              {BOARD_POSITIONS.map(pos => (
+                <div key={pos} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {byPos[pos].length
+                    ? byPos[pos].map(p => <BoardChip key={p.player_id} p={p} />)
+                    : <div style={{ fontSize: 10, color: "#2b2f3a", textAlign: "center", padding: "8px 0" }}>—</div>}
+                </div>
+              ))}
+            </Fragment>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function DraftBoardRow({ p }) {
+  return (
+    <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 12, padding: "10px 12px", display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ fontFamily: tokens.font.mono, fontSize: 15, fontWeight: 700, color: "#3d424f", width: 24, textAlign: "center", flexShrink: 0 }}>{p.rank_overall}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+          <span style={{ fontWeight: 700, fontSize: 13.5 }}>{p.name}</span>
+          <span style={{ fontSize: 11, color: "#666" }}>{p.position} · {p.team || "FA"}</span>
+        </div>
+        <div style={{ display: "flex", gap: 10, marginTop: 3, fontSize: 10.5, color: "#888", fontFamily: tokens.font.mono, flexWrap: "wrap" }}>
+          <span>Proj {p.projected_points?.toFixed(1)}</span>
+          <span>Ceil {p.ceiling_points?.toFixed(1)} / Floor {p.floor_points?.toFixed(1)}</span>
+        </div>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-end", flexShrink: 0 }}>
+        {p.injury_status && (
+          <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(217,100,92,0.1)", color: "#D9645C", border: "1px solid rgba(217,100,92,0.3)" }}>
+            {p.injury_status}
+          </span>
+        )}
+        {p.trending_add_count > 0 && (
+          <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(47,191,113,0.08)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.25)" }}>
+            {p.trending_add_count} adds/24h
+          </span>
+        )}
+        {p.personnel_note && (
+          <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(120,140,255,0.08)", color: "#7C8CFF", border: "1px solid rgba(120,140,255,0.25)" }}>
+            {p.personnel_note}
+          </span>
+        )}
+        {p.pace_note && (
+          <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(240,180,60,0.08)", color: "#F0B43C", border: "1px solid rgba(240,180,60,0.25)" }}>
+            {p.pace_note}
+          </span>
+        )}
+        {p.playcaller_note && (
+          <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(200,120,220,0.08)", color: "#C878DC", border: "1px solid rgba(200,120,220,0.25)" }}>
+            {p.playcaller_note}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DraftBoardColumn({ players }) {
+  const byTier = new Map();
+  for (const p of players) {
+    const t = p.tier_position ?? p.tier ?? 0;
+    if (!byTier.has(t)) byTier.set(t, []);
+    byTier.get(t).push(p);
+  }
+  const tiers = [...byTier.entries()].sort((a, b) => a[0] - b[0]);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {tiers.map(([tierNum, list]) => {
+        const t = draftTierStyle(tierNum);
+        return (
+          <div key={tierNum}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: 1.5, color: t.color, background: t.bg, border: `1px solid ${t.color}33`, borderRadius: 6, padding: "5px 10px", marginBottom: 6 }}>
+              TIER {tierNum}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {list.map(p => <DraftBoardRow key={p.player_id} p={p} />)}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Compact browsable team grid — shared by the Depth Chart and Schedule
+// fantasy tools, both single-team views that need the same "pick a team"
+// entry point. Fetches the team list once and caches it in module scope
+// since it doesn't vary by user/session.
+let _nflTeamListCache = null;
+function TeamPicker({ getAuthHeaders, onSelect, accent }) {
+  const [teams, setTeams] = useState(_nflTeamListCache);
+  const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    if (_nflTeamListCache) return;
+    (async () => {
+      try {
+        const headers = await getAuthHeaders();
+        const res = await fetch("/api/teams?sport=nfl", { headers });
+        const data = await res.json();
+        _nflTeamListCache = data.teams || [];
+        setTeams(_nflTeamListCache);
+      } catch { setTeams([]); }
+    })();
+  }, [getAuthHeaders]);
+
+  const q = query.trim().toLowerCase();
+  const filtered = (teams || []).filter(t => !q || t.name.toLowerCase().includes(q));
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <input
+        value={query} onChange={e => setQuery(e.target.value)}
+        placeholder="Search teams…"
+        style={{ background: "#12141a", border: "1px solid #2b2f3a", borderRadius: 10, padding: "10px 14px", color: "#fff", fontSize: 13, outline: "none" }}
+      />
+      {teams === null ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#555", fontSize: 13, padding: "20px 0" }}>
+          <div style={{ width: 18, height: 18, border: "2px solid #2b2f3a", borderTopColor: accent, borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+          Loading teams…
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 8 }}>
+          {filtered.map(t => (
+            <button key={t.name} onClick={() => onSelect(t.name)}
+              style={{ display: "flex", alignItems: "center", gap: 8, background: "#15171d", border: "1px solid #242832", borderRadius: 10, padding: "8px 10px", cursor: "pointer", textAlign: "left" }}>
+              <TeamLogo team={t.name} sport="nfl" size={22} />
+              <span style={{ fontSize: 12.5, fontWeight: 600, color: "#eee", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}</span>
+            </button>
+          ))}
+          {filtered.length === 0 && <div style={{ fontSize: 12, color: "#555", gridColumn: "1/-1", textAlign: "center", padding: 20 }}>No teams match.</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TeamSwitchBar({ team, accent, onChange }) {
+  return (
+    <button onClick={onChange} style={{ display: "flex", alignItems: "center", gap: 8, background: "#15171d", border: `1px solid ${accent}`, borderRadius: 10, padding: "8px 12px", cursor: "pointer", width: "100%" }}>
+      <TeamLogo team={team} sport="nfl" size={22} />
+      <span style={{ fontSize: 13, fontWeight: 700, color: "#fff", flex: 1, textAlign: "left" }}>{team}</span>
+      <span style={{ fontSize: 11, color: accent }}>Change ▾</span>
+    </button>
+  );
+}
+
 function fmtPropOdds(o) {
   return o == null ? "" : o > 0 ? `+${o}` : `${o}`;
 }
@@ -385,6 +586,18 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
   const [signalFilter, setSignalFilter] = useState("ALL");
   const [filtersOpen, setFiltersOpen] = useState(false);
 
+  // Depth Chart state
+  const [depthChartTeam, setDepthChartTeam] = useState(null);
+  const [depthChart, setDepthChart] = useState(null);
+  const [depthChartLoading, setDepthChartLoading] = useState(false);
+  const [depthChartError, setDepthChartError] = useState(null);
+
+  // Fantasy Schedule state
+  const [scheduleTeam, setScheduleTeam] = useState(null);
+  const [teamSchedule, setTeamSchedule] = useState(null);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [scheduleError, setScheduleError] = useState(null);
+
   // Odds teaser state (non-Pro Picks view)
   const [nflGames, setNflGames] = useState(null);
   const [nflLoading, setNflLoading] = useState(false);
@@ -464,6 +677,44 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
   useEffect(() => {
     if (subTab === "fantasy" && fantasyMode === "cheatSheet") loadCheatSheet();
   }, [subTab, fantasyMode, scoring, positionFilter]);
+
+  const loadDepthChart = async (team) => {
+    setDepthChartLoading(true); setDepthChartError(null);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/nfl/depth-chart?team=${encodeURIComponent(team)}`, { headers });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error");
+      setDepthChart(data);
+    } catch (e) {
+      setDepthChartError(e.message || "Could not load depth chart");
+      setDepthChart(null);
+    }
+    setDepthChartLoading(false);
+  };
+
+  useEffect(() => {
+    if (subTab === "fantasy" && fantasyMode === "depthChart" && depthChartTeam) loadDepthChart(depthChartTeam);
+  }, [subTab, fantasyMode, depthChartTeam]);
+
+  const loadTeamSchedule = async (team) => {
+    setScheduleLoading(true); setScheduleError(null);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/nfl/team-schedule?team=${encodeURIComponent(team)}`, { headers });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error");
+      setTeamSchedule(data);
+    } catch (e) {
+      setScheduleError(e.message || "Could not load schedule");
+      setTeamSchedule(null);
+    }
+    setScheduleLoading(false);
+  };
+
+  useEffect(() => {
+    if (subTab === "fantasy" && fantasyMode === "schedule" && scheduleTeam) loadTeamSchedule(scheduleTeam);
+  }, [subTab, fantasyMode, scheduleTeam]);
 
   const loadOdds = async () => {
     setNflLoading(true); setNflGames(null); setNflMsg(null);
@@ -581,6 +832,8 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                 { id: "trade",      label: "Trade" },
                 { id: "ask",        label: "Ask AI" },
                 { id: "cheatSheet", label: "Cheat Sheet" },
+                { id: "depthChart", label: "Depth Chart" },
+                { id: "schedule",   label: "Schedule" },
               ].map(({ id, label }) => (
                 <button key={id} onClick={() => setFantasyMode(id)} style={{ ...tabButtonStyle({ active: fantasyMode === id, accent: NFL_ORANGE }), flexShrink: 0 }}>{label}</button>
               ))}
@@ -716,54 +969,124 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                   </div>
                 )}
 
-                {!cheatSheetLoading && !cheatSheetError && filteredCheatSheet?.map(p => {
-                  const t = draftTierStyle(p.tier);
-                  return (
-                    <div key={p.player_id} style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 12, padding: "10px 12px", display: "flex", alignItems: "center", gap: 10 }}>
-                      <div style={{ fontFamily: tokens.font.mono, fontSize: 15, fontWeight: 700, color: "#3d424f", width: 24, textAlign: "center", flexShrink: 0 }}>{p.rank_overall}</div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
-                          <span style={{ fontWeight: 700, fontSize: 13.5 }}>{p.name}</span>
-                          <span style={{ fontSize: 11, color: "#666" }}>{p.position} · {p.team || "FA"}</span>
-                          <span style={{ fontSize: 9.5, fontWeight: 700, padding: "1px 7px", borderRadius: 999, background: t.bg, color: t.color, border: `1px solid ${t.color}33` }}>
-                            TIER {p.tier}
-                          </span>
-                        </div>
-                        <div style={{ display: "flex", gap: 10, marginTop: 3, fontSize: 10.5, color: "#888", fontFamily: tokens.font.mono, flexWrap: "wrap" }}>
-                          <span>Proj {p.projected_points?.toFixed(1)}</span>
-                          <span>Ceil {p.ceiling_points?.toFixed(1)} / Floor {p.floor_points?.toFixed(1)}</span>
+                {!cheatSheetLoading && !cheatSheetError && filteredCheatSheet?.length > 0 && (
+                  positionFilter === "ALL"
+                    ? <DraftBoardGrid players={filteredCheatSheet} />
+                    : <DraftBoardColumn players={filteredCheatSheet} />
+                )}
+              </div>
+            )}
+
+            {fantasyMode === "depthChart" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {depthChartTeam && (
+                  <TeamSwitchBar team={depthChartTeam} accent={NFL_ORANGE}
+                    onChange={() => { setDepthChartTeam(null); setDepthChart(null); setDepthChartError(null); }} />
+                )}
+                {!depthChartTeam && (
+                  <TeamPicker getAuthHeaders={getAuthHeaders} accent={NFL_ORANGE} onSelect={setDepthChartTeam} />
+                )}
+
+                {depthChartTeam && depthChartLoading && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#555", fontSize: 13, padding: "20px 0" }}>
+                    <div style={{ width: 18, height: 18, border: "2px solid #2b2f3a", borderTopColor: NFL_ORANGE, borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+                    Loading depth chart…
+                  </div>
+                )}
+                {depthChartTeam && !depthChartLoading && depthChartError && (
+                  <div style={S.center}>
+                    <div style={{ color: "#fff", fontWeight: 700, marginTop: 8 }}>Could not load depth chart</div>
+                    <div style={{ color: "#777", fontSize: 13, marginTop: 4 }}>{depthChartError}</div>
+                    <button style={{ ...S.saveBtn, marginTop: 14 }} onClick={() => loadDepthChart(depthChartTeam)}>Retry</button>
+                  </div>
+                )}
+                {depthChartTeam && !depthChartLoading && !depthChartError && depthChart && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                    {depthChart.positions.map(({ position, players }) => (
+                      <div key={position}>
+                        <div style={{ fontSize: 11, color: NFL_ORANGE, fontWeight: 700, letterSpacing: 1.5, marginBottom: 6 }}>{position}</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                          {players.map(p => (
+                            <div key={p.sleeperId} style={{ display: "flex", alignItems: "center", gap: 10, background: "#15171d", border: "1px solid #242832", borderRadius: 10, padding: "8px 10px" }}>
+                              <span style={{ width: 20, textAlign: "center", fontFamily: tokens.font.mono, fontSize: 12, fontWeight: 700, color: p.depthChartOrder === 1 ? NFL_ORANGE : "#555", flexShrink: 0 }}>
+                                {p.depthChartOrder}
+                              </span>
+                              <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: p.depthChartOrder === 1 ? 700 : 600, color: p.depthChartOrder === 1 ? "#fff" : "#ccc", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {p.name}
+                              </span>
+                              {p.injuryStatus && (
+                                <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(217,100,92,0.1)", color: "#D9645C", border: "1px solid rgba(217,100,92,0.3)", flexShrink: 0 }}>
+                                  {p.injuryStatus}
+                                </span>
+                              )}
+                            </div>
+                          ))}
                         </div>
                       </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-end", flexShrink: 0 }}>
-                        {p.injury_status && (
-                          <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(217,100,92,0.1)", color: "#D9645C", border: "1px solid rgba(217,100,92,0.3)" }}>
-                            {p.injury_status}
-                          </span>
-                        )}
-                        {p.trending_add_count > 0 && (
-                          <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(47,191,113,0.08)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.25)" }}>
-                            {p.trending_add_count} adds/24h
-                          </span>
-                        )}
-                        {p.personnel_note && (
-                          <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(120,140,255,0.08)", color: "#7C8CFF", border: "1px solid rgba(120,140,255,0.25)" }}>
-                            {p.personnel_note}
-                          </span>
-                        )}
-                        {p.pace_note && (
-                          <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(240,180,60,0.08)", color: "#F0B43C", border: "1px solid rgba(240,180,60,0.25)" }}>
-                            {p.pace_note}
-                          </span>
-                        )}
-                        {p.playcaller_note && (
-                          <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(200,120,220,0.08)", color: "#C878DC", border: "1px solid rgba(200,120,220,0.25)" }}>
-                            {p.playcaller_note}
-                          </span>
-                        )}
-                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {fantasyMode === "schedule" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {scheduleTeam && (
+                  <TeamSwitchBar team={scheduleTeam} accent={NFL_ORANGE}
+                    onChange={() => { setScheduleTeam(null); setTeamSchedule(null); setScheduleError(null); }} />
+                )}
+                {!scheduleTeam && (
+                  <TeamPicker getAuthHeaders={getAuthHeaders} accent={NFL_ORANGE} onSelect={setScheduleTeam} />
+                )}
+
+                {scheduleTeam && scheduleLoading && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#555", fontSize: 13, padding: "20px 0" }}>
+                    <div style={{ width: 18, height: 18, border: "2px solid #2b2f3a", borderTopColor: NFL_ORANGE, borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+                    Loading schedule…
+                  </div>
+                )}
+                {scheduleTeam && !scheduleLoading && scheduleError && (
+                  <div style={S.center}>
+                    <div style={{ color: "#fff", fontWeight: 700, marginTop: 8 }}>Could not load schedule</div>
+                    <div style={{ color: "#777", fontSize: 13, marginTop: 4 }}>{scheduleError}</div>
+                    <button style={{ ...S.saveBtn, marginTop: 14 }} onClick={() => loadTeamSchedule(scheduleTeam)}>Retry</button>
+                  </div>
+                )}
+                {scheduleTeam && !scheduleLoading && !scheduleError && teamSchedule && (
+                  teamSchedule.games.length === 0 ? (
+                    <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 14, padding: "28px 16px", textAlign: "center" }}>
+                      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>No schedule yet</div>
+                      <div style={{ fontSize: 13, color: "#555", lineHeight: 1.6 }}>Check back once the season schedule is released.</div>
                     </div>
-                  );
-                })}
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column" }}>
+                      {teamSchedule.games.map((g, i) => (
+                        <div key={g.week} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderTop: i > 0 ? `1px solid ${tokens.color.border}` : "none" }}>
+                          <span style={{ width: 30, flexShrink: 0, fontFamily: tokens.font.mono, fontSize: 11, color: "#555" }}>W{g.week}</span>
+                          {g.bye ? (
+                            <span style={{ fontSize: 13, color: "#555", fontStyle: "italic" }}>BYE WEEK</span>
+                          ) : (
+                            <>
+                              <TeamLogo team={g.opponent} sport="nfl" size={22} />
+                              <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: "#eee", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {g.isHome ? "vs" : "@"} {g.opponent}
+                              </span>
+                              {g.status === "Final" ? (
+                                <span style={{ fontFamily: tokens.font.mono, fontSize: 12, color: "#888", flexShrink: 0 }}>
+                                  {g.isHome ? `${g.homeScore}-${g.awayScore}` : `${g.awayScore}-${g.homeScore}`}
+                                </span>
+                              ) : (
+                                <span style={{ fontSize: 11, color: "#999", flexShrink: 0 }}>
+                                  {g.commenceTime ? new Date(g.commenceTime).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""}
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )
+                )}
               </div>
             )}
           </>
