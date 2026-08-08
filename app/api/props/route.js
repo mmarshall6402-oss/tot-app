@@ -9,6 +9,7 @@ import { requirePro } from "../../../lib/auth.js";
 import { fetchEventPlayerProps } from "../../../lib/odds-props.js";
 import { fetchBattersForLineup } from "../../../lib/mlb-batters.js";
 import { projectBatterHR } from "../../../lib/prop-probability.js";
+import { logError } from "../../../lib/error-log.js";
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ||
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
@@ -89,20 +90,51 @@ export async function GET(request) {
           // starts mean lib/odds-props.js's in-memory cache doesn't dedupe
           // across serverless instances, so without this every concurrent
           // request for a game whose lineup just posted fires its own live
-          // fetch. If another instance already holds the claim, skip: its
-          // write lands in prop_picks_cache shortly and the next request
-          // picks it up from cache instead of re-fetching. Fails open (RPC
-          // error treated as claimed) so a DB hiccup or the migration not
-          // being run yet degrades to today's behavior, not a broken feature.
+          // fetch. 15s TTL: long enough to cover a normal fetch, short
+          // enough that a claimant that died mid-request (no chance to
+          // release) doesn't block retries for long.
           let claimed = true;
           try {
-            const { data } = await supabase.rpc("claim_prop_fetch", { p_event_id: eventId, p_ttl_seconds: 60 });
+            const { data } = await supabase.rpc("claim_prop_fetch", { p_event_id: eventId, p_ttl_seconds: 15 });
             claimed = data !== false;
-          } catch { /* fail open */ }
-          if (!claimed) return;
+          } catch (e) {
+            // Fail open (proceed as if claimed) so a DB hiccup or the
+            // migration not being run yet degrades to pre-lock behavior
+            // instead of breaking props — but log it. A silently-failing
+            // claim looks identical to "fix applied" while doing nothing.
+            logError("rate-limit-guard", e.message, { route: "/api/props:claim_prop_fetch" });
+          }
+
+          if (!claimed) {
+            // Lost the claim — another instance is already fetching this
+            // event. Wait briefly and re-read the cache once instead of
+            // giving up immediately: for a game's first fetch of the day
+            // there's nothing to fall back to yet, so without this the
+            // loser would render that game's HR props as blank instead of
+            // picking up the winner's result, which typically lands well
+            // within the 15s window.
+            await new Promise(r => setTimeout(r, 1500));
+            const { data: refreshed } = await supabase
+              .from("prop_picks_cache")
+              .select("all_picks")
+              .eq("date", date)
+              .single();
+            const alreadyFetched = (refreshed?.all_picks || [])
+              .filter(p => p.marketType === "batter_hr" && p.gameId === String(mlb.gameId));
+            if (alreadyFetched.length) newPicks.push(...alreadyFetched);
+            return;
+          }
 
           let props;
-          try { props = await fetchEventPlayerProps(eventId); } catch { return; }
+          try {
+            props = await fetchEventPlayerProps(eventId);
+          } catch (e) {
+            // Release immediately on failure — otherwise a single TOA
+            // error costs a full claim window of missing props for this
+            // event, right when lineup-posting traffic is highest.
+            try { await supabase.from("prop_fetch_claims").delete().eq("event_id", eventId); } catch { /* best effort */ }
+            return;
+          }
           const [homeBatters, awayBatters] = await Promise.all([
             fetchBattersForLineup(mlb.homeLineupIds || []),
             fetchBattersForLineup(mlb.awayLineupIds || []),
