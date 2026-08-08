@@ -555,17 +555,25 @@ function TeamSwitchBar({ team, accent, onChange }) {
 // fallback slots land the first three receivers on a non-split depth chart
 // rather than all three showing the same one. x stays within [8,92] and
 // chips are 54px wide so nothing clips the field's rounded edge.
+// The WR-wide tier sits noticeably farther from the O-line tier than a
+// literal formation would (and the field is a bit taller than the "just
+// fits" minimum) specifically to leave room for showBackup chips at their
+// tallest — see layoutFormation below: splitting WR into LWR/RWR/SWR means
+// WR1 and WR2 can EACH independently qualify as the last slot for their own
+// code and show a backup now, not just WR3 like when they all shared one
+// generic "WR" pool. Two extra tall chips right above the O-line row is
+// exactly what collided there before this spacing was widened.
 const OFFENSE_SLOTS = [
-  { key: "WR1", label: "WR", x: 8, y: 52, codes: ["LWR", "WR"], showBackup: true },
-  { key: "WR2", label: "WR", x: 92, y: 52, codes: ["RWR", "WR"], showBackup: true },
-  { key: "LT", label: "LT", x: 22, y: 61, codes: ["LT", "OT", "OL"] },
-  { key: "LG", label: "LG", x: 36, y: 63, codes: ["LG", "OG", "OL"] },
-  { key: "C", label: "C", x: 50, y: 64, codes: ["C", "OL"] },
-  { key: "RG", label: "RG", x: 64, y: 63, codes: ["RG", "OG", "OL"] },
-  { key: "RT", label: "RT", x: 78, y: 61, codes: ["RT", "OT", "OL"] },
-  { key: "TE", label: "TE", x: 90, y: 68, codes: ["TE"], showBackup: true },
-  { key: "WR3", label: "WR", x: 66, y: 78, codes: ["SWR", "WR"], showBackup: true },
-  { key: "FB", label: "FB", x: 28, y: 78, codes: ["FB"], showBackup: true },
+  { key: "WR1", label: "WR", x: 8, y: 48, codes: ["LWR", "WR"], showBackup: true },
+  { key: "WR2", label: "WR", x: 92, y: 48, codes: ["RWR", "WR"], showBackup: true },
+  { key: "LT", label: "LT", x: 27, y: 65, codes: ["LT", "OT", "OL"] },
+  { key: "LG", label: "LG", x: 39, y: 67, codes: ["LG", "OG", "OL"] },
+  { key: "C", label: "C", x: 50, y: 68, codes: ["C", "OL"] },
+  { key: "RG", label: "RG", x: 61, y: 67, codes: ["RG", "OG", "OL"] },
+  { key: "RT", label: "RT", x: 73, y: 65, codes: ["RT", "OT", "OL"] },
+  { key: "TE", label: "TE", x: 89, y: 75, codes: ["TE"], showBackup: true },
+  { key: "WR3", label: "WR", x: 65, y: 81, codes: ["SWR", "WR"], showBackup: true },
+  { key: "FB", label: "FB", x: 30, y: 81, codes: ["FB"], showBackup: true },
   { key: "RB", label: "RB", x: 50, y: 85, codes: ["RB"], showBackup: true },
   { key: "QB", label: "QB", x: 50, y: 94, codes: ["QB"], showBackup: true },
 ];
@@ -693,7 +701,7 @@ function DepthChartField({ positions, accent }) {
   return (
     <div style={{ width: "100%", maxWidth: 380, margin: "0 auto", background: "#111318", border: "1px solid #1c1f26", borderRadius: 16, padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={{
-        position: "relative", width: "100%", aspectRatio: "1 / 1.02",
+        position: "relative", width: "100%", aspectRatio: "1 / 1.08",
         background: "linear-gradient(180deg, #16301f 0%, #132c1c 50%, #0f2318 100%)",
         backgroundImage: "repeating-linear-gradient(0deg, rgba(255,255,255,0.03) 0, rgba(255,255,255,0.03) 1px, transparent 1px, transparent 12.5%)",
         border: "1px solid #21422b", borderRadius: 12, overflow: "hidden",
