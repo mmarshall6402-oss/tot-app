@@ -16,7 +16,7 @@ import { impliedWinPct, oddsMovement } from "../lib/odds-display.js";
 import { translateReasons } from "../lib/reason-labels.js";
 import { shouldBetNow } from "../lib/fair-odds.js";
 import { S, tokens, SHARED_BUTTON_CSS, FONT_IMPORT_URL, tabButtonStyle, statTileStyle } from "../lib/ui-theme.js";
-import { CheckIcon, XIcon, TrashIcon, RefreshIcon, ChevronLeftIcon, CloseIcon, HomeIcon, GamesIcon, WalletIcon, UserIcon, LockIcon, SearchIcon } from "../components/icons.js";
+import { CheckIcon, XIcon, TrashIcon, RefreshIcon, ChevronLeftIcon, CloseIcon, HomeIcon, GamesIcon, WalletIcon, UserIcon, LockIcon, SearchIcon, FootballIcon } from "../components/icons.js";
 
 // Single shared instance — sign-out and auth listeners must share the same client
 // so state changes propagate correctly. Calling createClient() on every request
@@ -163,6 +163,57 @@ function AccuracyPanel({ savedPicks }) {
   );
 }
 
+// Home-screen fantasy hero — leads with the most actionable fantasy signal
+// available (a notable injury among top-ranked players, falling back to the
+// top NFL headline, falling back to a generic prompt) plus quick-nav chips
+// straight into the Fantasy hub. Shown to every user regardless of Pro
+// status, matching the rest of the Fantasy tab (not subscription-gated).
+function FantasySpotlightCard({ data, onOpen }) {
+  const notable = (data?.injuryReport || []).find(p => /\b(out|ir|doubtful)\b/i.test(p.injury_status || ""));
+  const topHeadline = (data?.headlines || [])[0];
+
+  return (
+    <div style={{ background: "linear-gradient(135deg, rgba(217,117,74,0.12), rgba(217,117,74,0.02))", border: "1px solid rgba(217,117,74,0.3)", borderRadius: 16, padding: 18 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, gap: 8 }}>
+        <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1.5, color: "#D9754A" }}>🏈 FANTASY SPOTLIGHT</span>
+        <button onClick={() => onOpen()} style={{ background: "none", border: "none", color: "#D9754A", fontSize: 12, fontWeight: 700, cursor: "pointer", padding: 0, flexShrink: 0 }}>
+          Open Fantasy Hub →
+        </button>
+      </div>
+
+      {notable ? (
+        <>
+          <div style={{ fontSize: 15, fontWeight: 800, color: "#fff" }}>
+            {notable.name} <span style={{ color: "#888", fontWeight: 600 }}>· {notable.position} {notable.team || "FA"}</span>
+          </div>
+          <div style={{ fontSize: 13, color: "#D9645C", fontWeight: 700, marginTop: 3 }}>{notable.injury_status}</div>
+          {notable.injury_risk && <div style={{ fontSize: 12, color: "#999", marginTop: 4, lineHeight: 1.5 }}>{notable.injury_risk}</div>}
+        </>
+      ) : topHeadline ? (
+        <div style={{ fontSize: 15, fontWeight: 800, color: "#fff", lineHeight: 1.35 }}>{topHeadline.headline}</div>
+      ) : (
+        <div style={{ fontSize: 13, color: "#999", lineHeight: 1.5 }}>
+          Start/sit calls, trade grades, a live draft cheat sheet, and injury news — all in one place.
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+        {[
+          { label: "Start/Sit", mode: "startSit" },
+          { label: "Cheat Sheet", mode: "cheatSheet" },
+          { label: "Trade Analyzer", mode: "trade" },
+          { label: "News", mode: "news" },
+        ].map(({ label, mode }) => (
+          <button key={label} onClick={() => onOpen(mode)}
+            style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 999, padding: "6px 12px", fontSize: 11.5, fontWeight: 700, color: "#ccc", cursor: "pointer" }}>
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function ToT() {
   const [user, setUser] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -237,6 +288,11 @@ export default function ToT() {
   const [genPropsResult, setGenPropsResult] = useState(null);
   const [activatingPro, setActivatingPro] = useState(false);
   const [nflSubTab, setNflSubTab] = useState("picks");
+  const [fantasySpotlight, setFantasySpotlight] = useState(null);
+  const [fantasyDeepLink, setFantasyDeepLink] = useState(null);
+  // Home quick-action chips and the spotlight card both funnel through here —
+  // sets a one-shot deep link NFLSection reads on mount, then switches tabs.
+  const openFantasy = (mode) => { setFantasyDeepLink(mode || null); setActiveTab("fantasy"); };
 
   // Auth state — use the shared singleton so getAuthHeaders() shares the same session.
   useEffect(() => {
@@ -388,6 +444,20 @@ export default function ToT() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [showDeleteModal, deleting]);
+
+  // Home fantasy spotlight — not Pro-gated (matches the rest of the Fantasy
+  // tab), so this loads for any logged-in user, not just after isPro resolves.
+  useEffect(() => {
+    if (!user) { setFantasySpotlight(null); return; }
+    (async () => {
+      try {
+        const headers = await getAuthHeaders();
+        const res = await fetch("/api/nfl/fantasy/news", { headers });
+        const data = await res.json();
+        if (res.ok) setFantasySpotlight(data);
+      } catch {}
+    })();
+  }, [user?.id]);
 
   // Home needs today's NFL picks too — the "best bet" hero has to compare
   // across both sports, not just default to MLB.
@@ -724,14 +794,16 @@ export default function ToT() {
   // Which top-level sport pill should read as "active" — everything that isn't NFL
   // or Settings is an MLB-scoped tab, so it defaults to "mlb" rather than needing
   // every MLB tab id listed out here.
-  const currentSport = activeTab === "home" ? "home" : activeTab === "nfl" ? "nfl" : activeTab === "settings" ? "settings" : ["schedule", "teams", "players"].includes(activeTab) ? activeTab : "mlb";
-  // Bottom-tab-bar grouping — Home/Games/Portfolio/Profile. Games covers the
-  // whole "today's board" experience (Picks/Steals/Live/Feed/Chat/Props/NFL/
-  // Schedule); Portfolio is "my bets" (Tracker/Parlay/Record); everything
-  // else maps 1:1. activeTab itself keeps its existing fine-grained values —
-  // this is purely a navigation grouping layer on top.
-  const navGroup = (tab) => (["tracker", "parlay", "record"].includes(tab) ? "portfolio" : tab === "settings" ? "profile" : tab === "home" ? "home" : "games");
-  const NAV_GROUP_DEFAULT = { home: "home", games: "picks", portfolio: "tracker", profile: "settings" };
+  const currentSport = activeTab === "home" ? "home" : activeTab === "nfl" ? "nfl" : activeTab === "fantasy" ? "fantasy" : activeTab === "settings" ? "settings" : ["schedule", "teams", "players"].includes(activeTab) ? activeTab : "mlb";
+  // Bottom-tab-bar grouping — Home/Fantasy/Games/Portfolio/Profile. Fantasy is
+  // its own group (not nested under the NFL moneyline pill) since NFL fantasy
+  // tools are a first-class feature, not a sub-mode of sports betting. Games
+  // covers the betting board (Picks/Steals/Live/Feed/Chat/Props/NFL/Schedule);
+  // Portfolio is "my bets" (Tracker/Parlay/Record); everything else maps 1:1.
+  // activeTab itself keeps its existing fine-grained values — this is purely
+  // a navigation grouping layer on top.
+  const navGroup = (tab) => (["tracker", "parlay", "record"].includes(tab) ? "portfolio" : tab === "settings" ? "profile" : tab === "home" ? "home" : tab === "fantasy" ? "fantasy" : "games");
+  const NAV_GROUP_DEFAULT = { home: "home", fantasy: "fantasy", games: "picks", portfolio: "tracker", profile: "settings" };
 
   const sorted = [...(picks || [])].sort((a, b) => {
     if (sortBy === "time") return new Date(a.commenceTime) - new Date(b.commenceTime);
@@ -829,12 +901,12 @@ export default function ToT() {
 
           {/* HERO */}
           <section style={{ padding:"72px 20px 60px",maxWidth:800,margin:"0 auto",textAlign:"center" }}>
-            <div className="l-fade" style={{ fontSize:12,color:"#777",fontWeight:500,marginBottom:20 }}>Live today · MLB &amp; NFL</div>
+            <div className="l-fade" style={{ fontSize:12,color:"#777",fontWeight:500,marginBottom:20 }}>Live today · MLB &amp; NFL Betting · NFL Fantasy</div>
             <h1 className="l-fade2" style={{ fontSize:"clamp(36px,7vw,64px)",fontWeight:600,lineHeight:1.1,letterSpacing:-0.5,marginBottom:18 }}>
-              We outperform<br/><span style={{ color:"#2FBF71" }}>Vegas odds</span><br/>with data.
+              We outperform<br/><span style={{ color:"#2FBF71" }}>Vegas — and your league.</span>
             </h1>
             <p className="l-fade3" style={{ fontSize:"clamp(14px,2.5vw,17px)",color:"#666",lineHeight:1.65,maxWidth:520,margin:"0 auto 32px" }}>
-              T|T is a sharp MLB and NFL model that finds genuine edges the books miss — pitcher match-ups, bullpen state, park factors, QB matchups, EPA, and line movement. Not gut feelings. Edges.
+              T|T pairs a sharp MLB &amp; NFL betting model with a full NFL fantasy toolkit — start/sit calls, trade grades, a live cheat sheet, and injury news — all built on the same real data. Not gut feelings. Edges, on the board and in your lineup.
             </p>
             <div style={{ display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap",marginBottom:40 }}>
               <button className="cta-btn" onClick={() => { setShowAuth(true); setAuthMode("signup"); }}>Start free →</button>
@@ -868,7 +940,7 @@ export default function ToT() {
               <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,padding:"0 3px" }}>
                 <div style={{ fontFamily:tokens.font.mono,fontSize:14,fontWeight:700 }}>T<span style={{ color:"#2FBF71" }}>|</span>T</div>
                 <div style={{ display:"flex",gap:8 }}>
-                  {["Home","Games","Portfolio"].map(t => (
+                  {["Home","Fantasy","Games","Portfolio"].map(t => (
                     <div key={t} style={{ fontSize:10,color:t==="Home"?"#2FBF71":"#3d424f",fontWeight:700 }}>{t}</div>
                   ))}
                 </div>
@@ -932,6 +1004,7 @@ export default function ToT() {
               {[
                 { tag:"MLB DATA LAYER", title:"Pitcher-first analysis",   body:"Starter ERA, WHIP, innings pitched, and sample size. Plus bullpen ERA and K/9 for the full game — starters get the spotlight, bullpens finish ~40% of outs." },
                 { tag:"NFL DATA LAYER", title:"Matchup + EPA",            body:"Team offensive/defensive efficiency (EPA per play), recent form, and Elo ratings feed the model's win probability for moneyline, spread, and total." },
+                { tag:"NFL FANTASY",    title:"Start/Sit, Trade & Cheat Sheet", body:"A full fantasy toolkit alongside the betting model — AI-backed start/sit calls, a trade analyzer, a live tiered draft board, depth charts, and an injury-and-headlines feed." },
                 { tag:"BOTH SPORTS",    title:"Market edge scoring",       body:"We compare our model's win probability to the book's implied probability. Only plays with a verified edge after market calibration pass. No phantom edges." },
                 { tag:"MLB DATA LAYER", title:"Park + lineup context",     body:"Every MLB pick accounts for park factor, lineup OPS vs pitcher hand, and recent form over the last 10 games. Coors isn't Petco." },
                 { tag:"VERDICT",       title:"CLEAN / BET / PASS tiers",  body:"CLEAN passes every condition in the AND-gate. BET passes most. PASS is the honest answer when there's no edge. Some days are zero-bet days — that's correct." },
@@ -2884,8 +2957,13 @@ export default function ToT() {
 
         return (
         <div style={{ padding: "16px 20px 84px", display: "flex", flexDirection: "column", gap: 20 }}>
+          <FantasySpotlightCard data={fantasySpotlight} onOpen={openFantasy} />
+
           {heroPick ? (
-            <DecisionCard pick={heroPick} sport={heroSport} S={S} savePick={savePick} saving={saving} />
+            <div>
+              <div style={S.sectionLabel}>Today's Top Betting Edge</div>
+              <DecisionCard pick={heroPick} sport={heroSport} S={S} savePick={savePick} saving={saving} compact />
+            </div>
           ) : (
             <div style={S.center}>
               <div style={{ color: "#777", fontSize: 13 }}>No standout bet today — check back tomorrow.</div>
@@ -2928,6 +3006,22 @@ export default function ToT() {
           saving={saving}
           selectedDate={selectedDate}
           onTeamClick={openTeam}
+        />
+      )}
+
+      {activeTab === "fantasy" && (
+        <NFLSection
+          S={S}
+          getAuthHeaders={getAuthHeaders}
+          isPro={isPro}
+          isAdmin={isAdmin}
+          setUpgradeModal={setUpgradeModal}
+          savePick={savePick}
+          saving={saving}
+          selectedDate={selectedDate}
+          onTeamClick={openTeam}
+          standalone
+          initialFantasyMode={fantasyDeepLink}
         />
       )}
 
@@ -3093,6 +3187,7 @@ export default function ToT() {
       <div style={S.bottomBar}>
         {[
           { group: "home", Icon: HomeIcon, label: "Home" },
+          { group: "fantasy", Icon: FootballIcon, label: "Fantasy" },
           { group: "games", Icon: GamesIcon, label: "Games" },
           { group: "portfolio", Icon: WalletIcon, label: "Portfolio" },
           { group: "profile", Icon: UserIcon, label: "Profile" },

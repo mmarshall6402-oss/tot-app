@@ -903,10 +903,19 @@ function VerdictCard({ result, label, scoring }) {
   );
 }
 
-export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgradeModal, savePick, saving, selectedDate, onTeamClick }) {
+// standalone: rendered from the dedicated bottom-nav Fantasy tab rather than
+// nested under the NFL (moneyline) pill — hides the Fantasy/Picks/Record
+// sub-nav (there's nothing to switch to; betting content lives under the NFL
+// pill instead) and shows a plain title in its place.
+// initialFantasyMode: lets a Home-screen quick-action chip deep-link straight
+// into a mode (e.g. "startSit") instead of always landing on the default.
+// Only read on mount — this component remounts fresh each time activeTab
+// switches to "fantasy" (different call site in app/page.js), so a plain
+// useState initializer is enough without an effect to re-sync later.
+export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgradeModal, savePick, saving, selectedDate, onTeamClick, standalone = false, initialFantasyMode }) {
   const [subTab, setSubTab] = useState("fantasy");
   const [scoring, setScoring] = useState("PPR");
-  const [fantasyMode, setFantasyMode] = useState("startSit");
+  const [fantasyMode, setFantasyMode] = useState(initialFantasyMode || "startSit");
 
   // Start/Sit state
   const [playerA, setPlayerA] = useState("");
@@ -1169,19 +1178,23 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
       {/* Sub-nav — scoring format lives inline on the right so Fantasy mode
           doesn't need its own separate full-width row underneath. */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "0 20px", borderBottom: `1px solid ${tokens.color.border}` }}>
-        <div style={{ display: "flex", gap: 6, overflowX: "auto" }}>
-          {[
-            { id: "fantasy", label: "Fantasy" },
-            { id: "picks",   label: "Picks" },
-            { id: "record",  label: "Record" },
-          ].map(({ id, label }) => (
-            <button key={id}
-              style={{ ...tabButtonStyle({ active: subTab === id, accent: NFL_ORANGE }), flexShrink: 0 }}
-              onClick={() => setSubTab(id)}>
-              {label}
-            </button>
-          ))}
-        </div>
+        {standalone ? (
+          <div style={{ fontSize: 13, fontWeight: 800, color: "#fff", letterSpacing: 0.2 }}>🏈 NFL Fantasy</div>
+        ) : (
+          <div style={{ display: "flex", gap: 6, overflowX: "auto" }}>
+            {[
+              { id: "fantasy", label: "Fantasy" },
+              { id: "picks",   label: "Picks" },
+              { id: "record",  label: "Record" },
+            ].map(({ id, label }) => (
+              <button key={id}
+                style={{ ...tabButtonStyle({ active: subTab === id, accent: NFL_ORANGE }), flexShrink: 0 }}
+                onClick={() => setSubTab(id)}>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
         {subTab === "fantasy" && (
           <div style={{ display: "flex", gap: 2, flexShrink: 0, background: "#12141a", border: "1px solid #242832", borderRadius: 999, padding: 2, marginBottom: 6 }}>
             {[{ id: "PPR", label: "PPR" }, { id: "Half-PPR", label: "Half" }, { id: "Standard", label: "Std" }].map(({ id, label }) => (

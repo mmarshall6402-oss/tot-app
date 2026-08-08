@@ -142,3 +142,12 @@ export function CalendarIcon({ size = 16, style, ...props }) {
     </svg>
   );
 }
+
+export function FootballIcon({ size = 16, style, ...props }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" style={{ display: "inline-block", verticalAlign: "middle", ...style }} {...base} {...props}>
+      <ellipse cx="12" cy="12" rx="8.5" ry="6" transform="rotate(-40 12 12)" />
+      <path d="M8.2 15.8 15.8 8.2M9.7 12.4l1.1 1.1M13.2 8.9l1.1 1.1M11.2 10.4l1.1 1.1" />
+    </svg>
+  );
+}
