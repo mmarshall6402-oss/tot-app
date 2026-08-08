@@ -276,6 +276,29 @@ function draftTierStyle(tier) {
   if (tier <= 4) return TIER.Medium;
   return TIER.Low;
 }
+// Value-delta badge: adp_rank - rank_overall (see lib/nfl-fantasy/adp.js).
+// Positive means the model likes the player more than the market drafts
+// them (a value pick still around past where the model says they belong);
+// negative means the market drafts them earlier than the model would (a
+// reach). Only shown past a threshold — every player has *some* delta, and
+// flagging all of them would bury the ones that actually matter for a
+// draft-day decision.
+const VALUE_DELTA_THRESHOLD = 8;
+
+function ValueDeltaBadge({ delta, compact }) {
+  if (delta == null || Math.abs(delta) < VALUE_DELTA_THRESHOLD) return null;
+  const isValue = delta > 0;
+  const color = isValue ? "#2FBF71" : "#D9645C";
+  const bg = isValue ? "rgba(47,191,113,0.08)" : "rgba(217,100,92,0.08)";
+  const border = isValue ? "rgba(47,191,113,0.3)" : "rgba(217,100,92,0.3)";
+  const text = `${isValue ? "▲" : "▼"}${Math.abs(delta)}${compact ? "" : " vs ADP"}`;
+  return (
+    <span style={{ fontSize: compact ? 9 : 9.5, fontWeight: 800, padding: compact ? "1px 5px" : "2px 7px", borderRadius: 999, background: bg, color, border: `1px solid ${border}`, whiteSpace: "nowrap" }}>
+      {text}
+    </span>
+  );
+}
+
 function scoringToFormat(scoring) {
   if (scoring === "Half-PPR") return "half_ppr";
   if (scoring === "Standard") return "standard";
@@ -315,6 +338,11 @@ function BoardChip({ p }) {
       <div style={{ fontSize: 9.5, color: "#666", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {p.team || "FA"}{p.injury_status ? ` · ${p.injury_status}` : ""}
       </div>
+      {p.value_delta != null && Math.abs(p.value_delta) >= VALUE_DELTA_THRESHOLD && (
+        <div style={{ marginTop: 3 }}>
+          <ValueDeltaBadge delta={p.value_delta} compact />
+        </div>
+      )}
     </div>
   );
 }
@@ -374,6 +402,7 @@ function DraftBoardRow({ p }) {
         </div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-end", flexShrink: 0 }}>
+        <ValueDeltaBadge delta={p.value_delta} />
         {p.injury_status && (
           <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(217,100,92,0.1)", color: "#D9645C", border: "1px solid rgba(217,100,92,0.3)" }}>
             {p.injury_status}
