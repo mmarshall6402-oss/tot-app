@@ -537,17 +537,21 @@ const DEFENSE_SLOTS = [
   { key: "CB2", label: "CB", x: 92, y: 10, codes: ["CB", "DB"] },
 ];
 
+// Also captures the next player behind the one placed in a slot (from that
+// same position code's own list, not a fallback code) so each chip can show
+// a 2-deep look — the starter plus who's next up — without needing a
+// separate list of every position underneath the field.
 function layoutFormation(slots, byPosition) {
   const used = {};
   return slots.map(slot => {
-    let player = null;
+    let player = null, backup = null;
     for (const code of slot.codes) {
       const list = byPosition[code];
       if (!list) continue;
       const idx = used[code] || 0;
-      if (list[idx]) { player = list[idx]; used[code] = idx + 1; break; }
+      if (list[idx]) { player = list[idx]; backup = list[idx + 1] || null; used[code] = idx + 1; break; }
     }
-    return { ...slot, player };
+    return { ...slot, player, backup };
   });
 }
 
@@ -558,11 +562,11 @@ function lastName(name) {
 }
 
 function FormationChip({ slot, accent }) {
-  const { label, x, y, player } = slot;
+  const { label, x, y, player, backup } = slot;
   return (
     <div style={{
       position: "absolute", left: `${x}%`, top: `${y}%`, transform: "translate(-50%, -50%)",
-      display: "flex", flexDirection: "column", alignItems: "center", gap: 2, width: 58, zIndex: 1,
+      display: "flex", flexDirection: "column", alignItems: "center", gap: 2, width: 60, zIndex: 1,
     }}>
       <div style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: 0.5, color: player ? accent : "#4a5568" }}>{label}</div>
       <div style={{
@@ -570,16 +574,53 @@ function FormationChip({ slot, accent }) {
         border: `1px solid ${player ? accent : "#333"}`,
         borderRadius: 7, padding: "3px 6px", fontSize: 10, fontWeight: 700,
         color: player ? "#fff" : "#4a5568", whiteSpace: "nowrap", overflow: "hidden",
-        textOverflow: "ellipsis", maxWidth: 58, textAlign: "center",
+        textOverflow: "ellipsis", maxWidth: 60, textAlign: "center",
       }}>
         {player ? lastName(player.name) : "—"}
       </div>
       {player?.injuryStatus && <div style={{ fontSize: 7.5, fontWeight: 700, color: "#D9645C" }}>{player.injuryStatus}</div>}
+      {backup && (
+        <div style={{ fontSize: 8, color: "#5a6270", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 60 }}>
+          {lastName(backup.name)}
+        </div>
+      )}
     </div>
   );
 }
 
 const DEFENSE_ACCENT = "#5B8DEF";
+const ST_ACCENT = "#B8862F";
+const ST_SLOTS = [
+  { key: "K", label: "K", codes: ["K"] },
+  { key: "P", label: "P", codes: ["P"] },
+  { key: "LS", label: "LS", codes: ["LS"] },
+];
+
+// Special teams don't have a formation spot the way offense/defense do, so
+// they get their own small chip row below the field rather than being
+// forced onto it — still chips, not a position-by-position list.
+function SpecialTeamsChip({ slot, accent }) {
+  const { label, player, backup } = slot;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, width: 60 }}>
+      <div style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: 0.5, color: player ? accent : "#4a5568" }}>{label}</div>
+      <div style={{
+        background: player ? "#15171d" : "transparent",
+        border: `1px solid ${player ? accent : "#242832"}`,
+        borderRadius: 7, padding: "3px 6px", fontSize: 10, fontWeight: 700,
+        color: player ? "#fff" : "#4a5568", whiteSpace: "nowrap", overflow: "hidden",
+        textOverflow: "ellipsis", maxWidth: 60, textAlign: "center",
+      }}>
+        {player ? lastName(player.name) : "—"}
+      </div>
+      {backup && (
+        <div style={{ fontSize: 8, color: "#5a6270", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 60 }}>
+          {lastName(backup.name)}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function DepthChartField({ positions, accent }) {
   const byPosition = {};
@@ -587,21 +628,30 @@ function DepthChartField({ positions, accent }) {
 
   const offense = layoutFormation(OFFENSE_SLOTS, byPosition);
   const defense = layoutFormation(DEFENSE_SLOTS, byPosition);
+  const specialTeams = layoutFormation(ST_SLOTS, byPosition);
 
   return (
-    <div style={{
-      position: "relative", width: "100%", aspectRatio: "3 / 4",
-      background: "linear-gradient(180deg, #163020 0%, #14291d 50%, #0f2318 100%)",
-      backgroundImage: "repeating-linear-gradient(0deg, rgba(255,255,255,0.035) 0, rgba(255,255,255,0.035) 1px, transparent 1px, transparent 12.5%)",
-      border: "1px solid #1f3a28", borderRadius: 16, overflow: "hidden",
-    }}>
-      <div style={{ position: "absolute", left: 0, right: 0, top: "50%", borderTop: "2px dashed rgba(255,255,255,0.25)" }} />
-      <div style={{ position: "absolute", left: 10, top: "calc(50% + 4px)", fontSize: 8, fontWeight: 700, letterSpacing: 1, color: "rgba(255,255,255,0.3)" }}>LOS</div>
-      <div style={{ position: "absolute", left: 10, top: 8, fontSize: 8.5, fontWeight: 800, letterSpacing: 1.5, color: "rgba(255,255,255,0.25)" }}>DEFENSE</div>
-      <div style={{ position: "absolute", left: 10, bottom: 8, fontSize: 8.5, fontWeight: 800, letterSpacing: 1.5, color: "rgba(255,255,255,0.25)" }}>OFFENSE</div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{
+        position: "relative", width: "100%", aspectRatio: "3 / 4",
+        background: "linear-gradient(180deg, #163020 0%, #14291d 50%, #0f2318 100%)",
+        backgroundImage: "repeating-linear-gradient(0deg, rgba(255,255,255,0.035) 0, rgba(255,255,255,0.035) 1px, transparent 1px, transparent 12.5%)",
+        border: "1px solid #1f3a28", borderRadius: 16, overflow: "hidden",
+      }}>
+        <div style={{ position: "absolute", left: 0, right: 0, top: "50%", borderTop: "2px dashed rgba(255,255,255,0.25)" }} />
+        <div style={{ position: "absolute", left: 10, top: "calc(50% + 4px)", fontSize: 8, fontWeight: 700, letterSpacing: 1, color: "rgba(255,255,255,0.3)" }}>LOS</div>
+        <div style={{ position: "absolute", left: 10, top: 8, fontSize: 8.5, fontWeight: 800, letterSpacing: 1.5, color: "rgba(255,255,255,0.25)" }}>DEFENSE</div>
+        <div style={{ position: "absolute", left: 10, bottom: 8, fontSize: 8.5, fontWeight: 800, letterSpacing: 1.5, color: "rgba(255,255,255,0.25)" }}>OFFENSE</div>
 
-      {defense.map(slot => <FormationChip key={slot.key} slot={slot} accent={DEFENSE_ACCENT} />)}
-      {offense.map(slot => <FormationChip key={slot.key} slot={slot} accent={accent} />)}
+        {defense.map(slot => <FormationChip key={slot.key} slot={slot} accent={DEFENSE_ACCENT} />)}
+        {offense.map(slot => <FormationChip key={slot.key} slot={slot} accent={accent} />)}
+      </div>
+
+      {specialTeams.some(s => s.player) && (
+        <div style={{ display: "flex", gap: 14, justifyContent: "center", padding: "2px 0" }}>
+          {specialTeams.map(slot => <SpecialTeamsChip key={slot.key} slot={slot} accent={ST_ACCENT} />)}
+        </div>
+      )}
     </div>
   );
 }
@@ -1112,7 +1162,12 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                   </div>
                 )}
                 {depthChartTeam && !depthChartLoading && !depthChartError && depthChart && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  depthChart.positions.length === 0 ? (
+                    <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 14, padding: "28px 16px", textAlign: "center" }}>
+                      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>No depth chart yet</div>
+                      <div style={{ fontSize: 13, color: "#555", lineHeight: 1.6 }}>Check back once the team's depth chart is posted.</div>
+                    </div>
+                  ) : (
                     <div>
                       <DepthChartField positions={depthChart.positions} accent={NFL_ORANGE} />
                       <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8, fontSize: 10, color: "#555" }}>
@@ -1122,34 +1177,15 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                         <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
                           <span style={{ width: 8, height: 8, borderRadius: 2, background: DEFENSE_ACCENT, display: "inline-block" }} /> Defense
                         </span>
+                        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: 2, background: ST_ACCENT, display: "inline-block" }} /> Special Teams
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 10.5, color: "#555", marginTop: 6, lineHeight: 1.5 }}>
+                        Starter shown per slot, with the next player up in smaller text underneath.
                       </div>
                     </div>
-
-                    <div style={{ fontSize: 11, color: "#555", fontWeight: 700, letterSpacing: 1, borderTop: `1px solid ${tokens.color.border}`, paddingTop: 14 }}>FULL DEPTH CHART</div>
-
-                    {depthChart.positions.map(({ position, players }) => (
-                      <div key={position}>
-                        <div style={{ fontSize: 11, color: NFL_ORANGE, fontWeight: 700, letterSpacing: 1.5, marginBottom: 6 }}>{position}</div>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                          {players.map(p => (
-                            <div key={p.sleeperId} style={{ display: "flex", alignItems: "center", gap: 10, background: "#15171d", border: "1px solid #242832", borderRadius: 10, padding: "8px 10px" }}>
-                              <span style={{ width: 20, textAlign: "center", fontFamily: tokens.font.mono, fontSize: 12, fontWeight: 700, color: p.depthChartOrder === 1 ? NFL_ORANGE : "#555", flexShrink: 0 }}>
-                                {p.depthChartOrder}
-                              </span>
-                              <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: p.depthChartOrder === 1 ? 700 : 600, color: p.depthChartOrder === 1 ? "#fff" : "#ccc", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                {p.name}
-                              </span>
-                              {p.injuryStatus && (
-                                <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(217,100,92,0.1)", color: "#D9645C", border: "1px solid rgba(217,100,92,0.3)", flexShrink: 0 }}>
-                                  {p.injuryStatus}
-                                </span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  )
                 )}
               </div>
             )}
