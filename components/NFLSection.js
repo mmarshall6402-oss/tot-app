@@ -404,40 +404,144 @@ function DraftBoardRow({ p }) {
   );
 }
 
+// Position accent — same swatch family as the personnel/pace/playcaller
+// note pills on DraftBoardRow, just remapped to QB/RB/WR/TE so the injury
+// report reads at a glance instead of as a wall of identical rows.
+const POSITION_ACCENT = {
+  QB: "#7C8CFF",
+  RB: "#2FBF71",
+  WR: "#D9754A",
+  TE: "#C878DC",
+};
+
+// injury_status free text varies by source (ESPN vs Sleeper) — bucket it
+// into the handful of designations that actually matter for a start/sit
+// call, worst-case first, so the report reads as a triage list rather than
+// an alphabetical dump.
+const INJURY_SEVERITY = [
+  { key: "out",         label: "OUT / IR",     color: "#D9645C", test: s => /\b(out|ir|pup|nfi|susp)\b/i.test(s) },
+  { key: "doubtful",    label: "DOUBTFUL",     color: "#D9754A", test: s => /doubtful/i.test(s) },
+  { key: "questionable", label: "QUESTIONABLE", color: "#D6B23D", test: s => /questionable/i.test(s) },
+];
+function injurySeverity(status) {
+  return INJURY_SEVERITY.find(s => s.test(status || "")) || { key: "other", label: "OTHER", color: "#888" };
+}
+
+function groupInjuryReport(list) {
+  const groups = new Map();
+  for (const p of list) {
+    const sev = injurySeverity(p.injury_status);
+    if (!groups.has(sev.key)) groups.set(sev.key, { sev, players: [] });
+    groups.get(sev.key).players.push(p);
+  }
+  const order = [...INJURY_SEVERITY.map(s => s.key), "other"];
+  return order.map(key => groups.get(key)).filter(Boolean);
+}
+
 function InjuryReportRow({ p }) {
+  const posColor = POSITION_ACCENT[p.position] || "#888";
+  const sev = injurySeverity(p.injury_status);
   return (
-    <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 12, padding: "10px 12px", display: "flex", alignItems: "center", gap: 10 }}>
+    <div style={{ background: "#15171d", border: "1px solid #242832", borderLeft: `3px solid ${posColor}`, borderRadius: 12, padding: "10px 12px", display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{
+        width: 34, height: 34, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+        background: `${posColor}1a`, border: `1px solid ${posColor}55`, color: posColor, fontSize: 11, fontWeight: 800, fontFamily: tokens.font.mono,
+      }}>
+        {p.position}
+      </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
           <span style={{ fontWeight: 700, fontSize: 13.5 }}>{p.name}</span>
-          <span style={{ fontSize: 11, color: "#666" }}>{p.position} · {p.team || "FA"}</span>
+          <span style={{ fontSize: 11, color: "#666" }}>{p.team || "FA"}</span>
         </div>
         {p.injury_risk && (
           <div style={{ fontSize: 10.5, color: "#888", marginTop: 3 }}>Durability risk: {p.injury_risk}</div>
         )}
       </div>
-      <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(217,100,92,0.1)", color: "#D9645C", border: "1px solid rgba(217,100,92,0.3)", flexShrink: 0 }}>
+      <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: `${sev.color}1a`, color: sev.color, border: `1px solid ${sev.color}55`, flexShrink: 0, whiteSpace: "nowrap" }}>
         {p.injury_status}
       </span>
     </div>
   );
 }
 
-function fmtNewsTime(iso) {
+// "3h ago" / "2d ago" reads as a live wire feed; a full timestamp doesn't.
+// Falls back to the absolute date once an article ages out of same-week
+// relevance, matching fmtGameTime's format elsewhere in this file.
+function timeAgo(iso) {
   if (!iso) return "";
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function NewsImage({ src, alt, style }) {
+  const [broken, setBroken] = useState(false);
+  if (!src || broken) return null;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- hotlinked ESPN CDN asset, same posture as TeamLogo/PlayerHeadshot's unoptimized next/image usage but sized dynamically by its flex/absolute parent rather than fixed w/h.
+    <img src={src} alt={alt || ""} onError={() => setBroken(true)} style={style} />
+  );
+}
+
+// First headline renders as a full-bleed hero (background photo, gradient
+// scrim, headline overlaid) so the tab opens on something with visual
+// weight; the rest fall through to the compact thumbnail-row treatment.
+function NewsHeroCard({ article }) {
+  const inner = (
+    <div style={{ position: "relative", borderRadius: 16, overflow: "hidden", border: `1px solid ${tokens.color.border}`, height: 200, background: "linear-gradient(135deg, #1a1d24, #12141a)" }}>
+      <NewsImage src={article.image} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(11,12,16,0.05) 35%, rgba(11,12,16,0.95) 100%)" }} />
+      <div style={{ position: "absolute", left: 16, right: 16, bottom: 14 }}>
+        <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: 1.2, padding: "3px 8px", borderRadius: 999, background: NFL_ORANGE, color: "#0b0c10" }}>
+          TOP STORY
+        </span>
+        <div style={{ fontWeight: 800, fontSize: 17, lineHeight: 1.35, color: "#fff", marginTop: 8, textShadow: "0 1px 4px rgba(0,0,0,0.5)" }}>
+          {article.headline}
+        </div>
+        {article.published && (
+          <div style={{ fontSize: 11, color: "#bbb", marginTop: 6, fontFamily: tokens.font.mono }}>{timeAgo(article.published)}</div>
+        )}
+      </div>
+    </div>
+  );
+  if (!article.link) return inner;
+  return (
+    <a href={article.link} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none", color: "inherit", display: "block" }}>
+      {inner}
+    </a>
+  );
 }
 
 function NewsHeadlineCard({ article }) {
   const body = (
-    <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 12, padding: "12px 14px" }}>
-      <div style={{ fontWeight: 700, fontSize: 13.5, lineHeight: 1.4 }}>{article.headline}</div>
-      {article.description && (
-        <div style={{ fontSize: 12, color: "#888", marginTop: 4, lineHeight: 1.5 }}>{article.description}</div>
+    <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 12, padding: 10, display: "flex", gap: 12, alignItems: "flex-start" }}>
+      {article.image ? (
+        <div style={{ width: 72, height: 72, borderRadius: 9, overflow: "hidden", flexShrink: 0, background: "#0f1116" }}>
+          <NewsImage src={article.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        </div>
+      ) : (
+        <div style={{ width: 72, height: 72, borderRadius: 9, flexShrink: 0, background: "#0f1116", border: "1px solid #242832", display: "flex", alignItems: "center", justifyContent: "center", color: "#333", fontSize: 20 }}>
+          🏈
+        </div>
       )}
-      {article.published && (
-        <div style={{ fontSize: 10.5, color: "#555", marginTop: 6, fontFamily: tokens.font.mono }}>{fmtNewsTime(article.published)}</div>
-      )}
+      <div style={{ flex: 1, minWidth: 0, paddingTop: 1 }}>
+        <div style={{ fontWeight: 700, fontSize: 13.5, lineHeight: 1.4 }}>{article.headline}</div>
+        {article.description && (
+          <div style={{ fontSize: 12, color: "#888", marginTop: 4, lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+            {article.description}
+          </div>
+        )}
+        {article.published && (
+          <div style={{ fontSize: 10.5, color: "#555", marginTop: 6, fontFamily: tokens.font.mono }}>{timeAgo(article.published)}</div>
+        )}
+      </div>
     </div>
   );
   if (!article.link) return body;
@@ -925,37 +1029,60 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                   </div>
                 )}
 
-                {!newsLoading && !newsError && newsData && (
-                  <>
-                    <div>
-                      <div style={{ fontSize: 10, color: "#555", fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>
-                        INJURY REPORT{newsData.injuryReport.length ? ` · ${newsData.injuryReport.length}` : ""}
+                {!newsLoading && !newsError && newsData && (() => {
+                  const injuryGroups = groupInjuryReport(newsData.injuryReport);
+                  const [heroArticle, ...restArticles] = newsData.headlines;
+                  return (
+                    <>
+                      <div>
+                        <div style={{ fontSize: 10, color: "#555", fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>HEADLINES</div>
+                        {newsData.headlines.length === 0 ? (
+                          <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 14, padding: "20px 16px", textAlign: "center" }}>
+                            <div style={{ fontSize: 13, color: "#555" }}>No headlines available right now.</div>
+                          </div>
+                        ) : (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                            <NewsHeroCard article={heroArticle} />
+                            {restArticles.map(a => <NewsHeadlineCard key={a.id || a.link} article={a} />)}
+                          </div>
+                        )}
                       </div>
-                      {newsData.injuryReport.length === 0 ? (
-                        <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 14, padding: "20px 16px", textAlign: "center" }}>
-                          <div style={{ fontSize: 13, color: "#555" }}>No injury designations reported right now.</div>
-                        </div>
-                      ) : (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                          {newsData.injuryReport.map(p => <InjuryReportRow key={p.player_id} p={p} />)}
-                        </div>
-                      )}
-                    </div>
 
-                    <div>
-                      <div style={{ fontSize: 10, color: "#555", fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>HEADLINES</div>
-                      {newsData.headlines.length === 0 ? (
-                        <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 14, padding: "20px 16px", textAlign: "center" }}>
-                          <div style={{ fontSize: 13, color: "#555" }}>No headlines available right now.</div>
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                          <div style={{ fontSize: 10, color: "#555", fontWeight: 700, letterSpacing: 1 }}>
+                            INJURY REPORT{newsData.injuryReport.length ? ` · ${newsData.injuryReport.length}` : ""}
+                          </div>
+                          {injuryGroups.length > 0 && (
+                            <div style={{ display: "flex", gap: 5 }}>
+                              {injuryGroups.map(g => (
+                                <span key={g.sev.key} style={{ fontSize: 9.5, fontWeight: 800, padding: "2px 7px", borderRadius: 999, background: `${g.sev.color}1a`, color: g.sev.color, border: `1px solid ${g.sev.color}55` }}>
+                                  {g.players.length} {g.sev.label}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                      ) : (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                          {newsData.headlines.map(a => <NewsHeadlineCard key={a.id || a.link} article={a} />)}
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
+                        {newsData.injuryReport.length === 0 ? (
+                          <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 14, padding: "20px 16px", textAlign: "center" }}>
+                            <div style={{ fontSize: 13, color: "#555" }}>No injury designations reported right now.</div>
+                          </div>
+                        ) : (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                            {injuryGroups.map(g => (
+                              <div key={g.sev.key}>
+                                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1, color: g.sev.color, marginBottom: 6 }}>{g.sev.label}</div>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                  {g.players.map(p => <InjuryReportRow key={p.player_id} p={p} />)}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             )}
 
