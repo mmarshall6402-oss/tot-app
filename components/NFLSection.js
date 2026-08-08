@@ -544,40 +544,44 @@ function TeamSwitchBar({ team, accent, onChange }) {
 // up on the field (offense below the line of scrimmage, defense above it)
 // instead of a flat list — closer to how a broadcast depth-chart graphic
 // reads. Each slot tries its exact position code first, then falls back to
-// a more generic one (e.g. "RT" -> "OT" -> "OL") so this still lays out
-// sensibly for teams whose depth-chart data doesn't split out left/right
-// tackles or DT/NT. Slots sharing a fallback code claim it in the order
-// they're defined (see layoutFormation), which is what makes the three
-// "WR" slots land the first three receivers on the depth chart rather than
-// all three showing the same one. x stays within [8,92] and chips are 54px
-// wide so nothing clips the field's rounded edge at typical phone widths.
+// more generic ones so this still lays out sensibly regardless of which
+// naming convention a team's Sleeper depth chart entry uses. Sleeper splits
+// several positions by side — "LWR"/"RWR"/"SWR", "LDE"/"RDE", "LOLB"/"ROLB",
+// "LCB"/"RCB" — rather than one generic code per position, so those are
+// tried first, with the generic code (and, for line spots, an even more
+// generic one like "OL") as fallbacks for teams whose chart doesn't split
+// them out. Slots sharing a fallback code claim it in the order they're
+// defined (see layoutFormation), which is what makes e.g. the three "WR"
+// fallback slots land the first three receivers on a non-split depth chart
+// rather than all three showing the same one. x stays within [8,92] and
+// chips are 54px wide so nothing clips the field's rounded edge.
 const OFFENSE_SLOTS = [
-  { key: "WR1", label: "WR", x: 8, y: 52, codes: ["WR"], showBackup: true },
-  { key: "WR2", label: "WR", x: 92, y: 52, codes: ["WR"], showBackup: true },
+  { key: "WR1", label: "WR", x: 8, y: 52, codes: ["LWR", "WR"], showBackup: true },
+  { key: "WR2", label: "WR", x: 92, y: 52, codes: ["RWR", "WR"], showBackup: true },
   { key: "LT", label: "LT", x: 22, y: 61, codes: ["LT", "OT", "OL"] },
   { key: "LG", label: "LG", x: 36, y: 63, codes: ["LG", "OG", "OL"] },
   { key: "C", label: "C", x: 50, y: 64, codes: ["C", "OL"] },
   { key: "RG", label: "RG", x: 64, y: 63, codes: ["RG", "OG", "OL"] },
   { key: "RT", label: "RT", x: 78, y: 61, codes: ["RT", "OT", "OL"] },
   { key: "TE", label: "TE", x: 90, y: 68, codes: ["TE"], showBackup: true },
-  { key: "WR3", label: "WR", x: 66, y: 78, codes: ["WR"], showBackup: true },
+  { key: "WR3", label: "WR", x: 66, y: 78, codes: ["SWR", "WR"], showBackup: true },
   { key: "FB", label: "FB", x: 28, y: 78, codes: ["FB"], showBackup: true },
   { key: "RB", label: "RB", x: 50, y: 85, codes: ["RB"], showBackup: true },
   { key: "QB", label: "QB", x: 50, y: 94, codes: ["QB"], showBackup: true },
 ];
 
 const DEFENSE_SLOTS = [
-  { key: "DE1", label: "DE", x: 15, y: 39, codes: ["DE", "DL"] },
+  { key: "DE1", label: "DE", x: 15, y: 39, codes: ["LDE", "DE", "DL"] },
   { key: "DT1", label: "DT", x: 36, y: 36, codes: ["DT", "NT", "DL"] },
   { key: "DT2", label: "DT", x: 64, y: 36, codes: ["DT", "NT", "DL"] },
-  { key: "DE2", label: "DE", x: 85, y: 39, codes: ["DE", "DL"] },
-  { key: "OLB1", label: "LB", x: 22, y: 24, codes: ["OLB", "LB"] },
+  { key: "DE2", label: "DE", x: 85, y: 39, codes: ["RDE", "DE", "DL"] },
+  { key: "OLB1", label: "LB", x: 22, y: 24, codes: ["LOLB", "OLB", "LB"] },
   { key: "MLB", label: "LB", x: 50, y: 21, codes: ["MLB", "ILB", "LB"] },
-  { key: "OLB2", label: "LB", x: 78, y: 24, codes: ["OLB", "LB"] },
-  { key: "CB1", label: "CB", x: 9, y: 9, codes: ["CB", "DB"] },
+  { key: "OLB2", label: "LB", x: 78, y: 24, codes: ["ROLB", "OLB", "LB"] },
+  { key: "CB1", label: "CB", x: 9, y: 9, codes: ["LCB", "CB", "DB"] },
   { key: "FS", label: "FS", x: 36, y: 6, codes: ["FS", "S", "DB"] },
   { key: "SS", label: "SS", x: 64, y: 6, codes: ["SS", "S", "DB"] },
-  { key: "CB2", label: "CB", x: 91, y: 9, codes: ["CB", "DB"] },
+  { key: "CB2", label: "CB", x: 91, y: 9, codes: ["RCB", "CB", "DB"] },
 ];
 
 const ST_SLOTS = [
@@ -687,7 +691,7 @@ function DepthChartField({ positions, accent }) {
   const specialTeams = layoutFormation(ST_SLOTS, byPosition);
 
   return (
-    <div style={{ background: "#111318", border: "1px solid #1c1f26", borderRadius: 16, padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+    <div style={{ width: "100%", maxWidth: 380, margin: "0 auto", background: "#111318", border: "1px solid #1c1f26", borderRadius: 16, padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={{
         position: "relative", width: "100%", aspectRatio: "1 / 1.02",
         background: "linear-gradient(180deg, #16301f 0%, #132c1c 50%, #0f2318 100%)",
@@ -702,7 +706,7 @@ function DepthChartField({ positions, accent }) {
         {offense.map(slot => <FormationChip key={slot.key} slot={slot} accent={accent} />)}
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 9.5, color: "#5a6270" }}>
           <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
             <span style={{ width: 7, height: 7, borderRadius: 2, background: accent, display: "inline-block" }} /> Off
@@ -717,7 +721,7 @@ function DepthChartField({ positions, accent }) {
           )}
         </div>
         {specialTeams.some(s => s.player) && (
-          <div style={{ display: "flex", gap: 10 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
             {specialTeams.map(slot => <SpecialTeamsChip key={slot.key} slot={slot} accent={ST_ACCENT} />)}
           </div>
         )}
