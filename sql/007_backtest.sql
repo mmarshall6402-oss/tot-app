@@ -1,7 +1,7 @@
 -- Backtesting & calibration engine: historical replay of the production
 -- probability model (lib/probability.js) and filter engine (lib/filter.js)
 -- against reconstructed historical game states (2022-2024 Retrosheet).
--- Run manually against the Supabase project (no migration runner in this repo).
+-- Applied via `npm run migrate` (scripts/migrate.js), tracked in schema_migrations.
 -- New, standalone tables — does not touch picks_cache/model_picks or any
 -- live production table.
 

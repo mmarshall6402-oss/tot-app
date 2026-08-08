@@ -3,7 +3,7 @@
 -- roster crawl that used to run on every search keystroke — search now reads
 -- this table directly, so a slow or unreachable external host can never make
 -- search silently return nothing.
--- Run manually against the Supabase project (no migration runner in this repo).
+-- Applied via `npm run migrate` (scripts/migrate.js), tracked in schema_migrations.
 
 create table if not exists player_index (
   sport         text not null,        -- 'mlb' | 'nfl'

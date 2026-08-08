@@ -1,6 +1,6 @@
 -- Isotonic recalibration curve for the live probability model
 -- (lib/probability.js's getCalibratedModelProbability, lib/calibration-db.js).
--- Run manually against the Supabase project (no migration runner in this repo).
+-- Applied via `npm run migrate` (scripts/migrate.js), tracked in schema_migrations.
 -- New, standalone table — does not touch picks_cache/model_picks or any
 -- other live production table.
 

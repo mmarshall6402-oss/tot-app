@@ -7,6 +7,6 @@
 -- filtered out. `tier_position` reruns the same algorithm within each
 -- position's players only, so a position-filtered board gets its own
 -- contiguous 1, 2, 3... tiering.
--- Run manually against the Supabase project (no migration runner in this repo).
+-- Applied via `npm run migrate` (scripts/migrate.js), tracked in schema_migrations.
 
 alter table nfl_fantasy_rankings add column if not exists tier_position int;

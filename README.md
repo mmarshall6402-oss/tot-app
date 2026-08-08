@@ -131,6 +131,20 @@ npm install
 npm run dev
 ```
 
+### Database migrations
+
+Schema changes live as numbered files in `sql/` (`001_...sql`, `002_...sql`, ...) and are applied with a small runner rather than by hand in the Supabase SQL editor:
+
+```bash
+npm run migrate            # apply all pending migrations
+npm run migrate -- --status    # list applied vs. pending
+npm run migrate -- --dry-run   # show what would run, without running it
+```
+
+Applied filenames are tracked in a `schema_migrations` table, so re-running is safe — already-applied files are skipped. A failing file rolls back and stops the run before touching anything after it. Requires `SUPABASE_DB_URL` (see below) — the runner connects directly via Postgres since `@supabase/supabase-js` can't execute arbitrary SQL.
+
+To add a migration: create the next-numbered file in `sql/`, then run `npm run migrate`.
+
 ### MLB Analytics Dashboard (Streamlit)
 
 A standalone Python/Streamlit dashboard over the same Elo ratings and 2022–2025 game logs used by the pick model — power rankings, home-field advantage, scoring trends, and team-level records.
@@ -153,6 +167,7 @@ vercel env pull
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-side only) |
+| `SUPABASE_DB_URL` | Direct Postgres connection string (Project Settings → Database → Connection string), used only by `npm run migrate` — not needed to run the app itself |
 | `STRIPE_SECRET_KEY` | Stripe secret key |
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Stripe publishable key |

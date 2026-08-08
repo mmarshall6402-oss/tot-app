@@ -1,8 +1,8 @@
 -- Per-sport on/off switch for the daily automated recalibration cron
 -- (app/api/cron/recalibrate/route.js), plus a manual "pin to this curve"
 -- flow layered on top of the existing model_calibration history.
--- Run manually against the Supabase project (no migration runner in this
--- repo, same as sql/009_model_calibration.sql).
+-- Applied via `npm run migrate` (scripts/migrate.js), tracked in schema_migrations,
+-- same as sql/009_model_calibration.sql.
 --
 -- Every daily recalibration already leaves its fitted curve as a row in
 -- model_calibration (only the active flag moves) — nothing here changes

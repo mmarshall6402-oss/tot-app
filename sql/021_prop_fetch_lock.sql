@@ -5,7 +5,7 @@
 -- Props-tab traffic spikes right when lineups post — exactly when many
 -- users would otherwise each trigger their own live The Odds API call for
 -- the same game, which is what burned through THE_ODDS_API_KEY's quota.
--- Run manually against the Supabase project (no migration runner in this repo).
+-- Applied via `npm run migrate` (scripts/migrate.js), tracked in schema_migrations.
 
 create table if not exists prop_fetch_claims (
   event_id    text primary key,

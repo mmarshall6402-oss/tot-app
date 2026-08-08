@@ -1,5 +1,5 @@
--- Adds preseason-testing support to nfl_model_picks. Run manually against the
--- Supabase project (no migration runner in this repo).
+-- Adds preseason-testing support to nfl_model_picks.
+-- Applied via `npm run migrate` (scripts/migrate.js), tracked in schema_migrations.
 --
 -- Preseason games let the whole generate -> resolve -> Elo -> record loop get
 -- exercised against real results before the regular season starts, without letting

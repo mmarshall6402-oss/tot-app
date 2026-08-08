@@ -4,8 +4,8 @@
 -- players' games repeatedly — a pure in-memory cache doesn't help there
 -- since serverless instances don't share memory. This table lets every
 -- instance (and every retry after a cold start) read the same recently-
--- fetched line instead of re-pulling from The Odds API. Run manually
--- against the Supabase project (no migration runner in this repo).
+-- fetched line instead of re-pulling from The Odds API.
+-- Applied via `npm run migrate` (scripts/migrate.js), tracked in schema_migrations.
 
 create table if not exists nfl_prop_lines_cache (
   event_id    text primary key,

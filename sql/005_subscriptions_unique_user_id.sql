@@ -3,7 +3,7 @@
 -- same new user arriving close together (e.g. checkout.session.completed and
 -- customer.subscription.created) could both see "no existing row" and both
 -- INSERT, leaving duplicate subscriptions rows for one user_id.
--- Run manually against the Supabase project (no migration runner in this repo).
+-- Applied via `npm run migrate` (scripts/migrate.js), tracked in schema_migrations.
 
 -- If the race already happened before this fix, collapse duplicates first —
 -- prefer an 'active'/'trialing' row over a stale one, then the furthest-out

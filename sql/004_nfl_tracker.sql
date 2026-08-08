@@ -1,7 +1,7 @@
 -- Extends the existing saved_picks table (MLB's Tracker tab/table) so the same
 -- tab can also track NFL picks instead of duplicating the whole tracker UI a
--- second time. Run manually against the Supabase project (no migration runner
--- in this repo).
+-- second time.
+-- Applied via `npm run migrate` (scripts/migrate.js), tracked in schema_migrations.
 --
 -- All new columns are nullable or defaulted to values that reproduce today's MLB
 -- behavior exactly (sport='mlb', market_type='moneyline') — existing rows and the

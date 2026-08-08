@@ -1,5 +1,5 @@
 -- Phase 1: NFL spread + moneyline picks model.
--- Run manually against the Supabase project (no migration runner in this repo).
+-- Applied via `npm run migrate` (scripts/migrate.js), tracked in schema_migrations.
 -- New, standalone tables — does not touch the live MLB picks_cache/model_picks
 -- tables, so there's no risk to the existing production MLB pick flow.
 

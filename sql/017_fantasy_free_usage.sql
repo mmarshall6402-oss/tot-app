@@ -2,8 +2,8 @@
 -- requireFantasyCallAllowance and app/api/nfl/fantasy/route.js). Free plan
 -- is capped at 3 Start/Sit calls per week; Pro/admin users skip this check
 -- entirely, so this table only ever gets rows for free users who've used
--- the feature. Run manually against the Supabase project (no migration
--- runner in this repo).
+-- the feature.
+-- Applied via `npm run migrate` (scripts/migrate.js), tracked in schema_migrations.
 
 create table if not exists fantasy_free_usage (
   user_id     text not null,

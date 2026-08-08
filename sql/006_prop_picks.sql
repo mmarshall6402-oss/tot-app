@@ -1,5 +1,5 @@
 -- MLB player prop picks (pitcher strikeouts, batter anytime home run).
--- Run manually against the Supabase project (no migration runner in this repo).
+-- Applied via `npm run migrate` (scripts/migrate.js), tracked in schema_migrations.
 -- Additive only — does not alter picks_cache, model_picks, or any NFL table.
 
 -- Fast whole-day read, mirroring picks_cache's date-keyed jsonb shape.

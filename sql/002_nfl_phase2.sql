@@ -1,5 +1,5 @@
 -- Phase 2: NFL cron automation, totals picks, and result tracking.
--- Run manually against the Supabase project (no migration runner in this repo).
+-- Applied via `npm run migrate` (scripts/migrate.js), tracked in schema_migrations.
 -- Additive only — does not alter nfl_team_elo, nfl_picks_cache, or any MLB table.
 
 -- Per-pick row storage, mirroring MLB's model_picks shape (date, teams, pick, result,

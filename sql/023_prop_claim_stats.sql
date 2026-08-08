@@ -3,7 +3,7 @@
 -- duplicate live fetches, shown on the admin Rate Limits tab. One row per day,
 -- so this table is naturally bounded (no cleanup job needed), same reasoning as
 -- prop_fetch_claims being bounded by its event_id primary key.
--- Run manually against the Supabase project (no migration runner in this repo).
+-- Applied via `npm run migrate` (scripts/migrate.js), tracked in schema_migrations.
 
 create table if not exists prop_claim_daily_stats (
   date          date primary key,

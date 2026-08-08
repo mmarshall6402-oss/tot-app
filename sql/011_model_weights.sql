@@ -1,8 +1,9 @@
 -- Live weight-tuning: stores fitted WEIGHTS vectors (lib/probability.js) the
 -- same way sql/009_model_calibration.sql stores isotonic curves — full
 -- history via the active flag, so a tuning run can be rolled back exactly
--- like a calibration curve. Run manually against the Supabase project (no
--- migration runner in this repo, same as 009 and 010).
+-- like a calibration curve.
+-- Applied via `npm run migrate` (scripts/migrate.js), tracked in schema_migrations,
+-- same as 009 and 010.
 --
 -- No row for a sport = no live override yet; lib/weights-db.js falls back to
 -- the hardcoded WEIGHTS defaults in lib/probability.js, then seeds this table
