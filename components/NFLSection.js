@@ -540,31 +540,36 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
 
-      {/* Sub-nav */}
-      <div style={{ display: "flex", gap: 6, padding: "0 20px", borderBottom: `1px solid ${tokens.color.border}`, overflowX: "auto" }}>
-        {[
-          { id: "fantasy", label: "Fantasy" },
-          { id: "picks",   label: "Picks" },
-          { id: "record",  label: "Record" },
-        ].map(({ id, label }) => (
-          <button key={id}
-            style={{ ...tabButtonStyle({ active: subTab === id, accent: NFL_ORANGE }), flexShrink: 0 }}
-            onClick={() => setSubTab(id)}>
-            {label}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ flex: 1, padding: "16px 20px 84px", display: "flex", flexDirection: "column", gap: 14 }}>
-
-        {/* Scoring format */}
-        {(subTab === "fantasy") && (
-          <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2, borderBottom: `1px solid ${tokens.color.border}` }}>
-            {["PPR", "Half-PPR", "Standard"].map(fmt => (
-              <button key={fmt} onClick={() => setScoring(fmt)} style={{ ...tabButtonStyle({ active: scoring === fmt, accent: NFL_ORANGE }), flexShrink: 0 }}>{fmt}</button>
+      {/* Sub-nav — scoring format lives inline on the right so Fantasy mode
+          doesn't need its own separate full-width row underneath. */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "0 20px", borderBottom: `1px solid ${tokens.color.border}` }}>
+        <div style={{ display: "flex", gap: 6, overflowX: "auto" }}>
+          {[
+            { id: "fantasy", label: "Fantasy" },
+            { id: "picks",   label: "Picks" },
+            { id: "record",  label: "Record" },
+          ].map(({ id, label }) => (
+            <button key={id}
+              style={{ ...tabButtonStyle({ active: subTab === id, accent: NFL_ORANGE }), flexShrink: 0 }}
+              onClick={() => setSubTab(id)}>
+              {label}
+            </button>
+          ))}
+        </div>
+        {subTab === "fantasy" && (
+          <div style={{ display: "flex", gap: 2, flexShrink: 0, background: "#12141a", border: "1px solid #242832", borderRadius: 999, padding: 2, marginBottom: 6 }}>
+            {[{ id: "PPR", label: "PPR" }, { id: "Half-PPR", label: "Half" }, { id: "Standard", label: "Std" }].map(({ id, label }) => (
+              <button key={id} onClick={() => setScoring(id)} style={{
+                padding: "5px 9px", fontSize: 10.5, fontWeight: 700, borderRadius: 999, border: "none",
+                background: scoring === id ? NFL_ORANGE : "transparent", color: scoring === id ? "#0b0c10" : "#888",
+                letterSpacing: 0.2, cursor: "pointer", transition: tokens.transition,
+              }}>{label}</button>
             ))}
           </div>
         )}
+      </div>
+
+      <div style={{ flex: 1, padding: "14px 20px 84px", display: "flex", flexDirection: "column", gap: 12 }}>
 
         {/* ── FANTASY TAB ── */}
         {subTab === "fantasy" && (
@@ -642,12 +647,12 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
             )}
 
             {fantasyMode === "cheatSheet" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <button onClick={() => setFiltersOpen(o => !o)}
                   style={{
                     display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
                     background: "#15171d", border: `1px solid ${filtersOpen ? NFL_ORANGE : "#242832"}`,
-                    borderRadius: 10, padding: "10px 14px", color: "#fff", fontSize: 13, fontWeight: 600,
+                    borderRadius: 10, padding: "8px 12px", color: "#fff", fontSize: 13, fontWeight: 600,
                     cursor: "pointer", width: "100%",
                   }}>
                   <span>Filters{cheatSheetFilterSummary ? ` · ${cheatSheetFilterSummary}` : ""}</span>
@@ -714,44 +719,44 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                 {!cheatSheetLoading && !cheatSheetError && filteredCheatSheet?.map(p => {
                   const t = draftTierStyle(p.tier);
                   return (
-                    <div key={p.player_id} style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 14, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
-                      <div style={{ fontFamily: tokens.font.mono, fontSize: 16, fontWeight: 700, color: "#3d424f", width: 28, textAlign: "center", flexShrink: 0 }}>{p.rank_overall}</div>
+                    <div key={p.player_id} style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 12, padding: "10px 12px", display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ fontFamily: tokens.font.mono, fontSize: 15, fontWeight: 700, color: "#3d424f", width: 24, textAlign: "center", flexShrink: 0 }}>{p.rank_overall}</div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                          <span style={{ fontWeight: 700, fontSize: 14 }}>{p.name}</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+                          <span style={{ fontWeight: 700, fontSize: 13.5 }}>{p.name}</span>
                           <span style={{ fontSize: 11, color: "#666" }}>{p.position} · {p.team || "FA"}</span>
-                          <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: t.bg, color: t.color, border: `1px solid ${t.color}33` }}>
+                          <span style={{ fontSize: 9.5, fontWeight: 700, padding: "1px 7px", borderRadius: 999, background: t.bg, color: t.color, border: `1px solid ${t.color}33` }}>
                             TIER {p.tier}
                           </span>
                         </div>
-                        <div style={{ display: "flex", gap: 12, marginTop: 4, fontSize: 11, color: "#888", fontFamily: tokens.font.mono, flexWrap: "wrap" }}>
+                        <div style={{ display: "flex", gap: 10, marginTop: 3, fontSize: 10.5, color: "#888", fontFamily: tokens.font.mono, flexWrap: "wrap" }}>
                           <span>Proj {p.projected_points?.toFixed(1)}</span>
                           <span>Ceil {p.ceiling_points?.toFixed(1)} / Floor {p.floor_points?.toFixed(1)}</span>
                         </div>
                       </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end", flexShrink: 0 }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-end", flexShrink: 0 }}>
                         {p.injury_status && (
-                          <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 999, background: "rgba(217,100,92,0.1)", color: "#D9645C", border: "1px solid rgba(217,100,92,0.3)" }}>
+                          <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(217,100,92,0.1)", color: "#D9645C", border: "1px solid rgba(217,100,92,0.3)" }}>
                             {p.injury_status}
                           </span>
                         )}
                         {p.trending_add_count > 0 && (
-                          <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 999, background: "rgba(47,191,113,0.08)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.25)" }}>
+                          <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(47,191,113,0.08)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.25)" }}>
                             {p.trending_add_count} adds/24h
                           </span>
                         )}
                         {p.personnel_note && (
-                          <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 999, background: "rgba(120,140,255,0.08)", color: "#7C8CFF", border: "1px solid rgba(120,140,255,0.25)" }}>
+                          <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(120,140,255,0.08)", color: "#7C8CFF", border: "1px solid rgba(120,140,255,0.25)" }}>
                             {p.personnel_note}
                           </span>
                         )}
                         {p.pace_note && (
-                          <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 999, background: "rgba(240,180,60,0.08)", color: "#F0B43C", border: "1px solid rgba(240,180,60,0.25)" }}>
+                          <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(240,180,60,0.08)", color: "#F0B43C", border: "1px solid rgba(240,180,60,0.25)" }}>
                             {p.pace_note}
                           </span>
                         )}
                         {p.playcaller_note && (
-                          <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 999, background: "rgba(200,120,220,0.08)", color: "#C878DC", border: "1px solid rgba(200,120,220,0.25)" }}>
+                          <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(200,120,220,0.08)", color: "#C878DC", border: "1px solid rgba(200,120,220,0.25)" }}>
                             {p.playcaller_note}
                           </span>
                         )}
@@ -789,7 +794,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
               </div>
             )}
             {nflGames?.map(g => (
-              <div key={g.id} style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 14, padding: 16, animation: "fadeUp 0.3s ease" }}>
+              <div key={g.id} style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 14, padding: 14, animation: "fadeUp 0.3s ease" }}>
                 <div style={{ fontSize: 11, color: "#555", marginBottom: 8 }}>{fmtGameTime(g.commenceTime)}</div>
                 <div style={{ fontFamily: tokens.font.mono, fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
                   <TeamMatchupLink sport="nfl" awayTeam={g.awayTeam} homeTeam={g.homeTeam} onPick={onTeamClick} />

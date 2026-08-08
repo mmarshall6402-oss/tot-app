@@ -1446,7 +1446,7 @@ export default function ToT() {
 
       {currentSport === "mlb" && <div style={S.content}>
         {activeTab === "picks" && modelRecord?.total > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0 4px", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0 2px", flexWrap: "wrap" }}>
             <span style={{ fontSize: 10, color: "#777", letterSpacing: 1 }}>MODEL RECORD</span>
             <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, fontWeight: 700, color: modelRecord.pct == null ? "#888" : modelRecord.pct >= 55 ? "#2FBF71" : modelRecord.pct >= 50 ? "#D6B23D" : "#D9645C" }}>
               {modelRecord.wins}-{modelRecord.losses}
@@ -1463,7 +1463,7 @@ export default function ToT() {
           const quietDay = isPro && nBet === 0 && picks.filter(p => p.filter != null).length > 0;
           return (
             <>
-              <div style={{ display: "flex", gap: 12, padding: "6px 0", borderBottom: "1px solid #1c1f26", marginBottom: 4 }}>
+              <div style={{ display: "flex", gap: 12, padding: "4px 0", borderBottom: "1px solid #1c1f26", marginBottom: 2 }}>
                 <span style={{ fontSize: 11, color: "#777" }}>{picks.filter(p => p.filter != null).length} games</span>
                 {nBet > 0 && <span style={{ fontSize: 11, color: "#2FBF71" }}>{nBet} BET</span>}
                 {nClean > 0 && <span style={{ fontSize: 11, color: "#2FBF71", fontWeight: 700 }}>{nClean} CLEAN</span>}
