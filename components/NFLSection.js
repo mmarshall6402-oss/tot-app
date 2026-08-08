@@ -299,6 +299,29 @@ function ValueDeltaBadge({ delta, compact }) {
   );
 }
 
+// Expected-vs-actual regression badge (see lib/nfl-fantasy/regression.js):
+// actual_ppg - projected_ppg, season to date. Outperforming their preseason
+// projection reads as "hot" (green, but a sell-high/regression-risk signal
+// as much as a good one) — underperforming reads as "cold" (red, often the
+// buy-low case). Same noise-threshold posture as ValueDeltaBadge above.
+const REGRESSION_THRESHOLD = 3;
+
+function RegressionBadge({ delta, gamesPlayed }) {
+  if (delta == null || gamesPlayed == null || Math.abs(delta) < REGRESSION_THRESHOLD) return null;
+  const isHot = delta > 0;
+  const color = isHot ? "#2FBF71" : "#D9645C";
+  const bg = isHot ? "rgba(47,191,113,0.08)" : "rgba(217,100,92,0.08)";
+  const border = isHot ? "rgba(47,191,113,0.3)" : "rgba(217,100,92,0.3)";
+  return (
+    <span
+      title={`${isHot ? "Outperforming" : "Underperforming"} preseason projection by ${Math.abs(delta).toFixed(1)} PPG over ${gamesPlayed} games`}
+      style={{ fontSize: 9.5, fontWeight: 800, padding: "2px 7px", borderRadius: 999, background: bg, color, border: `1px solid ${border}`, whiteSpace: "nowrap" }}
+    >
+      {isHot ? "🔥" : "🥶"} {isHot ? "+" : ""}{delta.toFixed(1)} PPG vs proj
+    </span>
+  );
+}
+
 function scoringToFormat(scoring) {
   if (scoring === "Half-PPR") return "half_ppr";
   if (scoring === "Standard") return "standard";
@@ -312,6 +335,9 @@ const SIGNAL_FILTERS = [
   { id: "ALL", label: "All", test: () => true },
   { id: "TRENDING", label: "Trending", test: (p) => p.trending_add_count > 0 },
   { id: "INJURY", label: "Injury Risk", test: (p) => !!p.injury_status },
+  { id: "VALUE", label: "ADP Value", test: (p) => Math.abs(p.value_delta ?? 0) >= VALUE_DELTA_THRESHOLD },
+  { id: "REGRESSION", label: "Regression", test: (p) => Math.abs(p.regression_delta ?? 0) >= REGRESSION_THRESHOLD && p.games_played_actual != null },
+  { id: "CHANGE", label: "Usage Change", test: (p) => !!p.change_note },
   { id: "PERSONNEL", label: "Personnel", test: (p) => !!p.personnel_note },
   { id: "PACE", label: "Pace", test: (p) => !!p.pace_note },
   { id: "PLAYCALLER", label: "Playcaller", test: (p) => !!p.playcaller_note },
@@ -403,6 +429,12 @@ function DraftBoardRow({ p }) {
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-end", flexShrink: 0 }}>
         <ValueDeltaBadge delta={p.value_delta} />
+        <RegressionBadge delta={p.regression_delta} gamesPlayed={p.games_played_actual} />
+        {p.change_note && (
+          <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(61,191,214,0.08)", color: "#3DBFD6", border: "1px solid rgba(61,191,214,0.25)" }}>
+            {p.change_note}
+          </span>
+        )}
         {p.injury_status && (
           <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(217,100,92,0.1)", color: "#D9645C", border: "1px solid rgba(217,100,92,0.3)" }}>
             {p.injury_status}

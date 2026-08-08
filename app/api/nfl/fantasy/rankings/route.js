@@ -32,7 +32,7 @@ export async function GET(request) {
   const supabase = getSupabase();
   let query = supabase
     .from("nfl_fantasy_rankings")
-    .select("player_id, name, position, team, projected_points, ceiling_points, floor_points, vorp, ceiling_vorp, rank_overall, rank_position, tier, tier_position, injury_status, injury_risk, trending_add_count, personnel_note, pace_note, playcaller_note, adp, adp_rank, value_delta, season, updated_at")
+    .select("player_id, name, position, team, projected_points, ceiling_points, floor_points, vorp, ceiling_vorp, rank_overall, rank_position, tier, tier_position, injury_status, injury_risk, trending_add_count, personnel_note, pace_note, playcaller_note, adp, adp_rank, value_delta, projected_ppg, actual_ppg, games_played_actual, regression_delta, change_note, season, updated_at")
     .eq("scoring_format", format)
     .order("rank_overall", { ascending: true })
     .limit(limit);
