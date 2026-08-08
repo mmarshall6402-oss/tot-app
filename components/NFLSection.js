@@ -404,6 +404,50 @@ function DraftBoardRow({ p }) {
   );
 }
 
+function InjuryReportRow({ p }) {
+  return (
+    <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 12, padding: "10px 12px", display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+          <span style={{ fontWeight: 700, fontSize: 13.5 }}>{p.name}</span>
+          <span style={{ fontSize: 11, color: "#666" }}>{p.position} · {p.team || "FA"}</span>
+        </div>
+        {p.injury_risk && (
+          <div style={{ fontSize: 10.5, color: "#888", marginTop: 3 }}>Durability risk: {p.injury_risk}</div>
+        )}
+      </div>
+      <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(217,100,92,0.1)", color: "#D9645C", border: "1px solid rgba(217,100,92,0.3)", flexShrink: 0 }}>
+        {p.injury_status}
+      </span>
+    </div>
+  );
+}
+
+function fmtNewsTime(iso) {
+  if (!iso) return "";
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+function NewsHeadlineCard({ article }) {
+  const body = (
+    <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 12, padding: "12px 14px" }}>
+      <div style={{ fontWeight: 700, fontSize: 13.5, lineHeight: 1.4 }}>{article.headline}</div>
+      {article.description && (
+        <div style={{ fontSize: 12, color: "#888", marginTop: 4, lineHeight: 1.5 }}>{article.description}</div>
+      )}
+      {article.published && (
+        <div style={{ fontSize: 10.5, color: "#555", marginTop: 6, fontFamily: tokens.font.mono }}>{fmtNewsTime(article.published)}</div>
+      )}
+    </div>
+  );
+  if (!article.link) return body;
+  return (
+    <a href={article.link} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none", color: "inherit", display: "block" }}>
+      {body}
+    </a>
+  );
+}
+
 function DraftBoardColumn({ players }) {
   const byTier = new Map();
   for (const p of players) {
@@ -578,6 +622,11 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
   const [askResult, setAskResult] = useState(null);
   const [askLoading, setAskLoading] = useState(false);
 
+  // News state
+  const [newsData, setNewsData] = useState(null);
+  const [newsLoading, setNewsLoading] = useState(false);
+  const [newsError, setNewsError] = useState(null);
+
   // Cheat Sheet state
   const [cheatSheet, setCheatSheet] = useState(null);
   const [cheatSheetLoading, setCheatSheetLoading] = useState(false);
@@ -656,6 +705,25 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
     catch (e) { setAskResult("Error: " + e.message); }
     setAskLoading(false);
   };
+
+  const loadNews = async () => {
+    setNewsLoading(true); setNewsError(null);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch("/api/nfl/fantasy/news", { headers });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error");
+      setNewsData(data);
+    } catch (e) {
+      setNewsError(e.message || "Could not load news");
+      setNewsData(prev => prev ?? { injuryReport: [], headlines: [] });
+    }
+    setNewsLoading(false);
+  };
+
+  useEffect(() => {
+    if (subTab === "fantasy" && fantasyMode === "news" && newsData === null && !newsLoading) loadNews();
+  }, [subTab, fantasyMode, newsData, newsLoading]);
 
   const loadCheatSheet = async () => {
     setCheatSheetLoading(true); setCheatSheetError(null);
@@ -828,6 +896,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
             {/* Mode selector */}
             <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2, borderBottom: `1px solid ${tokens.color.border}` }}>
               {[
+                { id: "news",       label: "News" },
                 { id: "startSit",   label: "Start/Sit" },
                 { id: "trade",      label: "Trade" },
                 { id: "ask",        label: "Ask AI" },
@@ -838,6 +907,57 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                 <button key={id} onClick={() => setFantasyMode(id)} style={{ ...tabButtonStyle({ active: fantasyMode === id, accent: NFL_ORANGE }), flexShrink: 0 }}>{label}</button>
               ))}
             </div>
+
+            {fantasyMode === "news" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {newsLoading && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#555", fontSize: 13, padding: "20px 0" }}>
+                    <div style={{ width: 18, height: 18, border: "2px solid #2b2f3a", borderTopColor: NFL_ORANGE, borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+                    Loading news…
+                  </div>
+                )}
+
+                {!newsLoading && newsError && (
+                  <div style={S.center}>
+                    <div style={{ color: "#fff", fontWeight: 700, marginTop: 8 }}>Could not load news</div>
+                    <div style={{ color: "#777", fontSize: 13, marginTop: 4 }}>{newsError}</div>
+                    <button style={{ ...S.saveBtn, marginTop: 14 }} onClick={loadNews}>Retry</button>
+                  </div>
+                )}
+
+                {!newsLoading && !newsError && newsData && (
+                  <>
+                    <div>
+                      <div style={{ fontSize: 10, color: "#555", fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>
+                        INJURY REPORT{newsData.injuryReport.length ? ` · ${newsData.injuryReport.length}` : ""}
+                      </div>
+                      {newsData.injuryReport.length === 0 ? (
+                        <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 14, padding: "20px 16px", textAlign: "center" }}>
+                          <div style={{ fontSize: 13, color: "#555" }}>No injury designations reported right now.</div>
+                        </div>
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          {newsData.injuryReport.map(p => <InjuryReportRow key={p.player_id} p={p} />)}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <div style={{ fontSize: 10, color: "#555", fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>HEADLINES</div>
+                      {newsData.headlines.length === 0 ? (
+                        <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 14, padding: "20px 16px", textAlign: "center" }}>
+                          <div style={{ fontSize: 13, color: "#555" }}>No headlines available right now.</div>
+                        </div>
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          {newsData.headlines.map(a => <NewsHeadlineCard key={a.id || a.link} article={a} />)}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
 
             {fantasyMode === "startSit" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
