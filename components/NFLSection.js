@@ -495,6 +495,117 @@ function TeamSwitchBar({ team, accent, onChange }) {
   );
 }
 
+// ── Depth Chart formation field ──────────────────────────────────────────
+// Lays the top of each position group out roughly where those players line
+// up on the field (offense below the line of scrimmage, defense above it)
+// instead of a flat list — closer to how a broadcast depth-chart graphic
+// reads. Each slot tries its exact position code first, then falls back to
+// a more generic one (e.g. "RT" -> "OT" -> "OL") so this still lays out
+// sensibly for teams whose depth-chart data doesn't split out left/right
+// tackles or DT/NT. Slots sharing a fallback code claim it in the order
+// they're defined (see layoutFormation), which is what makes the three
+// "WR" slots land the first three receivers on the depth chart rather than
+// all three showing the same one. The full depth chart (every player at
+// every position, not just what fits on the field) still renders below the
+// field so nothing from the original list view is lost.
+const OFFENSE_SLOTS = [
+  { key: "LT", label: "LT", x: 20, y: 60, codes: ["LT", "OT", "OL"] },
+  { key: "LG", label: "LG", x: 36, y: 63, codes: ["LG", "OG", "OL"] },
+  { key: "C", label: "C", x: 50, y: 64, codes: ["C", "OL"] },
+  { key: "RG", label: "RG", x: 64, y: 63, codes: ["RG", "OG", "OL"] },
+  { key: "RT", label: "RT", x: 80, y: 60, codes: ["RT", "OT", "OL"] },
+  { key: "TE", label: "TE", x: 92, y: 56, codes: ["TE"] },
+  { key: "WR1", label: "WR", x: 6, y: 47, codes: ["WR"] },
+  { key: "WR2", label: "WR", x: 94, y: 47, codes: ["WR"] },
+  { key: "WR3", label: "WR", x: 72, y: 71, codes: ["WR"] },
+  { key: "FB", label: "FB", x: 38, y: 80, codes: ["FB"] },
+  { key: "RB", label: "RB", x: 55, y: 84, codes: ["RB"] },
+  { key: "QB", label: "QB", x: 50, y: 94, codes: ["QB"] },
+];
+
+const DEFENSE_SLOTS = [
+  { key: "DE1", label: "DE", x: 18, y: 40, codes: ["DE", "DL"] },
+  { key: "DT1", label: "DT", x: 38, y: 37, codes: ["DT", "NT", "DL"] },
+  { key: "DT2", label: "DT", x: 62, y: 37, codes: ["DT", "NT", "DL"] },
+  { key: "DE2", label: "DE", x: 82, y: 40, codes: ["DE", "DL"] },
+  { key: "OLB1", label: "LB", x: 24, y: 24, codes: ["OLB", "LB"] },
+  { key: "MLB", label: "LB", x: 50, y: 21, codes: ["MLB", "ILB", "LB"] },
+  { key: "OLB2", label: "LB", x: 76, y: 24, codes: ["OLB", "LB"] },
+  { key: "CB1", label: "CB", x: 8, y: 10, codes: ["CB", "DB"] },
+  { key: "FS", label: "FS", x: 37, y: 6, codes: ["FS", "S", "DB"] },
+  { key: "SS", label: "SS", x: 63, y: 6, codes: ["SS", "S", "DB"] },
+  { key: "CB2", label: "CB", x: 92, y: 10, codes: ["CB", "DB"] },
+];
+
+function layoutFormation(slots, byPosition) {
+  const used = {};
+  return slots.map(slot => {
+    let player = null;
+    for (const code of slot.codes) {
+      const list = byPosition[code];
+      if (!list) continue;
+      const idx = used[code] || 0;
+      if (list[idx]) { player = list[idx]; used[code] = idx + 1; break; }
+    }
+    return { ...slot, player };
+  });
+}
+
+function lastName(name) {
+  if (!name) return "";
+  const parts = name.trim().split(" ");
+  return parts[parts.length - 1];
+}
+
+function FormationChip({ slot, accent }) {
+  const { label, x, y, player } = slot;
+  return (
+    <div style={{
+      position: "absolute", left: `${x}%`, top: `${y}%`, transform: "translate(-50%, -50%)",
+      display: "flex", flexDirection: "column", alignItems: "center", gap: 2, width: 58, zIndex: 1,
+    }}>
+      <div style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: 0.5, color: player ? accent : "#4a5568" }}>{label}</div>
+      <div style={{
+        background: player ? "rgba(11,12,16,0.85)" : "rgba(11,12,16,0.5)",
+        border: `1px solid ${player ? accent : "#333"}`,
+        borderRadius: 7, padding: "3px 6px", fontSize: 10, fontWeight: 700,
+        color: player ? "#fff" : "#4a5568", whiteSpace: "nowrap", overflow: "hidden",
+        textOverflow: "ellipsis", maxWidth: 58, textAlign: "center",
+      }}>
+        {player ? lastName(player.name) : "—"}
+      </div>
+      {player?.injuryStatus && <div style={{ fontSize: 7.5, fontWeight: 700, color: "#D9645C" }}>{player.injuryStatus}</div>}
+    </div>
+  );
+}
+
+const DEFENSE_ACCENT = "#5B8DEF";
+
+function DepthChartField({ positions, accent }) {
+  const byPosition = {};
+  for (const { position, players } of positions) byPosition[position] = players;
+
+  const offense = layoutFormation(OFFENSE_SLOTS, byPosition);
+  const defense = layoutFormation(DEFENSE_SLOTS, byPosition);
+
+  return (
+    <div style={{
+      position: "relative", width: "100%", aspectRatio: "3 / 4",
+      background: "linear-gradient(180deg, #163020 0%, #14291d 50%, #0f2318 100%)",
+      backgroundImage: "repeating-linear-gradient(0deg, rgba(255,255,255,0.035) 0, rgba(255,255,255,0.035) 1px, transparent 1px, transparent 12.5%)",
+      border: "1px solid #1f3a28", borderRadius: 16, overflow: "hidden",
+    }}>
+      <div style={{ position: "absolute", left: 0, right: 0, top: "50%", borderTop: "2px dashed rgba(255,255,255,0.25)" }} />
+      <div style={{ position: "absolute", left: 10, top: "calc(50% + 4px)", fontSize: 8, fontWeight: 700, letterSpacing: 1, color: "rgba(255,255,255,0.3)" }}>LOS</div>
+      <div style={{ position: "absolute", left: 10, top: 8, fontSize: 8.5, fontWeight: 800, letterSpacing: 1.5, color: "rgba(255,255,255,0.25)" }}>DEFENSE</div>
+      <div style={{ position: "absolute", left: 10, bottom: 8, fontSize: 8.5, fontWeight: 800, letterSpacing: 1.5, color: "rgba(255,255,255,0.25)" }}>OFFENSE</div>
+
+      {defense.map(slot => <FormationChip key={slot.key} slot={slot} accent={DEFENSE_ACCENT} />)}
+      {offense.map(slot => <FormationChip key={slot.key} slot={slot} accent={accent} />)}
+    </div>
+  );
+}
+
 function fmtPropOdds(o) {
   return o == null ? "" : o > 0 ? `+${o}` : `${o}`;
 }
@@ -1002,6 +1113,20 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                 )}
                 {depthChartTeam && !depthChartLoading && !depthChartError && depthChart && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                    <div>
+                      <DepthChartField positions={depthChart.positions} accent={NFL_ORANGE} />
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8, fontSize: 10, color: "#555" }}>
+                        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: 2, background: NFL_ORANGE, display: "inline-block" }} /> Offense
+                        </span>
+                        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: 2, background: DEFENSE_ACCENT, display: "inline-block" }} /> Defense
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{ fontSize: 11, color: "#555", fontWeight: 700, letterSpacing: 1, borderTop: `1px solid ${tokens.color.border}`, paddingTop: 14 }}>FULL DEPTH CHART</div>
+
                     {depthChart.positions.map(({ position, players }) => (
                       <div key={position}>
                         <div style={{ fontSize: 11, color: NFL_ORANGE, fontWeight: 700, letterSpacing: 1.5, marginBottom: 6 }}>{position}</div>
@@ -1060,30 +1185,63 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                     </div>
                   ) : (
                     <div style={{ display: "flex", flexDirection: "column" }}>
-                      {teamSchedule.games.map((g, i) => (
-                        <div key={g.week} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderTop: i > 0 ? `1px solid ${tokens.color.border}` : "none" }}>
-                          <span style={{ width: 30, flexShrink: 0, fontFamily: tokens.font.mono, fontSize: 11, color: "#555" }}>W{g.week}</span>
-                          {g.bye ? (
-                            <span style={{ fontSize: 13, color: "#555", fontStyle: "italic" }}>BYE WEEK</span>
-                          ) : (
-                            <>
-                              <TeamLogo team={g.opponent} sport="nfl" size={22} />
-                              <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: "#eee", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                {g.isHome ? "vs" : "@"} {g.opponent}
-                              </span>
-                              {g.status === "Final" ? (
-                                <span style={{ fontFamily: tokens.font.mono, fontSize: 12, color: "#888", flexShrink: 0 }}>
-                                  {g.isHome ? `${g.homeScore}-${g.awayScore}` : `${g.awayScore}-${g.homeScore}`}
-                                </span>
-                              ) : (
-                                <span style={{ fontSize: 11, color: "#999", flexShrink: 0 }}>
-                                  {g.commenceTime ? new Date(g.commenceTime).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""}
-                                </span>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      ))}
+                      {teamSchedule.games.map((g, i) => {
+                        // g.spread is the home team's line; flip it to this
+                        // team's perspective so a road favorite still reads
+                        // as negative (matches how bettors actually talk
+                        // about "our" number regardless of home/away).
+                        const thisSpread = g.spread != null ? (g.isHome ? g.spread : -g.spread) : null;
+                        const resultColor = g.result === "W" ? "#2FBF71" : g.result === "L" ? "#D9645C" : "#888";
+                        const resultBg = g.result === "W" ? "rgba(47,191,113,0.12)" : g.result === "L" ? "rgba(217,100,92,0.12)" : "rgba(136,136,136,0.12)";
+                        return (
+                          <div key={g.week} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderTop: i > 0 ? `1px solid ${tokens.color.border}` : "none" }}>
+                            <span style={{ width: 30, flexShrink: 0, fontFamily: tokens.font.mono, fontSize: 11, color: "#555" }}>W{g.week}</span>
+                            {g.bye ? (
+                              <span style={{ fontSize: 13, color: "#555", fontStyle: "italic" }}>BYE WEEK</span>
+                            ) : (
+                              <>
+                                <TeamLogo team={g.opponent} sport="nfl" size={22} />
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontSize: 13, color: "#eee", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                    {g.isHome ? "vs" : "@"} {g.opponent}
+                                  </div>
+                                  {(g.venue || g.network) && (
+                                    <div style={{ fontSize: 10.5, color: "#666", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                      {[g.venue, g.network].filter(Boolean).join(" · ")}
+                                    </div>
+                                  )}
+                                </div>
+                                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3, flexShrink: 0 }}>
+                                  {g.status === "Final" ? (
+                                    <>
+                                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                        <span style={{ fontSize: 9.5, fontWeight: 800, padding: "2px 6px", borderRadius: 5, background: resultBg, color: resultColor }}>{g.result}</span>
+                                        <span style={{ fontFamily: tokens.font.mono, fontSize: 12, color: "#888" }}>
+                                          {g.isHome ? `${g.homeScore}-${g.awayScore}` : `${g.awayScore}-${g.homeScore}`}
+                                        </span>
+                                      </div>
+                                      {g.recordAfter && <span style={{ fontSize: 10, color: "#555", fontFamily: tokens.font.mono }}>{g.recordAfter}</span>}
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span style={{ fontSize: 11, color: "#999" }}>
+                                        {g.commenceTime ? new Date(g.commenceTime).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""}
+                                      </span>
+                                      {(thisSpread != null || g.total != null) && (
+                                        <span style={{ fontSize: 10.5, color: NFL_ORANGE, fontFamily: tokens.font.mono }}>
+                                          {thisSpread != null && (thisSpread > 0 ? `+${thisSpread}` : thisSpread)}
+                                          {thisSpread != null && g.total != null ? " · " : ""}
+                                          {g.total != null && `O/U ${g.total}`}
+                                        </span>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )
                 )}
