@@ -99,6 +99,9 @@ export default function AdminDash() {
   const [gamesPage, setGamesPage] = useState(0);
   const [gamesTotal, setGamesTotal] = useState(0);
   const [gamesLoading, setGamesLoading] = useState(false);
+  const [sysHealth, setSysHealth] = useState(null);
+  const [sysErrors, setSysErrors] = useState(null);
+  const [sysLoading, setSysLoading] = useState(false);
 
   // form state
   const [codeLabel, setCL]      = useState("");
@@ -143,6 +146,33 @@ export default function AdminDash() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, auth]);
+
+  // Lazy-loaded on first visit to the System tab, same pattern as Games —
+  // hits live odds-provider probes (rate-limit exposed), so it shouldn't be
+  // part of the main dashboard payload that runs on every admin page load.
+  useEffect(() => {
+    if (tab === "system" && auth && !sysHealth && !sysLoading) {
+      loadSystem(token);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, auth]);
+
+  async function loadSystem(tok) {
+    setSysLoading(true);
+    const h = { Authorization: `Bearer ${tok}` };
+    try {
+      const [healthR, errorsR] = await Promise.all([
+        fetch("/api/admin/system?action=health", { headers: h }).then(r => r.json()).catch(() => null),
+        fetch("/api/admin/system?action=errors&hours=24", { headers: h }).then(r => r.json()).catch(() => null),
+      ]);
+      setSysHealth(healthR);
+      setSysErrors(errorsR);
+    } catch {
+      setSysHealth(null);
+      setSysErrors(null);
+    }
+    setSysLoading(false);
+  }
 
   async function loadGames(tok, page) {
     setGamesLoading(true);
@@ -693,6 +723,97 @@ export default function AdminDash() {
               </div>
             ))}
           </div>
+        </>
+      )}
+
+      {/* ── SYSTEM ── */}
+      {tab === "system" && (
+        <>
+          <div style={{ ...S.row, marginBottom: 14 }}>
+            <span style={S.lbl}>ODDS PROVIDER HEALTH</span>
+            <button onClick={() => loadSystem(token)} disabled={sysLoading}
+              style={{ ...S.btn, padding: "5px 10px", fontSize: 11, opacity: sysLoading ? 0.5 : 1 }}>
+              {sysLoading ? "…" : "↻ Refresh"}
+            </button>
+          </div>
+
+          {sysLoading && !sysHealth && <div style={{ color: "#555", fontSize: 12, marginBottom: 14 }}>Checking live odds sources…</div>}
+
+          {sysHealth && (
+            <>
+              {["toa", "sgo", "espn"].map(key => {
+                const s = sysHealth.sources?.[key];
+                const label = { toa: "The Odds API", sgo: "SportsGameOdds", espn: "ESPN (free)" }[key];
+                const ok = s?.ok;
+                return (
+                  <div key={key} style={{ ...S.card, marginBottom: 8 }}>
+                    <div style={{ ...S.row, marginBottom: s?.error || s?.requestsRemaining ? 6 : 0 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700 }}>{label}</span>
+                      <span style={{ ...S.mono, fontSize: 11, fontWeight: 700, color: ok ? "#00FF87" : "#FF4D4D" }}>
+                        {ok ? "✓ OK" : `✗ ${s?.status || "DOWN"}`}
+                      </span>
+                    </div>
+                    {s?.error && <div style={{ fontSize: 11, color: "#FF4D4D", lineHeight: 1.5 }}>{s.error}</div>}
+                    {ok && key === "toa" && (
+                      <div style={{ fontSize: 11, color: "#888" }}>
+                        {s.games} games · {s.requestsRemaining ?? "?"} requests remaining ({s.requestsUsed ?? "?"} used)
+                      </div>
+                    )}
+                    {ok && key !== "toa" && s.games != null && <div style={{ fontSize: 11, color: "#888" }}>{s.games} games</div>}
+                    {ok && key === "espn" && <div style={{ fontSize: 11, color: "#888" }}>{sysHealth.sources.espn.totalGames} games total, {sysHealth.sources.espn.gamesWithOdds} with odds</div>}
+                  </div>
+                );
+              })}
+              <div style={{ fontSize: 10, color: "#333", marginBottom: 14 }}>Checked {new Date(sysHealth.checkedAt).toLocaleTimeString("en-US", { timeZone: "America/Chicago" })} CT</div>
+
+              <span style={S.lbl}>ODDS CACHE STALENESS</span>
+              <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                {["mlb", "nfl"].map(sport => {
+                  const c = sysHealth.cache?.[sport];
+                  return (
+                    <Chip key={sport} label={sport.toUpperCase()}
+                      value={c?.ageMin != null ? `${c.ageMin}m` : "—"}
+                      color={c?.ageMin == null ? "#fff" : c.stale ? "#FF4D4D" : "#00FF87"}
+                      sub={c?.stale ? "stale (>15m)" : c?.ageMin != null ? "fresh" : "no cache yet"} />
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          <span style={S.lbl}>SELF-LOGGED ERRORS — LAST {sysErrors?.windowHours ?? 24}H</span>
+          {sysErrors?.tableMissing && (
+            <div style={{ ...S.card, marginBottom: 14, border: "1px solid rgba(255,214,0,0.2)", background: "rgba(255,214,0,0.04)" }}>
+              <div style={{ fontSize: 12, color: "#FFD600" }}>⚠️ error_log table not found — run sql/020_error_log.sql against Supabase.</div>
+            </div>
+          )}
+          {sysErrors && !sysErrors.tableMissing && (
+            <>
+              {sysErrors.bySource?.length > 0 && (
+                <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+                  {sysErrors.bySource.map(b => (
+                    <Chip key={b.source} label={b.source.toUpperCase()} value={b.count} color={b.count > 0 ? "#FF4D4D" : "#fff"} />
+                  ))}
+                </div>
+              )}
+              {(!sysErrors.recent || sysErrors.recent.length === 0) && (
+                <div style={{ color: "#555", fontSize: 13, padding: "16px 0" }}>No errors logged in this window ✓</div>
+              )}
+              {sysErrors.recent?.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {sysErrors.recent.map(row => (
+                    <div key={row.id} style={{ ...S.card, padding: "10px 13px" }}>
+                      <div style={{ ...S.row, marginBottom: 4 }}>
+                        <span style={{ ...S.mono, fontSize: 10, fontWeight: 700, color: "#FF4D4D" }}>{row.source}{row.route ? ` · ${row.route}` : ""}</span>
+                        <span style={{ fontSize: 10, color: "#444" }}>{new Date(row.created_at).toLocaleTimeString("en-US", { timeZone: "America/Chicago" })} CT</span>
+                      </div>
+                      <div style={{ fontSize: 12, color: "#ccc", lineHeight: 1.5 }}>{row.message}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
         </>
       )}
 

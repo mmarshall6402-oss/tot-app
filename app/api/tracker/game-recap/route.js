@@ -1,4 +1,5 @@
 import { requireAuth } from "../../../../lib/auth.js";
+import { logError } from "../../../../lib/error-log.js";
 import Anthropic from "@anthropic-ai/sdk";
 
 const MLB_API = "https://statsapi.mlb.com/api/v1";
@@ -153,6 +154,7 @@ export async function GET(request) {
 
     return Response.json({ ...boxscore, paragraph });
   } catch (e) {
+    logError("tracker", e.message, { route: "/api/tracker/game-recap" });
     return Response.json({ error: "Failed to fetch game data" }, { status: 500 });
   }
 }

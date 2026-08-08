@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { fetchNFLOdds } from "../../../../lib/nfl-odds.js";
 import { buildNFLPicksForGames } from "../../../../lib/nfl-picks.js";
 import { requirePro } from "../../../../lib/auth.js";
+import { logError } from "../../../../lib/error-log.js";
 
 // Server-side route — use service role key to bypass RLS on nfl_picks_cache reads
 const getSupabase = () => createClient(
@@ -40,7 +41,9 @@ async function fetchNFLOddsWithCache(supabase) {
   }
 
   if (sbCached?.picks?.length) {
-    console.warn("[nfl-odds] serving stale Supabase cache");
+    const ageMin = Math.round((Date.now() - new Date(sbCached.generated_at).getTime()) / 60000);
+    console.warn("[nfl-odds] serving stale Supabase cache, age:", ageMin + "m");
+    logError("odds", `serving stale Supabase cache, age: ${ageMin}m`, { route: "nfl-odds-cache" });
     return sbCached.picks;
   }
   return [];
