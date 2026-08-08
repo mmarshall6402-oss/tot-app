@@ -680,8 +680,8 @@ const OFFENSE_SLOTS = [
   { key: "TE", label: "TE", x: 89, y: 71, codes: ["TE"], showBackup: true },
   { key: "WR3", label: "WR", x: 65, y: 78, codes: ["SWR", "WR"], showBackup: true },
   { key: "FB", label: "FB", x: 30, y: 78, codes: ["FB"], showBackup: true },
-  { key: "RB", label: "RB", x: 50, y: 87, codes: ["RB"], showBackup: true },
-  { key: "QB", label: "QB", x: 50, y: 94, codes: ["QB"], showBackup: true },
+  { key: "QB", label: "QB", x: 50, y: 87, codes: ["QB"], showBackup: true, large: true },
+  { key: "RB", label: "RB", x: 50, y: 94, codes: ["RB"], showBackup: true },
 ];
 
 const DEFENSE_SLOTS = [
@@ -745,27 +745,28 @@ function tint(hex, alpha) {
 }
 
 function FormationChip({ slot, accent }) {
-  const { label, x, y, player, backup } = slot;
+  const { label, x, y, player, backup, large } = slot;
+  const w = large ? 74 : 54;
   return (
     <div style={{
       position: "absolute", left: `${x}%`, top: `${y}%`, transform: "translate(-50%, -50%)",
-      display: "flex", flexDirection: "column", alignItems: "center", gap: 1, width: 54, zIndex: 1,
+      display: "flex", flexDirection: "column", alignItems: "center", gap: 1, width: w, zIndex: large ? 2 : 1,
     }}>
-      <div style={{ fontSize: 7.5, fontWeight: 800, letterSpacing: 0.4, color: player ? accent : "#3d4453", marginBottom: 1 }}>{label}</div>
+      <div style={{ fontSize: large ? 8.5 : 7.5, fontWeight: 800, letterSpacing: 0.4, color: player ? accent : "#3d4453", marginBottom: 1 }}>{label}</div>
       <div style={{
         background: player ? tint(accent, 0.16) : "rgba(255,255,255,0.03)",
         border: `1px solid ${player ? tint(accent, 0.65) : "rgba(255,255,255,0.08)"}`,
-        boxShadow: player ? "0 1px 3px rgba(0,0,0,0.35)" : "none",
-        borderRadius: 6, padding: "3px 5px", fontSize: 9.5, fontWeight: 700,
+        boxShadow: player ? (large ? "0 2px 6px rgba(0,0,0,0.45)" : "0 1px 3px rgba(0,0,0,0.35)") : "none",
+        borderRadius: large ? 8 : 6, padding: large ? "5px 8px" : "3px 5px", fontSize: large ? 12 : 9.5, fontWeight: 700,
         color: player ? "#fff" : "#3d4453", whiteSpace: "nowrap", overflow: "hidden",
-        textOverflow: "ellipsis", maxWidth: 54, textAlign: "center",
+        textOverflow: "ellipsis", maxWidth: w, textAlign: "center",
       }}>
         {player ? lastName(player.name) : "—"}
       </div>
       {player?.injuryStatus ? (
-        <div style={{ fontSize: 7, fontWeight: 700, color: "#D9645C", marginTop: 1 }}>{player.injuryStatus}</div>
+        <div style={{ fontSize: large ? 8 : 7, fontWeight: 700, color: "#D9645C", marginTop: 1 }}>{player.injuryStatus}</div>
       ) : backup && (
-        <div style={{ fontSize: 7.5, color: "#525a68", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 54, marginTop: 1 }}>
+        <div style={{ fontSize: large ? 8.5 : 7.5, color: "#525a68", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: w, marginTop: 1 }}>
           {lastName(backup.name)}
         </div>
       )}
