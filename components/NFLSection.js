@@ -812,15 +812,15 @@ function TeamSwitchBar({ team, accent, onChange }) {
 const OFFENSE_SLOTS = [
   { key: "WR1", label: "WR", x: 12, y: 53, codes: ["LWR", "WR"], showBackup: true },
   { key: "WR2", label: "WR", x: 88, y: 53, codes: ["RWR", "WR"], showBackup: true },
-  { key: "LT", label: "LT", x: 27, y: 63, codes: ["LT", "OT", "OL"] },
-  { key: "LG", label: "LG", x: 39, y: 65, codes: ["LG", "OG", "OL"] },
-  { key: "C", label: "C", x: 50, y: 66, codes: ["C", "OL"] },
-  { key: "RG", label: "RG", x: 61, y: 65, codes: ["RG", "OG", "OL"] },
-  { key: "RT", label: "RT", x: 73, y: 63, codes: ["RT", "OT", "OL"] },
-  { key: "TE", label: "TE", x: 86, y: 71, codes: ["TE"], showBackup: true },
-  { key: "WR3", label: "WR", x: 65, y: 78, codes: ["SWR", "WR"], showBackup: true },
-  { key: "FB", label: "FB", x: 30, y: 78, codes: ["FB"], showBackup: true },
-  { key: "QB", label: "QB", x: 50, y: 87, codes: ["QB"], showBackup: true, large: true },
+  { key: "LT", label: "LT", x: 27, y: 60, codes: ["LT", "OT", "OL"] },
+  { key: "LG", label: "LG", x: 39, y: 62, codes: ["LG", "OG", "OL"] },
+  { key: "C", label: "C", x: 50, y: 63, codes: ["C", "OL"] },
+  { key: "RG", label: "RG", x: 61, y: 62, codes: ["RG", "OG", "OL"] },
+  { key: "RT", label: "RT", x: 73, y: 60, codes: ["RT", "OT", "OL"] },
+  { key: "TE", label: "TE", x: 86, y: 67, codes: ["TE"], showBackup: true },
+  { key: "WR3", label: "WR", x: 65, y: 72, codes: ["SWR", "WR"], showBackup: true },
+  { key: "FB", label: "FB", x: 30, y: 72, codes: ["FB"] },
+  { key: "QB", label: "QB", x: 50, y: 83, codes: ["QB"], showBackup: true, large: true },
   { key: "RB", label: "RB", x: 50, y: 94, codes: ["RB"], showBackup: true },
 ];
 
@@ -871,9 +871,12 @@ function layoutFormation(slots, byPosition) {
   });
 }
 
+const NAME_SUFFIXES = new Set(["jr.", "jr", "sr.", "sr", "ii", "iii", "iv", "v"]);
+
 function lastName(name) {
   if (!name) return "";
   const parts = name.trim().split(" ");
+  while (parts.length > 1 && NAME_SUFFIXES.has(parts[parts.length - 1].toLowerCase())) parts.pop();
   return parts[parts.length - 1];
 }
 
@@ -884,29 +887,40 @@ function tint(hex, alpha) {
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
 }
 
+// Injury status renders as a small dot badge on the box corner rather than
+// a text line — it used to be a text line and, combined with a "next up"
+// backup line, could push a chip to 4 lines tall, which is what kept
+// colliding with neighboring tiers no matter how much they were spaced out.
+// The large QB chip also never shows its backup line (still computed by
+// layoutFormation for data purposes, just not rendered) since QB sits
+// between two other backup-showing tiers and is already the visually
+// prominent chip without one.
 function FormationChip({ slot, accent }) {
   const { label, x, y, player, backup, large } = slot;
-  const w = large ? 108 : 78;
+  const w = large ? 96 : 78;
   return (
     <div style={{
       position: "absolute", left: `${x}%`, top: `${y}%`, transform: "translate(-50%, -50%)",
       display: "flex", flexDirection: "column", alignItems: "center", gap: 1, width: w, zIndex: large ? 2 : 1,
     }}>
       <div style={{ fontSize: large ? 11 : 10, fontWeight: 800, letterSpacing: 0.4, color: player ? accent : "#3d4453", marginBottom: 1 }}>{label}</div>
-      <div style={{
-        background: player ? tint(accent, 0.16) : "rgba(255,255,255,0.03)",
-        border: `1px solid ${player ? tint(accent, 0.65) : "rgba(255,255,255,0.08)"}`,
-        boxShadow: player ? (large ? "0 2px 6px rgba(0,0,0,0.45)" : "0 1px 3px rgba(0,0,0,0.35)") : "none",
-        borderRadius: large ? 11 : 9, padding: large ? "7px 8px" : "5px 6px", fontSize: large ? 14 : 11, fontWeight: 700,
-        color: player ? "#fff" : "#3d4453", whiteSpace: "nowrap", overflow: "hidden",
-        textOverflow: "ellipsis", maxWidth: w, textAlign: "center",
-      }}>
-        {player ? lastName(player.name) : "—"}
+      <div style={{ position: "relative" }}>
+        <div style={{
+          background: player ? tint(accent, 0.16) : "rgba(255,255,255,0.03)",
+          border: `1px solid ${player ? tint(accent, 0.65) : "rgba(255,255,255,0.08)"}`,
+          boxShadow: player ? (large ? "0 2px 6px rgba(0,0,0,0.45)" : "0 1px 3px rgba(0,0,0,0.35)") : "none",
+          borderRadius: large ? 11 : 9, padding: large ? "7px 8px" : "5px 6px", fontSize: large ? 14 : 11, fontWeight: 700,
+          color: player ? "#fff" : "#3d4453", whiteSpace: "nowrap", overflow: "hidden",
+          textOverflow: "ellipsis", maxWidth: w, textAlign: "center",
+        }}>
+          {player ? lastName(player.name) : "—"}
+        </div>
+        {player?.injuryStatus && (
+          <div style={{ position: "absolute", top: -3, right: -3, width: 9, height: 9, borderRadius: "50%", background: "#D9645C", border: "1.5px solid #111318" }} />
+        )}
       </div>
-      {player?.injuryStatus ? (
-        <div style={{ fontSize: large ? 10.5 : 9.5, fontWeight: 700, color: "#D9645C", marginTop: 1 }}>{player.injuryStatus}</div>
-      ) : backup && (
-        <div style={{ fontSize: large ? 11 : 10, color: "#525a68", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: w, marginTop: 1 }}>
+      {backup && !large && (
+        <div style={{ fontSize: 10, color: "#525a68", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: w, marginTop: 1 }}>
           {lastName(backup.name)}
         </div>
       )}
@@ -949,7 +963,7 @@ function DepthChartField({ positions, accent }) {
   return (
     <div style={{ width: "100%", maxWidth: 480, margin: "0 auto", background: "#111318", border: "1px solid #1c1f26", borderRadius: 20, padding: 15, display: "flex", flexDirection: "column", gap: 13 }}>
       <div style={{
-        position: "relative", width: "100%", aspectRatio: "1 / 1.1",
+        position: "relative", width: "100%", aspectRatio: "1 / 1.72",
         background: "linear-gradient(180deg, #16301f 0%, #132c1c 50%, #0f2318 100%)",
         backgroundImage: "repeating-linear-gradient(0deg, rgba(255,255,255,0.03) 0, rgba(255,255,255,0.03) 1px, transparent 1px, transparent 12.5%)",
         border: "1px solid #21422b", borderRadius: 15, overflow: "hidden",
