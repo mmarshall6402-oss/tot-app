@@ -24,6 +24,7 @@ import { accentButtonStyle, tabButtonStyle, tokens, iconButtonStyle } from "../l
 import { CheckIcon, RefreshIcon } from "./icons.js";
 import { nflHeadshotUrl } from "../lib/nfl-roster.js";
 import PlayerHeadshot from "./PlayerHeadshot.js";
+import { computeRosterNeeds, rankAvailable, countByPosition } from "../lib/nfl-fantasy/draft-assistant.js";
 
 function pickOddsFor(pick) {
   if (pick.marketType === "spread") return pick.pick === pick.homeTeam ? pick.homeSpreadOdds : pick.awaySpreadOdds;
@@ -328,6 +329,17 @@ function scoringToFormat(scoring) {
   return "ppr";
 }
 
+// Accepts either a raw Sleeper draft id or a pasted draft URL
+// (sleeper.com/draft/nfl/<id> or sleeper.app/draft/<id>) — Sleeper draft
+// ids are long numeric strings, so grabbing the longest digit run out of
+// whatever the user pasted works for both without needing real URL parsing.
+function parseSleeperDraftId(input) {
+  const trimmed = (input || "").trim();
+  const digitRuns = trimmed.match(/\d{6,}/g);
+  if (!digitRuns) return trimmed;
+  return digitRuns.reduce((longest, run) => (run.length > longest.length ? run : longest), "");
+}
+
 // Cheat Sheet "signal" filter — narrows the list to players carrying a
 // specific ceilingVorp-adjustment badge (see lib/nfl-fantasy/*-adjustment.js)
 // instead of scrolling the full board looking for them.
@@ -461,6 +473,73 @@ function DraftBoardRow({ p }) {
           </span>
         )}
       </div>
+    </div>
+  );
+}
+
+// Draft Assistant's available-players row — like DraftBoardRow but ordered
+// by recommendScore (rank + roster-need weighting,
+// lib/nfl-fantasy/draft-assistant.js) rather than raw rank_overall, with a
+// tier-cliff flag and (manual-tracking mode only — Sleeper-synced mode has
+// no "mark drafted" action of its own, the poll does that) buttons to log a
+// pick. Already-drafted players never reach this row: rankAvailable()
+// filters them out before this renders, so there's no drafted/available
+// toggle state to juggle here — see DraftHistoryList below for undoing one.
+function DraftAssistantRow({ p, mode, onMine, onTaken }) {
+  return (
+    <div style={{ background: "#15171d", border: `1px solid ${p.lastInTier ? "#D6B23D66" : "#242832"}`, borderRadius: 12, padding: "10px 12px", display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ fontFamily: tokens.font.mono, fontSize: 15, fontWeight: 700, color: "#3d424f", width: 24, textAlign: "center", flexShrink: 0 }}>{p.rank_overall}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+          <span style={{ fontWeight: 700, fontSize: 13.5 }}>{p.name}</span>
+          <span style={{ fontSize: 11, color: "#666" }}>{p.position} · {p.team || "FA"}</span>
+          {p.lastInTier && (
+            <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 0.5, padding: "2px 6px", borderRadius: 999, background: "rgba(214,178,61,0.12)", color: "#D6B23D", border: "1px solid rgba(214,178,61,0.4)" }}>
+              LAST IN TIER
+            </span>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 3, alignItems: "center", flexWrap: "wrap" }}>
+          <span style={{ fontSize: 10.5, color: "#888", fontFamily: tokens.font.mono }}>Proj {p.projected_points?.toFixed(1)}</span>
+          <ValueDeltaBadge delta={p.value_delta} compact />
+        </div>
+      </div>
+      {mode === "manual" && (
+        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+          <button onClick={onMine} style={{ background: NFL_ORANGE, border: "none", borderRadius: 8, color: "#0b0c10", fontSize: 10.5, fontWeight: 700, padding: "6px 10px", cursor: "pointer" }}>Mine</button>
+          <button onClick={onTaken} style={{ background: "#12141a", border: "1px solid #333", borderRadius: 8, color: "#888", fontSize: 10.5, padding: "6px 10px", cursor: "pointer" }}>Taken</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Reverse-chronological pick log — Sets/arrays built by insertion order
+// (manual mode) or Sleeper's own oldest-first picks array (sync mode) both
+// already carry pick order, so this just reverses and slices rather than
+// needing its own separate timestamp tracking. Doubles as the only way to
+// undo a misclick in manual mode, since drafted players no longer appear in
+// the main available board.
+function DraftHistoryList({ drafted, mode, onUndo }) {
+  if (!drafted.length) {
+    return <div style={{ fontSize: 12, color: "#555", textAlign: "center", padding: "14px 0" }}>No picks logged yet.</div>;
+  }
+  const recent = [...drafted].reverse().slice(0, 12);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {recent.map((p) => (
+        <div key={p.player_id} style={{ display: "flex", alignItems: "center", gap: 8, background: "#12141a", border: "1px solid #242832", borderRadius: 8, padding: "6px 10px" }}>
+          <span style={{ fontSize: 9, fontFamily: tokens.font.mono, color: "#3d424f", width: 20, flexShrink: 0 }}>{p.rank_overall ?? "—"}</span>
+          <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, color: "#ddd", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
+          <span style={{ fontSize: 10, color: "#666", flexShrink: 0 }}>{p.position}</span>
+          <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 6px", borderRadius: 999, flexShrink: 0, background: p.isMine ? "rgba(47,191,113,0.1)" : "rgba(136,136,136,0.08)", color: p.isMine ? "#2FBF71" : "#888" }}>
+            {p.isMine ? "Mine" : "Taken"}
+          </span>
+          {mode === "manual" && (
+            <button onClick={() => onUndo(p.player_id)} style={{ background: "none", border: "1px solid #333", borderRadius: 6, color: "#888", fontSize: 9.5, padding: "3px 7px", cursor: "pointer", flexShrink: 0 }}>Undo</button>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
@@ -1002,6 +1081,24 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
   const [signalFilter, setSignalFilter] = useState("ALL");
   const [filtersOpen, setFiltersOpen] = useState(false);
 
+  // Draft Assistant state
+  const [draftPool, setDraftPool] = useState(null);
+  const [draftPoolLoading, setDraftPoolLoading] = useState(false);
+  const [draftPoolError, setDraftPoolError] = useState(null);
+  const [draftPositionFilter, setDraftPositionFilter] = useState("ALL");
+  const [draftMode, setDraftMode] = useState("manual"); // "manual" | "sleeper"
+  // Manual mode: every drafted player (mine + everyone else's) lives in
+  // draftedIds; myDraftedIds is the subset that's mine. Kept as two Sets
+  // rather than one Map so the "is this drafted at all" filter (shared with
+  // Sleeper mode's draftedPlayerIds) doesn't need to branch on shape.
+  const [draftedIds, setDraftedIds] = useState(() => new Set());
+  const [myDraftedIds, setMyDraftedIds] = useState(() => new Set());
+  const [sleeperDraftIdInput, setSleeperDraftIdInput] = useState("");
+  const [sleeperSlotInput, setSleeperSlotInput] = useState("");
+  const [sleeperState, setSleeperState] = useState(null);
+  const [sleeperError, setSleeperError] = useState(null);
+  const [sleeperLoading, setSleeperLoading] = useState(false);
+
   // Depth Chart state
   const [depthChartTeam, setDepthChartTeam] = useState(null);
   const [depthChart, setDepthChart] = useState(null);
@@ -1113,6 +1210,62 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
     if (subTab === "fantasy" && fantasyMode === "cheatSheet") loadCheatSheet();
   }, [subTab, fantasyMode, scoring, positionFilter]);
 
+  // Draft Assistant's own player pool — deliberately independent of the
+  // Cheat Sheet's positionFilter/signalFilter state above (draft mode needs
+  // every position available to compute roster needs, not whatever the
+  // Cheat Sheet tab happens to be filtered to) but same endpoint/shape.
+  const loadDraftPool = async () => {
+    setDraftPoolLoading(true); setDraftPoolError(null);
+    try {
+      const headers = await getAuthHeaders();
+      const params = new URLSearchParams({ format: scoringToFormat(scoring), limit: "300" });
+      const res = await fetch(`/api/nfl/fantasy/rankings?${params}`, { headers });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error");
+      setDraftPool(data.rankings || []);
+    } catch (e) {
+      setDraftPoolError(e.message || "Could not load rankings");
+      setDraftPool(prev => prev ?? []);
+    }
+    setDraftPoolLoading(false);
+  };
+
+  useEffect(() => {
+    if (subTab === "fantasy" && fantasyMode === "draft") loadDraftPool();
+  }, [subTab, fantasyMode, scoring]);
+
+  // Sleeper live sync: polls picks on an interval while a draft id is set,
+  // same "best-effort, degrade to last-known state" posture as the rest of
+  // this file's Sleeper usage. Stops polling the moment the user navigates
+  // away from Draft mode or switches back to manual — no point burning
+  // Sleeper's API budget for a tab that isn't visible.
+  useEffect(() => {
+    const draftId = parseSleeperDraftId(sleeperDraftIdInput);
+    if (!(subTab === "fantasy" && fantasyMode === "draft" && draftMode === "sleeper" && draftId)) return;
+    let cancelled = false;
+    const poll = async () => {
+      setSleeperLoading(true);
+      try {
+        const headers = await getAuthHeaders();
+        const params = new URLSearchParams({ draftId, format: scoringToFormat(scoring) });
+        const slot = parseInt(sleeperSlotInput, 10);
+        if (Number.isFinite(slot)) params.set("slot", String(slot));
+        const res = await fetch(`/api/nfl/fantasy/draft?${params}`, { headers });
+        const data = await res.json();
+        if (cancelled) return;
+        if (!res.ok) throw new Error(data.error || "Error");
+        setSleeperState(data);
+        setSleeperError(null);
+      } catch (e) {
+        if (!cancelled) setSleeperError(e.message || "Could not sync draft");
+      }
+      if (!cancelled) setSleeperLoading(false);
+    };
+    poll();
+    const interval = setInterval(poll, 15000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [subTab, fantasyMode, draftMode, sleeperDraftIdInput, sleeperSlotInput, scoring]);
+
   const loadDepthChart = async (team) => {
     setDepthChartLoading(true); setDepthChartError(null);
     try {
@@ -1223,6 +1376,45 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
     signalFilter !== "ALL" ? SIGNAL_FILTERS.find(f => f.id === signalFilter)?.label : null,
   ].filter(Boolean).join(", ");
 
+  // Manual mode: marking a player "Mine" or "Taken" both add to draftedIds
+  // (off the board either way); only "Mine" also adds to myDraftedIds.
+  // Undo clears both — a full revert back to available rather than
+  // stepping through an intermediate state, since there isn't a
+  // meaningful third state to land on.
+  const markMine = (playerId) => {
+    setDraftedIds(prev => new Set(prev).add(playerId));
+    setMyDraftedIds(prev => new Set(prev).add(playerId));
+  };
+  const markTaken = (playerId) => {
+    setDraftedIds(prev => new Set(prev).add(playerId));
+  };
+  const undoPick = (playerId) => {
+    setDraftedIds(prev => { const s = new Set(prev); s.delete(playerId); return s; });
+    setMyDraftedIds(prev => { const s = new Set(prev); s.delete(playerId); return s; });
+  };
+
+  // Unifies the two draft sources (manual clicks vs Sleeper poll) into the
+  // same shape everything below consumes — the rest of the Draft Assistant
+  // render doesn't need to know which mode is active. draftedIdsOrdered
+  // keeps pick order (oldest-first: Set iteration order for manual clicks,
+  // Sleeper's own picks-array order for sync mode) specifically for
+  // DraftHistoryList, which reverses it to show most-recent-first — a plain
+  // Set has no order to trust once you've thrown it away.
+  const draftedIdsOrdered = draftMode === "sleeper" ? (sleeperState?.draftedPlayerIds || []) : [...draftedIds];
+  const activeDraftedIds = new Set(draftedIdsOrdered);
+  const activeMyIds = draftMode === "sleeper" ? new Set(sleeperState?.myDraftedPlayerIds || []) : myDraftedIds;
+
+  const draftPoolById = new Map((draftPool || []).map(p => [p.player_id, p]));
+  const myDraftedPlayers = [...activeMyIds].map(id => draftPoolById.get(id)).filter(Boolean);
+  const rosterNeeds = computeRosterNeeds(countByPosition(myDraftedPlayers));
+  const availableRanked = draftPool ? rankAvailable(draftPool, activeDraftedIds, rosterNeeds) : [];
+  const availableFiltered = draftPositionFilter === "ALL" ? availableRanked : availableRanked.filter(p => p.position === draftPositionFilter);
+  const topRecommendation = availableFiltered[0] || null;
+  const draftHistory = draftedIdsOrdered
+    .map(id => draftPoolById.get(id))
+    .filter(Boolean)
+    .map(p => ({ ...p, isMine: activeMyIds.has(p.player_id) }));
+
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
 
@@ -1268,6 +1460,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                 { id: "trade",      label: "Trade" },
                 { id: "ask",        label: "Ask AI" },
                 { id: "cheatSheet", label: "Cheat Sheet" },
+                { id: "draft",      label: "Draft" },
                 { id: "depthChart", label: "Depth Chart" },
                 { id: "schedule",   label: "Schedule" },
               ].map(({ id, label }) => (
@@ -1483,6 +1676,159 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                   positionFilter === "ALL"
                     ? <DraftBoardGrid players={filteredCheatSheet} />
                     : <DraftBoardColumn players={filteredCheatSheet} />
+                )}
+              </div>
+            )}
+
+            {/* ── Draft Assistant ── on-the-clock draft-day tool: filters the
+                Cheat Sheet down to what's still on the board, re-sorts by
+                roster need (lib/nfl-fantasy/draft-assistant.js) instead of
+                raw rank, and (Sleeper Sync mode) tracks whose turn it is in
+                a real live draft. */}
+            {fantasyMode === "draft" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {[{ id: "manual", label: "Manual Tracker" }, { id: "sleeper", label: "Sleeper Sync" }].map(({ id, label }) => (
+                    <button key={id} onClick={() => setDraftMode(id)}
+                      style={{ ...tabButtonStyle({ active: draftMode === id, accent: NFL_ORANGE }), flexShrink: 0 }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {draftMode === "sleeper" && (
+                  <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 12, padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+                    <input value={sleeperDraftIdInput} onChange={e => setSleeperDraftIdInput(e.target.value)}
+                      placeholder="Sleeper draft ID or URL" style={inputStyle} />
+                    <input value={sleeperSlotInput} onChange={e => setSleeperSlotInput(e.target.value.replace(/\D/g, ""))}
+                      placeholder="Your draft slot # (optional — e.g. 4)" style={inputStyle} />
+                    {sleeperError && <div style={{ fontSize: 12, color: "#D9645C" }}>{sleeperError}</div>}
+                    {sleeperLoading && !sleeperState && <div style={{ fontSize: 12, color: "#555" }}>Syncing with Sleeper…</div>}
+                  </div>
+                )}
+
+                {draftMode === "sleeper" && sleeperState && (
+                  <div style={{
+                    borderRadius: 12, padding: "12px 14px", textAlign: "center", fontWeight: 800, fontSize: 13,
+                    background: sleeperState.onTheClock ? "rgba(47,191,113,0.12)" : "#15171d",
+                    border: `1px solid ${sleeperState.onTheClock ? "#2FBF71" : "#242832"}`,
+                    color: sleeperState.onTheClock ? "#2FBF71" : "#888",
+                  }}>
+                    {sleeperState.onTheClock
+                      ? `🚨 YOU'RE ON THE CLOCK — Round ${sleeperState.round}, Pick ${sleeperState.currentPickNo}`
+                      : sleeperState.picksUntilYou != null
+                        ? `${sleeperState.picksUntilYou} pick${sleeperState.picksUntilYou === 1 ? "" : "s"} until you're on the clock · Round ${sleeperState.round}, Pick ${sleeperState.currentPickNo} now`
+                        : `Round ${sleeperState.round}, Pick ${sleeperState.currentPickNo} · enter your draft slot above to track your turn`}
+                  </div>
+                )}
+
+                {draftPoolLoading && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#555", fontSize: 13, padding: "20px 0" }}>
+                    <div style={{ width: 18, height: 18, border: "2px solid #2b2f3a", borderTopColor: NFL_ORANGE, borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+                    Loading player pool…
+                  </div>
+                )}
+
+                {!draftPoolLoading && draftPoolError && (
+                  <div style={S.center}>
+                    <div style={{ color: "#fff", fontWeight: 700, marginTop: 8 }}>Could not load rankings</div>
+                    <div style={{ color: "#777", fontSize: 13, marginTop: 4 }}>{draftPoolError}</div>
+                    <button style={{ ...S.saveBtn, marginTop: 14 }} onClick={loadDraftPool}>Retry</button>
+                  </div>
+                )}
+
+                {!draftPoolLoading && !draftPoolError && draftPool?.length === 0 && (
+                  <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 14, padding: "28px 16px", textAlign: "center" }}>
+                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>No rankings yet</div>
+                    <div style={{ fontSize: 13, color: "#555", lineHeight: 1.6 }}>Draft rankings refresh weekly as the season approaches. Check back soon.</div>
+                  </div>
+                )}
+
+                {!draftPoolLoading && !draftPoolError && draftPool?.length > 0 && (
+                  <>
+                    {topRecommendation && (
+                      <div style={{ background: "linear-gradient(135deg, rgba(217,117,74,0.14), #15171d)", border: `1px solid ${NFL_ORANGE}55`, borderRadius: 14, padding: 14 }}>
+                        <div style={{ fontSize: 10, color: NFL_ORANGE, fontWeight: 800, letterSpacing: 1.2, marginBottom: 6 }}>TOP RECOMMENDATION</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                          <span style={{ fontSize: 18, fontWeight: 800 }}>{topRecommendation.name}</span>
+                          <span style={{ fontSize: 12, color: "#888" }}>{topRecommendation.position} · {topRecommendation.team || "FA"} · Rank {topRecommendation.rank_overall}</span>
+                          {topRecommendation.lastInTier && (
+                            <span style={{ fontSize: 9.5, fontWeight: 800, padding: "2px 7px", borderRadius: 999, background: "rgba(214,178,61,0.12)", color: "#D6B23D", border: "1px solid rgba(214,178,61,0.4)" }}>
+                              LAST IN TIER
+                            </span>
+                          )}
+                        </div>
+                        {topRecommendation.needSlots > 0 && (
+                          <div style={{ fontSize: 12, color: "#2FBF71", marginTop: 6 }}>Fills a starting need at {topRecommendation.position}</div>
+                        )}
+                        {draftMode === "manual" && (
+                          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                            <button onClick={() => markMine(topRecommendation.player_id)}
+                              style={{ background: NFL_ORANGE, border: "none", borderRadius: 8, color: "#0b0c10", fontSize: 12, fontWeight: 700, padding: "8px 14px", cursor: "pointer" }}>
+                              Draft to My Team
+                            </button>
+                            <button onClick={() => markTaken(topRecommendation.player_id)}
+                              style={{ background: "#12141a", border: "1px solid #333", borderRadius: 8, color: "#888", fontSize: 12, padding: "8px 14px", cursor: "pointer" }}>
+                              Someone Else Took It
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 12, padding: 12 }}>
+                      <div style={{ fontSize: 10, color: "#555", fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>MY ROSTER</div>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        {["QB", "RB", "WR", "TE"].map(pos => {
+                          const have = myDraftedPlayers.filter(p => p.position === pos).length;
+                          const need = rosterNeeds[pos] || 0;
+                          return (
+                            <div key={pos} style={{ background: "#12141a", border: `1px solid ${need > 0 ? "#D6B23D55" : "#242832"}`, borderRadius: 10, padding: "8px 12px", minWidth: 66, textAlign: "center" }}>
+                              <div style={{ fontSize: 10, color: POSITION_ACCENT[pos], fontWeight: 800 }}>{pos}</div>
+                              <div style={{ fontSize: 16, fontWeight: 800, color: "#fff", marginTop: 2 }}>{have}</div>
+                              {need > 0 && <div style={{ fontSize: 9.5, color: "#D6B23D", marginTop: 2 }}>need {need}</div>}
+                            </div>
+                          );
+                        })}
+                        {rosterNeeds.FLEX_DEFICIT > 0 && (
+                          <div style={{ background: "#12141a", border: "1px solid #D6B23D55", borderRadius: 10, padding: "8px 12px", minWidth: 66, textAlign: "center" }}>
+                            <div style={{ fontSize: 10, color: "#888", fontWeight: 800 }}>FLEX</div>
+                            <div style={{ fontSize: 9.5, color: "#D6B23D", marginTop: 2 }}>need {rosterNeeds.FLEX_DEFICIT}</div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", gap: 6, overflowX: "auto" }}>
+                      {["ALL", "QB", "RB", "WR", "TE"].map(pos => (
+                        <button key={pos} onClick={() => setDraftPositionFilter(pos)}
+                          style={{ ...tabButtonStyle({ active: draftPositionFilter === pos, accent: NFL_ORANGE }), flexShrink: 0, padding: "6px 14px" }}>
+                          {pos}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div>
+                      <div style={{ fontSize: 10, color: "#555", fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>BEST AVAILABLE</div>
+                      {availableFiltered.length === 0 ? (
+                        <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 14, padding: "20px 16px", textAlign: "center", color: "#555", fontSize: 13 }}>
+                          No players left at this position.
+                        </div>
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          {availableFiltered.slice(0, 60).map(p => (
+                            <DraftAssistantRow key={p.player_id} p={p} mode={draftMode}
+                              onMine={() => markMine(p.player_id)} onTaken={() => markTaken(p.player_id)} />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <div style={{ fontSize: 10, color: "#555", fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>RECENT PICKS</div>
+                      <DraftHistoryList drafted={draftHistory} mode={draftMode} onUndo={undoPick} />
+                    </div>
+                  </>
                 )}
               </div>
             )}
