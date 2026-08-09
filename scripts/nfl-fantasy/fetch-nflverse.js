@@ -15,13 +15,11 @@
 // (outbound access to github.com/ESPN is blocked by this sandbox's egress
 // policy). Run this script once with network access (locally or in CI) and
 // check the logged column report before trusting the output.
-import * as XLSX_NS from "xlsx";
-const XLSX = XLSX_NS.default ?? XLSX_NS;
 import { writeFile, mkdir, readFile } from "fs/promises";
 import { join } from "path";
 import { aggregatePlayByPlay, attachPositions } from "../../lib/nfl-fantasy/pbp-aggregate.js";
+import { RELEASE_BASE, fetchNflverseCsv, checkNflverseColumns } from "../../lib/nfl-fantasy/nflverse-csv.js";
 
-const RELEASE_BASE = "https://github.com/nflverse/nflverse-data/releases/download";
 const OUT_DIR = join(process.cwd(), "data/nflverse");
 
 const SEASONS = (() => {
@@ -32,15 +30,6 @@ const SEASONS = (() => {
   // Last 5 completed seasons by default — enough lookback for recency-weighted projections.
   return Array.from({ length: 5 }, (_, i) => currentYear - 1 - i);
 })();
-
-async function fetchCsv(url) {
-  const res = await fetch(url, { signal: AbortSignal.timeout(120000) });
-  if (!res.ok) throw new Error(`fetch ${url} -> ${res.status}`);
-  const text = await res.text();
-  const wb = XLSX.read(text, { type: "string" });
-  const sheetName = wb.SheetNames[0];
-  return XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
-}
 
 // Play-by-play files run 90MB+ (vs ~1.6MB for one season's aggregated
 // stats) — deliberately not parsed through XLSX (see
@@ -79,30 +68,6 @@ async function fetchSeasonViaPbp(season, playersRows) {
   return withPositions;
 }
 
-// Expected columns per file, used only to log a warning if nflverse has
-// renamed something — parsing still proceeds with whatever columns exist,
-// since downstream code (lib/nfl-fantasy/scoring.js, id-map.js) already
-// treats missing fields as absent rather than throwing.
-const EXPECTED_COLUMNS = {
-  player_stats: ["player_id", "player_name", "position", "recent_team", "season", "week", "passing_yards", "passing_tds", "rushing_yards", "rushing_tds", "receptions", "receiving_yards", "receiving_tds"],
-  players: ["gsis_id", "espn_id", "display_name", "position"],
-  snap_counts: ["pfr_player_id", "player", "position", "team", "season", "week", "offense_pct"],
-};
-
-function checkColumns(label, rows) {
-  if (!rows.length) {
-    console.warn(`[fetch-nflverse] ${label}: 0 rows returned`);
-    return;
-  }
-  const actual = new Set(Object.keys(rows[0]));
-  const missing = (EXPECTED_COLUMNS[label] || []).filter(c => !actual.has(c));
-  if (missing.length) {
-    console.warn(`[fetch-nflverse] ${label}: missing expected columns ${missing.join(", ")} — nflverse may have renamed these. Actual columns: ${[...actual].join(", ")}`);
-  } else {
-    console.log(`[fetch-nflverse] ${label}: ${rows.length} rows, columns OK`);
-  }
-}
-
 async function main() {
   await mkdir(OUT_DIR, { recursive: true });
 
@@ -113,8 +78,8 @@ async function main() {
   // roster position to aggregated stat lines.
   let playerRows = [];
   try {
-    playerRows = await fetchCsv(`${RELEASE_BASE}/players/players.csv`);
-    checkColumns("players", playerRows);
+    playerRows = await fetchNflverseCsv(`${RELEASE_BASE}/players/players.csv`);
+    checkNflverseColumns("players", playerRows);
     await writeFile(join(OUT_DIR, "players.json"), JSON.stringify(playerRows));
     console.log(`[fetch-nflverse] wrote players.json (${playerRows.length} rows)`);
   } catch (e) {
@@ -130,8 +95,8 @@ async function main() {
   const allPlayerStats = [];
   for (const season of SEASONS) {
     try {
-      const rows = await fetchCsv(`${RELEASE_BASE}/player_stats/player_stats_${season}.csv`);
-      checkColumns("player_stats", rows);
+      const rows = await fetchNflverseCsv(`${RELEASE_BASE}/player_stats/player_stats_${season}.csv`);
+      checkNflverseColumns("player_stats", rows);
       allPlayerStats.push(...rows);
     } catch (e) {
       console.error(`[fetch-nflverse] season ${season} player_stats failed: ${e.message}`);
@@ -150,8 +115,8 @@ async function main() {
   const allSnapCounts = [];
   for (const season of SEASONS) {
     try {
-      const rows = await fetchCsv(`${RELEASE_BASE}/snap_counts/snap_counts_${season}.csv`);
-      checkColumns("snap_counts", rows);
+      const rows = await fetchNflverseCsv(`${RELEASE_BASE}/snap_counts/snap_counts_${season}.csv`);
+      checkNflverseColumns("snap_counts", rows);
       allSnapCounts.push(...rows);
     } catch (e) {
       console.error(`[fetch-nflverse] season ${season} snap_counts failed: ${e.message}`);

@@ -22,6 +22,7 @@ import { buildScheduleAdjustmentByName, applyScheduleAdjustment } from "../../..
 import { buildPersonnelAdjustmentByTeam, applyPersonnelAdjustment } from "../../../../lib/nfl-fantasy/personnel-adjustment.js";
 import { buildPaceAdjustmentByTeam, applyPaceAdjustment } from "../../../../lib/nfl-fantasy/pace-adjustment.js";
 import { buildPlaycallerAdjustmentByTeam, applyPlaycallerAdjustment } from "../../../../lib/nfl-fantasy/playcaller-adjustment.js";
+import { currentNflSeason } from "../../../../lib/nfl-fantasy/season.js";
 
 const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -31,12 +32,6 @@ const getSupabase = () => createClient(
 const FORMATS = ["ppr", "half_ppr", "standard"];
 const DATA_DIR = join(process.cwd(), "data/nflverse");
 const TENDENCY_DATA_DIR = join(process.cwd(), "data/nfl-fantasy");
-
-// NFL season "year" runs Sept-Feb; before March it's still last season's
-// playoffs/offseason, so rankings should target the season about to start.
-function currentNflSeason(now = new Date()) {
-  return now.getMonth() >= 2 ? now.getFullYear() : now.getFullYear() - 1;
-}
 
 async function loadCachedData() {
   const [playerStatsRaw, playersRaw] = await Promise.all([
