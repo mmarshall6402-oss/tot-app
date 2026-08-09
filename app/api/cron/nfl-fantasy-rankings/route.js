@@ -12,11 +12,13 @@ import { join } from "path";
 import { createClient } from "@supabase/supabase-js";
 import { timingSafeEqual } from "../../../../lib/auth.js";
 import { buildPlayerIndex } from "../../../../lib/nfl-roster.js";
-import { buildIdCrosswalk } from "../../../../lib/nfl-fantasy/id-map.js";
+import { buildIdCrosswalk, normalizeName } from "../../../../lib/nfl-fantasy/id-map.js";
 import { groupByPlayer, buildRankings, POSITIONS } from "../../../../lib/nfl-fantasy/rankings.js";
 import { assignTiers } from "../../../../lib/nfl-fantasy/tiers.js";
 import { injuryAdjustedGames, classifyInjuryRisk } from "../../../../lib/nfl-fantasy/injury.js";
 import { fetchSleeperPlayerIndex, buildEspnIdIndex, fetchTrendingAdds } from "../../../../lib/nfl-fantasy/sleeper.js";
+import { fetchAdp, buildAdpIndex, valueDelta } from "../../../../lib/nfl-fantasy/adp.js";
+import { computeActualStats, regressionDelta, computeChangeFlags } from "../../../../lib/nfl-fantasy/regression.js";
 import { buildAgeById } from "../../../../lib/nfl-fantasy/age.js";
 import { buildScheduleAdjustmentByName, applyScheduleAdjustment } from "../../../../lib/nfl-fantasy/schedule-adjustment.js";
 import { buildPersonnelAdjustmentByTeam, applyPersonnelAdjustment } from "../../../../lib/nfl-fantasy/personnel-adjustment.js";
@@ -108,7 +110,7 @@ function computeHistoricalMissedRate(playersById, targetSeason, lookbackSeasons 
   return rates;
 }
 
-async function refreshFormat(supabase, format, playersById, targetSeason, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId, ageById, scheduleAdjustmentByName, personnelAdjustmentByTeam, paceAdjustmentByTeam, playcallerAdjustmentByTeam) {
+async function refreshFormat(supabase, format, playersById, targetSeason, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId, ageById, scheduleAdjustmentByName, personnelAdjustmentByTeam, paceAdjustmentByTeam, playcallerAdjustmentByTeam, adpIndex, actualStatsByPlayer, changeFlagsByPlayer) {
   const runStart = new Date().toISOString();
   const ranked = buildRankings(playersById, { targetSeason, format, ageById });
   if (!ranked.length) throw new Error(`${format}: ranking produced zero players — refusing to touch existing cache`);
@@ -134,32 +136,44 @@ async function refreshFormat(supabase, format, playersById, targetSeason, crossw
     for (const p of assignTiers(rowsByPosition[pos])) tierPositionByPlayerId.set(p.playerId, p.tier);
   }
 
-  const rows = withInjury.map((p) => ({
-    player_id: p.playerId,
-    espn_id: p.espnId,
-    name: p.name,
-    position: p.position,
-    team: p.team,
-    scoring_format: format,
-    season: targetSeason,
-    projected_points: p.projection.mean,
-    ceiling_points: p.projection.p80,
-    floor_points: p.projection.p20,
-    replacement_pts: p.replacementPoints,
-    vorp: p.vorp,
-    ceiling_vorp: p.ceilingVorp,
-    rank_overall: p.rankOverall,
-    rank_position: rowsByPosition[p.position].findIndex((x) => x.playerId === p.playerId) + 1,
-    tier: p.tier,
-    tier_position: tierPositionByPlayerId.get(p.playerId) ?? null,
-    injury_status: p.injuryStatus,
-    injury_risk: p.injuryRisk,
-    trending_add_count: p.trendingAddCount,
-    personnel_note: p.personnelNote || null,
-    pace_note: p.paceNote || null,
-    playcaller_note: p.playcallerNote || null,
-    updated_at: runStart,
-  }));
+  const rows = withInjury.map((p) => {
+    const adpEntry = adpIndex.get(normalizeName(p.name));
+    const actual = actualStatsByPlayer.get(p.playerId);
+    return {
+      player_id: p.playerId,
+      espn_id: p.espnId,
+      name: p.name,
+      position: p.position,
+      team: p.team,
+      scoring_format: format,
+      season: targetSeason,
+      projected_points: p.projection.mean,
+      ceiling_points: p.projection.p80,
+      floor_points: p.projection.p20,
+      replacement_pts: p.replacementPoints,
+      vorp: p.vorp,
+      ceiling_vorp: p.ceilingVorp,
+      rank_overall: p.rankOverall,
+      rank_position: rowsByPosition[p.position].findIndex((x) => x.playerId === p.playerId) + 1,
+      tier: p.tier,
+      tier_position: tierPositionByPlayerId.get(p.playerId) ?? null,
+      injury_status: p.injuryStatus,
+      injury_risk: p.injuryRisk,
+      trending_add_count: p.trendingAddCount,
+      personnel_note: p.personnelNote || null,
+      pace_note: p.paceNote || null,
+      playcaller_note: p.playcallerNote || null,
+      adp: adpEntry?.adp ?? null,
+      adp_rank: adpEntry?.adpRank ?? null,
+      value_delta: valueDelta(adpEntry?.adpRank, p.rankOverall),
+      projected_ppg: p.projection.meanPerGame,
+      actual_ppg: actual?.actualPpg ?? null,
+      games_played_actual: actual?.gamesPlayed ?? null,
+      regression_delta: regressionDelta(actual?.actualPpg, p.projection.meanPerGame, actual?.gamesPlayed),
+      change_note: changeFlagsByPlayer.get(p.playerId) || null,
+      updated_at: runStart,
+    };
+  });
 
   const CHUNK = 500;
   for (let i = 0; i < rows.length; i += CHUNK) {
@@ -232,9 +246,36 @@ export async function GET(request) {
 
   const { paceAdjustmentByTeam, playcallerAdjustmentByTeam } = await loadTendencyData();
 
+  // Current-season actuals (populated daily by /api/cron/nflverse-ingest,
+  // sql/025_nflverse_daily_ingest.sql) — best-effort like everything else
+  // enriching rankings here: before/early in the season these tables are
+  // just empty, so regression_delta/change_note simply stay null rather
+  // than blocking the refresh.
+  const { data: statsPlayerRows } = await supabase
+    .from("nfl_fantasy_stats_player")
+    .select("player_id, week, completions, attempts, passing_yards, passing_tds, interceptions, carries, rushing_yards, rushing_tds, receptions, targets, receiving_yards, receiving_tds")
+    .eq("season", targetSeason);
+  const { data: snapCountsRows } = await supabase
+    .from("nfl_fantasy_snap_counts")
+    .select("player_id, week, offense_pct")
+    .eq("season", targetSeason);
+  const changeFlagsByPlayer = computeChangeFlags(snapCountsRows || []);
+
   for (const format of FORMATS) {
+    // ADP is per-scoring-format (a player's market draft slot shifts between
+    // PPR/half-PPR/standard) — best-effort like espnIndex/sleeperIndex
+    // above, since a stale/missing value-delta badge is far cheaper than
+    // blocking the whole ranking refresh on a third-party ADP site being down.
+    let adpIndex;
     try {
-      results[format] = await refreshFormat(supabase, format, playersById, targetSeason, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId, ageById, scheduleAdjustmentByName, personnelAdjustmentByTeam, paceAdjustmentByTeam, playcallerAdjustmentByTeam);
+      adpIndex = buildAdpIndex(await fetchAdp(format, { season: targetSeason }));
+    } catch (e) {
+      console.warn(`[nfl-fantasy-rankings] ADP fetch failed for ${format}:`, e.message);
+      adpIndex = new Map();
+    }
+    const actualStatsByPlayer = computeActualStats(statsPlayerRows || [], format);
+    try {
+      results[format] = await refreshFormat(supabase, format, playersById, targetSeason, crosswalk, espnIndex, historicalMissedRateById, sleeperEspnIndex, trendingByEspnId, ageById, scheduleAdjustmentByName, personnelAdjustmentByTeam, paceAdjustmentByTeam, playcallerAdjustmentByTeam, adpIndex, actualStatsByPlayer, changeFlagsByPlayer);
     } catch (e) {
       results[format] = { error: e.message };
     }
