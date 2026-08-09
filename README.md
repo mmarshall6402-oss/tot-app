@@ -1,22 +1,60 @@
-This Or That
+This Or That (T|T)
 
-A production MLB betting picks platform featuring a statistical prediction model, AI-generated analysis, Stripe subscriptions, and fully automated daily operations.
+A production sports analytics platform combining **MLB and NFL betting picks** with a full **NFL
+fantasy football suite** — a statistical prediction model, AI-generated analysis, a live draft
+assistant, an in-app AI chat assistant, Stripe subscriptions, and fully automated daily
+operations.
 
-**Live:**[ https://thisthatpicks.com/]
+**Live:** [https://thisthatpicks.com/](https://thisthatpicks.com/)
 
+> Looking for the exhaustive feature-by-feature breakdown (every route, cron job, and admin tool)?
+> See [`FEATURES.md`](./FEATURES.md). For marketing/content material built on top of that
+> inventory, see [`marketing/`](./marketing/).
 
 ---
 
 ## Features
 
-- **Daily picks** — statistical model generates MLB picks each morning with confidence scores and edge ratings
-- **AI breakdowns** — Claude writes a narrative analysis for each pick covering matchup context, pitching, and bullpen
-- **Stripe paywall** — full subscription flow with checkout, webhooks, and account management
+**MLB & NFL betting**
+- **Daily/weekly picks** — statistical model generates MLB picks each morning and NFL picks each
+  week, with confidence scores and edge ratings
+- **Verdict system** — every pick is scored `CLEAN` / `BET` / `PASS` / `TRAP`, with a `HALF SIZE`
+  flag for elevated bullpen risk (see [Verdict system](#verdict-system) below)
+- **AI breakdowns** — Claude writes a narrative analysis for each pick covering matchup context,
+  pitching, and bullpen
+- **Player props** — prop picks generated and cached alongside moneyline picks (MLB and NFL)
+- **"Steals"** — a curated feed of the single highest-edge picks across the board
+- **Depth charts** — NFL team depth charts with injury-status overlays
+- **Record tracking** — public W-L record with a monthly calendar view and model performance
+  analytics, for both MLB and NFL
+
+**NFL fantasy football**
+- **Cheat Sheet / rankings** — weekly-computed rankings by scoring format (PPR / half-PPR /
+  standard), with VORP, gap-detected tiers, ADP value-delta badges, and expected-vs-actual
+  regression flags
+- **Situational adjustments** — pace-of-play, play-caller tendency, offensive personnel usage, and
+  schedule adjustments layered onto base projections
+- **Draft Assistant** — a live, on-the-clock tool that recommends picks based on your roster needs
+  and who's already off the board, with snake-draft turn tracking and Sleeper league sync
+- **Backtested projections** — validated against realized historical seasons independently of the
+  MLB backtest system
+
+**AI & retention**
+- **In-app AI chat** — a Claude-powered assistant scoped to today's board (highlights top edges,
+  suggests parlay combos)
+- **AI game recaps** — auto-generated post-game boxscore summaries
+- **Bet Tracker / Portfolio** — users save their own picks and track personal P&L
+
+**Growth & monetization**
+- **Stripe paywall** — full subscription flow (monthly + season pricing) with checkout, webhooks,
+  and self-serve billing portal
 - **Access codes** — invite friends and family with code-based free access
-- **Twitter/X bot** — top 3 picks posted automatically at 10:15 AM CT daily
-- **Email delivery** — daily pick digest sent to free subscribers via Resend
-- **Record tracking** — W-L record with monthly calendar view and model performance analytics
-- **Admin panel** — manage picks, post tweets manually, view analytics, and monitor model accuracy
+- **Twitter/X bot** — top picks posted automatically each day ([@ThisorThatPicks](https://twitter.com/ThisorThatPicks))
+- **Email delivery** — daily pick digest and weekly summary sent via Resend
+- **Admin panel** — manage picks, tune model weights, run backtests, import fantasy data, post
+  tweets manually, manage access codes, and monitor model accuracy and API quota usage
+
+See [`FEATURES.md`](./FEATURES.md) for the full inventory, including every automated cron job.
 
 ---
 
@@ -24,19 +62,20 @@ A production MLB betting picks platform featuring a statistical prediction model
 
 | Layer | Technology |
 |---|---|
-| Framework | Next.js (App Router) |
+| Framework | Next.js (App Router), React 19 |
 | Database & Auth | Supabase |
 | Payments | Stripe |
-| AI | Anthropic Claude |
+| AI | Anthropic Claude (pick breakdowns, in-app chat, game recaps) |
 | Email | Resend |
 | Social | Twitter API v2 |
-| Deployment | Vercel |
+| Deployment | Vercel (incl. cron) |
+| Internal analytics | Python / Streamlit |
 
 ---
 
 ## Architecture
 
-### Pick pipeline
+### Pick pipeline (MLB)
 
 Picks are generated once daily by a Vercel cron job at 3 PM UTC (10 AM CT):
 
@@ -47,6 +86,20 @@ Picks are generated once daily by a Vercel cron job at 3 PM UTC (10 AM CT):
 5. Sends the daily email digest and posts to Twitter
 
 The `/api/picks` route serves from cache on every request and overlays live scores in real time.
+
+### Pick pipeline (NFL)
+
+NFL picks run weekly (Tuesdays) via `/api/cron/nfl-picks`, following the same
+fetch-odds → score → Claude-breakdown → cache pattern as MLB, and resolve daily
+(`/api/cron/nfl-resolve`).
+
+### Fantasy pipeline
+
+`/api/cron/nflverse-ingest` pulls fresh player stats, snap counts, and next-gen stats daily.
+`/api/cron/nfl-fantasy-rankings` recomputes the Cheat Sheet weekly (Wednesdays) — projections,
+VORP, tiers, ADP deltas, and regression flags — and writes to `nfl_fantasy_rankings`. The Draft
+Assistant (`app/api/nfl/fantasy/draft`) reads those rankings live and layers roster-need and
+draft-state logic on top; it does not run on a cron.
 
 ### Subscription flow
 
@@ -110,16 +163,31 @@ Each pick receives a confidence score from 0–10 built from additive bonuses an
 
 ```
 app/
-├── page.js              # Homepage (merged landing for logged-out users)
-├── app/page.js          # Main picks view
-├── admin/page.js        # Admin dashboard
+├── page.js                    # Main app shell — MLB/NFL board, Fantasy, Portfolio, Chat (logged-out users see the merged landing)
+├── landing/page.js            # Standalone marketing landing page
+├── record/page.js             # Public model W-L record
+├── admin/                     # Admin dashboard, backtest console, tracker, tweet composer, codes, fantasy data import
 ├── api/
-│   ├── picks/           # Picks serving route
-│   ├── cron/picks/      # Daily cron job
-│   ├── stripe/webhook/  # Stripe event handler
-│   └── redeem-code/     # Access code redemption
-lib/                     # Shared utilities and Supabase client
-data/                    # Static data files (team mappings, historical logs)
+│   ├── picks/, props/, steals/, prop-lines/     # MLB picks, props, curated edges
+│   ├── nfl/                                     # NFL picks, odds, depth-chart, schedule
+│   │   └── fantasy/                             # Cheat Sheet rankings, Draft Assistant, news
+│   ├── chat/                                    # AI chat assistant
+│   ├── tracker/                                 # Personal bet tracker + AI game recaps
+│   ├── cron/                                    # All scheduled jobs (see FEATURES.md §9)
+│   ├── stripe/                                  # Checkout, webhook, billing portal
+│   ├── admin/                                   # Backtest, calibration, weights, imports
+│   └── redeem-code/, account/, subscribe/       # Access, account, and free-tier flows
+components/                   # Shared React components (board sections, cards, modals)
+lib/
+├── nfl-fantasy/               # VORP, tiers, ADP, Draft Assistant, adjustments, Sleeper sync
+├── backtest/                  # MLB backtest/calibration engine
+└── *.js                       # Betting model, odds, auth, Supabase client, Stripe, etc.
+data/                          # Static data (team mappings, Elo, Retrosheet game logs, nflverse dumps)
+sql/                           # Numbered schema migrations
+scripts/                       # CLI entry points (migrate, backtest, nflverse fetch)
+streamlit_app/                 # Standalone internal analytics dashboard (Python)
+marketing/                     # Marketing content kit — see marketing/README.md
+FEATURES.md                    # Full, ground-truth feature inventory
 ```
 
 ---
@@ -167,17 +235,28 @@ vercel env pull
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-side only) |
+| `SUPABASE_JWT_SECRET` | Used to verify Supabase auth tokens server-side (`lib/auth.js`) |
 | `SUPABASE_DB_URL` | Direct Postgres connection string (Project Settings → Database → Connection string), used only by `npm run migrate` — not needed to run the app itself |
 | `STRIPE_SECRET_KEY` | Stripe secret key |
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret |
-| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Stripe publishable key |
-| `ANTHROPIC_API_KEY` | Anthropic API key |
+| `STRIPE_MONTHLY_PRICE_ID` | Stripe Price ID for the monthly plan |
+| `STRIPE_SEASON_PRICE_ID` | Stripe Price ID for the season-long plan |
+| `ANTHROPIC_API_KEY` | Anthropic API key (pick breakdowns, in-app chat, game recaps) |
 | `RESEND_API_KEY` | Resend API key |
-| `TWITTER_*` | Twitter API v2 credentials |
+| `RESEND_FROM` | From-address used for outbound email |
+| `TWITTER_API_KEY` / `TWITTER_API_SECRET` / `TWITTER_ACCESS_TOKEN` / `TWITTER_ACCESS_SECRET` | Twitter API v2 credentials |
+| `THE_ODDS_API_KEY` | The Odds API — MLB/NFL live odds |
+| `SPORTSGAMEODDS_API_KEY` | SportsGameOdds API — supplemental odds data |
+| `SPORTSDATA_API_KEY` | SportsData.io — NFL data |
+| `TOA_QUOTA_ALERT_THRESHOLD` | Usage threshold that triggers `cron/quota-alert` |
+| `ADMIN_KEY` | Server-side admin auth key |
+| `NEXT_PUBLIC_ADMIN_EMAILS` (or `NEXT_PUBLIC_ADMIN_EMAIL`) | Comma-separated emails granted access to `/admin` |
+| `NEXT_PUBLIC_BETA_EMAILS` | Comma-separated emails granted beta feature access |
+| `CRON_SECRET` | Shared secret validating Vercel cron invocations |
 | `NEXT_PUBLIC_APP_URL` | Public URL (e.g. `https://tot-app.vercel.app`) |
 
 ---
 
 ## Deployment
 
-Deployed on Vercel. The cron job is configured in `vercel.json` and runs daily at 3 PM UTC. All environment variables are managed through the Vercel dashboard.
+Deployed on Vercel. All cron jobs are configured in `vercel.json` — see [`FEATURES.md`](./FEATURES.md#9-automation-vercel-cron) for the full schedule (MLB picks/props/resolve daily, NFL picks weekly, fantasy rankings weekly, nflverse ingest daily, and more). All environment variables are managed through the Vercel dashboard.
