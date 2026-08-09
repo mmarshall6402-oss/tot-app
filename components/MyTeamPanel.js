@@ -13,6 +13,7 @@ import PlayerHeadshot from "./PlayerHeadshot.js";
 import { nflHeadshotUrl } from "../lib/nfl-roster.js";
 
 const NFL_ORANGE = "#D9754A";
+const FANTASY_POSITIONS = ["QB", "RB", "WR", "TE"];
 const t = tokens;
 
 const cardStyle = { background: t.color.surface, border: `1px solid ${t.color.border}`, borderRadius: 14, padding: 16 };
@@ -76,6 +77,45 @@ function DraftPickRow({ pick }) {
   );
 }
 
+function BestAvailableRow({ p }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderBottom: `1px solid ${t.color.border}` }}>
+      <div style={{ width: 24, textAlign: "center", fontSize: 11, fontWeight: 700, color: t.color.textMuted, fontFamily: t.font.mono, flexShrink: 0 }}>
+        {p.rank_overall != null ? p.rank_overall : "—"}
+      </div>
+      <PlayerHeadshot src={nflHeadshotUrl(p.espn_id)} name={p.name} size={30} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: t.color.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
+        <div style={{ fontSize: 10.5, color: t.color.textMuted }}>{p.position || "—"} · {p.team || "FA"}{p.tier != null ? ` · Tier ${p.tier}` : ""}</div>
+      </div>
+      <div style={{ fontSize: 12.5, fontWeight: 700, color: t.color.textPrimary, fontFamily: t.font.mono, flexShrink: 0 }}>
+        {p.projected_points != null ? p.projected_points.toFixed(1) : "—"}
+      </div>
+    </div>
+  );
+}
+
+function TeamNeeds({ needs }) {
+  if (!needs?.length) return null;
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+      {needs.map((n) => {
+        const short = n.drafted != null && n.drafted < n.slots;
+        return (
+          <span key={n.position} style={{
+            fontSize: 10.5, fontWeight: 700, padding: "3px 8px", borderRadius: 999,
+            background: short ? `${NFL_ORANGE}1a` : t.color.surfaceRaised,
+            color: short ? NFL_ORANGE : t.color.textMuted,
+            border: `1px solid ${short ? NFL_ORANGE + "55" : t.color.border}`,
+          }}>
+            {n.position} {n.drafted != null ? `${n.drafted}/${n.slots}` : `×${n.slots}`}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function MyTeamPanel({ getAuthHeaders }) {
   const [link, setLink] = useState(undefined); // undefined = loading, null = not linked
   const [linkError, setLinkError] = useState(null);
@@ -95,6 +135,8 @@ export default function MyTeamPanel({ getAuthHeaders }) {
   const [draft, setDraft] = useState(null);
   const [draftLoading, setDraftLoading] = useState(false);
   const [draftError, setDraftError] = useState(null);
+  const [draftTab, setDraftTab] = useState("board"); // board | available
+  const [bestAvailPos, setBestAvailPos] = useState("ALL");
 
   const authedFetch = useCallback(async (url, opts = {}) => {
     const headers = await getAuthHeaders();
@@ -296,25 +338,78 @@ export default function MyTeamPanel({ getAuthHeaders }) {
           )}
 
           {view === "draft" && (
-            <div style={cardStyle}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {draftLoading && !draft && <div style={{ color: t.color.textMuted, fontSize: 13 }}>Loading draft…</div>}
               {draftError && <div style={{ color: t.color.red, fontSize: 12.5 }}>{draftError}</div>}
-              {draft && !draft.draft && <div style={{ color: t.color.textMuted, fontSize: 13 }}>No draft found for this league yet.</div>}
+              {draft && !draft.draft && (
+                <div style={{ ...cardStyle, color: t.color.textMuted, fontSize: 13 }}>No draft found for this league yet.</div>
+              )}
+
               {draft?.draft && (
                 <>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: t.color.textPrimary }}>
-                      {draft.draft.status === "drafting" ? "Draft in progress" : draft.draft.status === "complete" ? "Draft complete" : "Draft not started"}
+                  <div style={cardStyle}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: draft.onClock ? 10 : 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: t.color.textPrimary }}>
+                        {draft.draft.status === "drafting" ? "Draft in progress" : draft.draft.status === "complete" ? "Draft complete" : "Draft not started"}
+                      </div>
+                      {draft.draft.status === "drafting" && (
+                        <span style={{ fontSize: 10, fontWeight: 700, color: t.color.brand }}>● LIVE</span>
+                      )}
                     </div>
-                    {draft.draft.status === "drafting" && (
-                      <span style={{ fontSize: 10, fontWeight: 700, color: t.color.brand }}>● LIVE</span>
+
+                    {draft.onClock && (
+                      <div style={{
+                        display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", borderRadius: 8,
+                        background: draft.onClock.isMine ? `${NFL_ORANGE}1a` : t.color.surfaceRaised,
+                        border: `1px solid ${draft.onClock.isMine ? NFL_ORANGE + "55" : t.color.border}`, marginBottom: 10,
+                      }}>
+                        <div style={{ fontSize: 12.5, color: t.color.textPrimary }}>
+                          Pick <b style={{ fontFamily: t.font.mono }}>#{draft.onClock.pickNo}</b> —{" "}
+                          {draft.onClock.isMine ? <b style={{ color: NFL_ORANGE }}>you&apos;re on the clock</b> : (draft.onClock.teamName || "waiting")}
+                        </div>
+                        {draft.myNextPickNo != null && !draft.onClock.isMine && (
+                          <div style={{ fontSize: 11, color: t.color.textMuted, fontFamily: t.font.mono }}>
+                            your next: #{draft.myNextPickNo}
+                          </div>
+                        )}
+                      </div>
                     )}
+
+                    <TeamNeeds needs={draft.teamNeeds} />
+
+                    <div style={{ display: "flex", gap: 6 }}>
+                      {[{ id: "board", label: "Picks" }, { id: "available", label: "Best Available" }].map(({ id, label }) => (
+                        <button key={id} onClick={() => setDraftTab(id)} style={tabButtonStyle({ active: draftTab === id, accent: NFL_ORANGE })}>{label}</button>
+                      ))}
+                    </div>
                   </div>
-                  {draft.picks.length === 0 ? (
-                    <div style={{ color: t.color.textMuted, fontSize: 13 }}>No picks yet.</div>
-                  ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                      {[...draft.picks].reverse().map((pk) => <DraftPickRow key={pk.pickNo} pick={pk} />)}
+
+                  {draftTab === "board" && (
+                    <div style={cardStyle}>
+                      {draft.picks.length === 0 ? (
+                        <div style={{ color: t.color.textMuted, fontSize: 13 }}>No picks yet.</div>
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                          {[...draft.picks].reverse().map((pk) => <DraftPickRow key={pk.pickNo} pick={pk} />)}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {draftTab === "available" && (
+                    <div style={cardStyle}>
+                      <div style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 8 }}>
+                        {["ALL", ...FANTASY_POSITIONS].map((pos) => (
+                          <button key={pos} onClick={() => setBestAvailPos(pos)} style={{ ...tabButtonStyle({ active: bestAvailPos === pos, accent: NFL_ORANGE }), flexShrink: 0 }}>{pos}</button>
+                        ))}
+                      </div>
+                      {draft.bestAvailable.filter((p) => bestAvailPos === "ALL" || p.position === bestAvailPos).length === 0 ? (
+                        <div style={{ color: t.color.textMuted, fontSize: 13 }}>No available players match.</div>
+                      ) : (
+                        draft.bestAvailable
+                          .filter((p) => bestAvailPos === "ALL" || p.position === bestAvailPos)
+                          .map((p) => <BestAvailableRow key={p.espn_id} p={p} />)
+                      )}
                     </div>
                   )}
                 </>

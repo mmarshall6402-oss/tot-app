@@ -4,7 +4,13 @@
 // full live polling draft-room UI — this is the sync layer that feeds it.
 import { createClient } from "@supabase/supabase-js";
 import { requireAuth } from "../../../../lib/auth.js";
-import { fetchLeagueDrafts, fetchDraftPicks, fetchLeagueUsers, fetchSleeperPlayerIndex } from "../../../../lib/nfl-fantasy/sleeper.js";
+import {
+  fetchLeagueDrafts, fetchDraftPicks, fetchLeagueUsers, fetchSleeperPlayerIndex,
+  fetchLeague, fetchLeagueRosters, pickSlotForNumber,
+} from "../../../../lib/nfl-fantasy/sleeper.js";
+
+const FANTASY_POSITIONS = ["QB", "RB", "WR", "TE"];
+const BEST_AVAILABLE_LIMIT = 100;
 
 const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -37,12 +43,14 @@ export async function GET(request) {
   const draft = drafts[0];
   if (!draft) return Response.json({ draft: null, picks: [] });
 
-  let picks, leagueUsers, playerIndex;
+  let picks, leagueUsers, playerIndex, league, rosters;
   try {
-    [picks, leagueUsers, playerIndex] = await Promise.all([
+    [picks, leagueUsers, playerIndex, league, rosters] = await Promise.all([
       fetchDraftPicks(draft.draftId),
       fetchLeagueUsers(leagueId),
       fetchSleeperPlayerIndex(),
+      fetchLeague(leagueId),
+      fetchLeagueRosters(leagueId),
     ]);
   } catch (e) {
     return Response.json({ error: `Sleeper lookup failed: ${e.message}` }, { status: 502 });
@@ -89,9 +97,78 @@ export async function GET(request) {
     };
   });
 
+  // On-the-clock + "picks until mine" — draft_order maps sleeperUserId to a
+  // 1-indexed slot; rosters.ownerId maps sleeperUserId to rosterId. Skip for
+  // auction drafts, which have no fixed pick order.
+  const totalRosters = rosters.length;
+  const rosterIdByOwner = new Map(rosters.map((r) => [r.ownerId, r.rosterId]));
+  const ownerBySlot = new Map(Object.entries(draft.draftOrder).map(([uid, slot]) => [slot, uid]));
+  const totalPicks = draft.rounds ? draft.rounds * totalRosters : null;
+  const nextPickNo = picks.length + 1;
+
+  let onClock = null;
+  let myNextPickNo = null;
+  if (draft.type !== "auction" && totalRosters > 0 && draft.status === "drafting") {
+    const clockSlot = pickSlotForNumber(nextPickNo, totalRosters, draft.type);
+    const clockOwner = ownerBySlot.get(clockSlot);
+    const clockRosterId = clockOwner ? rosterIdByOwner.get(clockOwner) : null;
+    onClock = {
+      pickNo: nextPickNo,
+      rosterId: clockRosterId ?? null,
+      teamName: teamNameByRoster.get(clockOwner) || null,
+      isMine: clockRosterId === selection.roster_id,
+    };
+
+    const myOwnerId = rosters.find((r) => r.rosterId === selection.roster_id)?.ownerId;
+    const mySlot = myOwnerId ? draft.draftOrder[myOwnerId] : null;
+    if (mySlot != null && totalPicks) {
+      for (let pn = nextPickNo; pn <= totalPicks; pn++) {
+        if (pickSlotForNumber(pn, totalRosters, draft.type) === mySlot) { myNextPickNo = pn; break; }
+      }
+    }
+  }
+
+  // Best available — our rankings minus anyone already off the board.
+  const pickedEspnIds = new Set(espnIds);
+  const { data: allRankings } = await supabase
+    .from("nfl_fantasy_rankings")
+    .select("espn_id, name, position, team, projected_points, vorp, rank_overall, rank_position, tier")
+    .eq("scoring_format", selection.scoring_format || "ppr")
+    .eq("season", Number(selection.season))
+    .order("rank_overall", { ascending: true })
+    .limit(BEST_AVAILABLE_LIMIT + pickedEspnIds.size);
+  const bestAvailable = (allRankings || [])
+    .filter((r) => !pickedEspnIds.has(r.espn_id))
+    .slice(0, BEST_AVAILABLE_LIMIT);
+
+  // Team needs — starter slots (excluding bench/taxi) from league settings
+  // vs. what this roster has drafted so far, by position. FLEX slots are
+  // reported as their own bucket rather than resolved against a position,
+  // since which drafted player "fills" a flex is ambiguous mid-draft.
+  const slotCounts = {};
+  for (const pos of league?.rosterPositions || []) {
+    if (pos === "BN" || pos === "TAXI" || pos === "IR") continue;
+    const label = pos === "SUPER_FLEX" ? "FLEX" : pos;
+    slotCounts[label] = (slotCounts[label] || 0) + 1;
+  }
+  const draftedCounts = {};
+  for (const pk of enrichedPicks) {
+    if (!pk.isMine || !FANTASY_POSITIONS.includes(pk.position)) continue;
+    draftedCounts[pk.position] = (draftedCounts[pk.position] || 0) + 1;
+  }
+  const teamNeeds = Object.entries(slotCounts).map(([position, slots]) => ({
+    position,
+    slots,
+    drafted: position === "FLEX" ? null : (draftedCounts[position] || 0),
+  }));
+
   return Response.json({
     draft: { draftId: draft.draftId, status: draft.status, type: draft.type, rounds: draft.rounds },
     myRosterId: selection.roster_id,
     picks: enrichedPicks,
+    onClock,
+    myNextPickNo,
+    bestAvailable,
+    teamNeeds,
   });
 }
