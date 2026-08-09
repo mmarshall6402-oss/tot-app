@@ -1,20 +1,28 @@
 // Runs Tuesday mornings — the "watches your Sleeper roster all week and
 // tells you what changed" alert from the product plan. For every user with
-// an active subscription and a synced Sleeper league, diffs their roster's
-// depth-chart position/order and injury status against last week's stored
-// snapshot (nfl_fantasy_role_snapshots) and emails only the players that
-// actually moved. Silent (no email) for a user with zero changes — this is
-// meant to be the opposite of the "flood the zone" pattern the rest of the
-// fantasy industry runs in-season.
+// an active subscription and a synced Sleeper league, diffs their roster
+// against two signals and emails only the players that actually moved:
+//   - depth-chart position/order and injury status, vs. last week's stored
+//     snapshot (nfl_fantasy_role_snapshots)
+//   - offense snap share, week over week, from the current season's
+//     nflverse snap_counts (nflverse_data_cache, kept fresh by
+//     app/api/cron/nflverse-refresh, which must run before this does)
+// Silent (no email) for a user with zero changes — this is meant to be the
+// opposite of the "flood the zone" pattern the rest of the fantasy
+// industry runs in-season.
 //
-// First-ever run for any given player has no prior snapshot, so it reports
-// no change for that player (see detectRoleChanges) — that week just
-// establishes the baseline everyone else diffs against going forward.
+// First-ever run for any given player has no prior role snapshot, so it
+// reports no depth-chart/injury change for that player (see
+// detectRoleChanges) — that week just establishes the baseline everyone
+// else diffs against going forward. Snap share doesn't need this bootstrap
+// since nflverse's weekly rows are already a time series within the season.
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 import { timingSafeEqual } from "../../../../lib/auth.js";
 import { fetchSleeperPlayerIndex, fetchLeagueRosters } from "../../../../lib/nfl-fantasy/sleeper.js";
 import { detectRoleChanges, buildSnapshotRows } from "../../../../lib/nfl-fantasy/alerts.js";
+import { detectSnapShareChanges } from "../../../../lib/nfl-fantasy/snap-share.js";
+import { currentNflSeason } from "../../../../lib/nfl-fantasy/season.js";
 
 const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -24,8 +32,8 @@ const getSupabase = () => createClient(
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://thisthatpicks.com";
 
 function changeRowHtml(c) {
-  const label = c.type === "injury" ? "INJURY" : "DEPTH CHART";
-  const color = c.type === "injury" ? "#FF6B6B" : "#00FF87";
+  const label = c.type === "injury" ? "INJURY" : c.type === "snap_share" ? "SNAP SHARE" : "DEPTH CHART";
+  const color = c.type === "snap_share" ? (c.deltaPct < 0 ? "#FF6B6B" : "#00FF87") : c.type === "injury" ? "#FF6B6B" : "#00FF87";
   return `<div style="padding:12px 0;border-bottom:1px solid #111;">
     <div style="font-size:10px;color:${color};letter-spacing:1px;font-weight:700;margin-bottom:4px;">${label}</div>
     <div style="font-size:14px;font-weight:700;margin-bottom:2px;">${c.name} <span style="color:#444;font-weight:400;">(${c.position})</span></div>
@@ -95,6 +103,17 @@ export async function GET(request) {
   const { data: snapshotRows } = await supabase.from("nfl_fantasy_role_snapshots").select("*");
   const previousSnapshots = new Map((snapshotRows || []).map((r) => [r.sleeper_id, r]));
 
+  // Best-effort — if nflverse-refresh hasn't run yet this season (or at
+  // all), snap-share just contributes zero changes rather than failing the
+  // whole alert run.
+  const season = currentNflSeason();
+  const { data: snapCache } = await supabase
+    .from("nflverse_data_cache")
+    .select("data")
+    .eq("dataset", `snap_counts_${season}`)
+    .maybeSingle();
+  const snapCountsRows = snapCache?.data || [];
+
   const rosterCacheByLeague = new Map(); // leagueId -> rosters, avoids refetching a league synced by >1 user
   const allSeenSleeperIds = new Set();
 
@@ -118,7 +137,10 @@ export async function GET(request) {
 
     for (const sid of myRoster.players) allSeenSleeperIds.add(sid);
 
-    const changes = detectRoleChanges(myRoster.players, playerIndex, previousSnapshots);
+    const changes = [
+      ...detectRoleChanges(myRoster.players, playerIndex, previousSnapshots),
+      ...detectSnapShareChanges(myRoster.players, playerIndex, snapCountsRows),
+    ];
     if (!changes.length) { skippedNoChange++; continue; }
 
     const { data: userData } = await supabase.auth.admin.getUserById(sel.user_id);
@@ -148,5 +170,9 @@ export async function GET(request) {
     { onConflict: "date" }
   );
 
-  return Response.json({ sent, failed, skippedNoChange, playersSnapshotted: snapshotUpdates.length });
+  return Response.json({
+    sent, failed, skippedNoChange,
+    playersSnapshotted: snapshotUpdates.length,
+    snapCountsRowsUsed: snapCountsRows.length,
+  });
 }
