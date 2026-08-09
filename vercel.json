@@ -55,6 +55,10 @@
     {
       "path": "/api/cron/quota-alert",
       "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/cron/fantasy-alerts",
+      "schedule": "0 13 * * 2"
     }
   ],
   "functions": {
@@ -77,6 +81,7 @@
     "app/api/admin/backtest/route.js": { "maxDuration": 300 },
     "app/api/cron/player-index/route.js": { "maxDuration": 120 },
     "app/api/cron/nfl-fantasy-rankings/route.js": { "maxDuration": 300 },
-    "app/api/cron/quota-alert/route.js": { "maxDuration": 30 }
+    "app/api/cron/quota-alert/route.js": { "maxDuration": 30 },
+    "app/api/cron/fantasy-alerts/route.js": { "maxDuration": 120 }
   }
 }
