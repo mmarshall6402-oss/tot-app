@@ -24,7 +24,7 @@ import { accentButtonStyle, tabButtonStyle, tokens, iconButtonStyle } from "../l
 import { CheckIcon, RefreshIcon } from "./icons.js";
 import { nflHeadshotUrl } from "../lib/nfl-roster.js";
 import PlayerHeadshot from "./PlayerHeadshot.js";
-import { computeRosterNeeds, rankAvailable, countByPosition } from "../lib/nfl-fantasy/draft-assistant.js";
+import { computeRosterNeeds, rankAvailable, countByPosition, buildLineup } from "../lib/nfl-fantasy/draft-assistant.js";
 
 function pickOddsFor(pick) {
   if (pick.marketType === "spread") return pick.pick === pick.homeTeam ? pick.homeSpreadOdds : pick.awaySpreadOdds;
@@ -554,6 +554,41 @@ const POSITION_ACCENT = {
   TE: "#C878DC",
 };
 
+// Full team lineup card for the Draft Assistant — starters in slot order
+// (buildLineup, lib/nfl-fantasy/draft-assistant.js) followed by bench,
+// so "my team" reads like an actual roster instead of a pick log.
+function MyTeamLineup({ starters, bench }) {
+  const row = (label, position, player, key) => (
+    <div key={key} style={{ display: "flex", alignItems: "center", gap: 10, background: "#12141a", border: "1px solid #242832", borderRadius: 8, padding: "8px 10px" }}>
+      <div style={{ width: 42, flexShrink: 0, fontSize: 10.5, fontWeight: 800, color: POSITION_ACCENT[position] || "#888" }}>{label}</div>
+      {player ? (
+        <>
+          <div style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 700, color: "#ddd", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{player.name}</div>
+          <div style={{ fontSize: 10.5, color: "#666", flexShrink: 0 }}>{player.team || "FA"}</div>
+        </>
+      ) : (
+        <div style={{ flex: 1, fontSize: 12, color: "#3d424f", fontStyle: "italic" }}>Empty</div>
+      )}
+    </div>
+  );
+  return (
+    <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 12, padding: 12 }}>
+      <div style={{ fontSize: 10, color: "#555", fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>MY TEAM LINEUP</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {starters.map(({ slot, position, player }) => row(slot, position, player, slot))}
+      </div>
+      {bench.length > 0 && (
+        <>
+          <div style={{ fontSize: 10, color: "#555", fontWeight: 700, letterSpacing: 1, margin: "14px 0 8px" }}>BENCH</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {bench.map(p => row(p.position, p.position, p, p.player_id))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // injury_status free text varies by source (ESPN vs Sleeper) — bucket it
 // into the handful of designations that actually matter for a start/sit
 // call, worst-case first, so the report reads as a triage list rather than
@@ -1057,6 +1092,21 @@ function VerdictCard({ result, label, scoring }) {
   );
 }
 
+// Manual-tracker draft picks persist across reloads/sessions in
+// localStorage (there's no server-side draft-session concept — the Sleeper
+// Sync mode doesn't need this since Sleeper's own server is the source of
+// truth there). Guarded for SSR since this module also runs server-side.
+const DRAFT_STORAGE_KEY = "tot-nfl-fantasy-draft-v1";
+function loadStoredDraft() {
+  if (typeof window === "undefined") return { draftedIds: [], myDraftedIds: [] };
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(DRAFT_STORAGE_KEY) || "{}");
+    return { draftedIds: parsed.draftedIds || [], myDraftedIds: parsed.myDraftedIds || [] };
+  } catch {
+    return { draftedIds: [], myDraftedIds: [] };
+  }
+}
+
 // standalone: rendered from the dedicated bottom-nav Fantasy tab rather than
 // nested under the NFL (moneyline) pill — hides the Fantasy/Picks/Record
 // sub-nav (there's nothing to switch to; betting content lives under the NFL
@@ -1115,8 +1165,8 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
   // draftedIds; myDraftedIds is the subset that's mine. Kept as two Sets
   // rather than one Map so the "is this drafted at all" filter (shared with
   // Sleeper mode's draftedPlayerIds) doesn't need to branch on shape.
-  const [draftedIds, setDraftedIds] = useState(() => new Set());
-  const [myDraftedIds, setMyDraftedIds] = useState(() => new Set());
+  const [draftedIds, setDraftedIds] = useState(() => new Set(loadStoredDraft().draftedIds));
+  const [myDraftedIds, setMyDraftedIds] = useState(() => new Set(loadStoredDraft().myDraftedIds));
   const [sleeperDraftIdInput, setSleeperDraftIdInput] = useState("");
   const [sleeperSlotInput, setSleeperSlotInput] = useState("");
   const [sleeperState, setSleeperState] = useState(null);
@@ -1257,6 +1307,18 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
   useEffect(() => {
     if (subTab === "fantasy" && fantasyMode === "draft") loadDraftPool();
   }, [subTab, fantasyMode, scoring]);
+
+  // Persist manual-tracker picks so a reload (or coming back tomorrow)
+  // doesn't lose draft-day progress.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify({
+        draftedIds: [...draftedIds],
+        myDraftedIds: [...myDraftedIds],
+      }));
+    } catch {}
+  }, [draftedIds, myDraftedIds]);
 
   // Sleeper live sync: polls picks on an interval while a draft id is set,
   // same "best-effort, degrade to last-known state" posture as the rest of
@@ -1416,6 +1478,11 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
     setDraftedIds(prev => { const s = new Set(prev); s.delete(playerId); return s; });
     setMyDraftedIds(prev => { const s = new Set(prev); s.delete(playerId); return s; });
   };
+  const resetDraft = () => {
+    if (!window.confirm("Clear all logged picks and start a new draft?")) return;
+    setDraftedIds(new Set());
+    setMyDraftedIds(new Set());
+  };
 
   // Unifies the two draft sources (manual clicks vs Sleeper poll) into the
   // same shape everything below consumes — the rest of the Draft Assistant
@@ -1431,6 +1498,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
   const draftPoolById = new Map((draftPool || []).map(p => [p.player_id, p]));
   const myDraftedPlayers = [...activeMyIds].map(id => draftPoolById.get(id)).filter(Boolean);
   const rosterNeeds = computeRosterNeeds(countByPosition(myDraftedPlayers));
+  const myLineup = buildLineup(myDraftedPlayers);
   const availableRanked = draftPool ? rankAvailable(draftPool, activeDraftedIds, rosterNeeds) : [];
   const availableFiltered = draftPositionFilter === "ALL" ? availableRanked : availableRanked.filter(p => p.position === draftPositionFilter);
   const topRecommendation = availableFiltered[0] || null;
@@ -1715,13 +1783,20 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                 a real live draft. */}
             {fantasyMode === "draft" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <div style={{ display: "flex", gap: 6 }}>
-                  {[{ id: "manual", label: "Manual Tracker" }, { id: "sleeper", label: "Sleeper Sync" }].map(({ id, label }) => (
-                    <button key={id} onClick={() => setDraftMode(id)}
-                      style={{ ...tabButtonStyle({ active: draftMode === id, accent: NFL_ORANGE }), flexShrink: 0 }}>
-                      {label}
+                <div style={{ display: "flex", gap: 6, justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {[{ id: "manual", label: "Manual Tracker" }, { id: "sleeper", label: "Sleeper Sync" }].map(({ id, label }) => (
+                      <button key={id} onClick={() => setDraftMode(id)}
+                        style={{ ...tabButtonStyle({ active: draftMode === id, accent: NFL_ORANGE }), flexShrink: 0 }}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  {draftMode === "manual" && draftedIds.size > 0 && (
+                    <button onClick={resetDraft} style={{ background: "none", border: "1px solid #333", borderRadius: 8, color: "#888", fontSize: 11, padding: "6px 10px", cursor: "pointer", flexShrink: 0 }}>
+                      Reset Draft
                     </button>
-                  ))}
+                  )}
                 </div>
 
                 {draftMode === "sleeper" && (
@@ -1863,6 +1938,8 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                         </div>
                       )}
                     </div>
+
+                    <MyTeamLineup starters={myLineup.starters} bench={myLineup.bench} />
 
                     <div>
                       <div style={{ fontSize: 10, color: "#555", fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>RECENT PICKS</div>
