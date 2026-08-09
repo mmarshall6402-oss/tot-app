@@ -886,27 +886,27 @@ function tint(hex, alpha) {
 
 function FormationChip({ slot, accent }) {
   const { label, x, y, player, backup, large } = slot;
-  const w = large ? 94 : 68;
+  const w = large ? 108 : 78;
   return (
     <div style={{
       position: "absolute", left: `${x}%`, top: `${y}%`, transform: "translate(-50%, -50%)",
       display: "flex", flexDirection: "column", alignItems: "center", gap: 1, width: w, zIndex: large ? 2 : 1,
     }}>
-      <div style={{ fontSize: large ? 10.5 : 9.5, fontWeight: 800, letterSpacing: 0.4, color: player ? accent : "#3d4453", marginBottom: 1 }}>{label}</div>
+      <div style={{ fontSize: large ? 11 : 10, fontWeight: 800, letterSpacing: 0.4, color: player ? accent : "#3d4453", marginBottom: 1 }}>{label}</div>
       <div style={{
         background: player ? tint(accent, 0.16) : "rgba(255,255,255,0.03)",
         border: `1px solid ${player ? tint(accent, 0.65) : "rgba(255,255,255,0.08)"}`,
         boxShadow: player ? (large ? "0 2px 6px rgba(0,0,0,0.45)" : "0 1px 3px rgba(0,0,0,0.35)") : "none",
-        borderRadius: large ? 10 : 8, padding: large ? "6px 10px" : "4px 6px", fontSize: large ? 15 : 12, fontWeight: 700,
+        borderRadius: large ? 11 : 9, padding: large ? "7px 8px" : "5px 6px", fontSize: large ? 14 : 11, fontWeight: 700,
         color: player ? "#fff" : "#3d4453", whiteSpace: "nowrap", overflow: "hidden",
         textOverflow: "ellipsis", maxWidth: w, textAlign: "center",
       }}>
         {player ? lastName(player.name) : "—"}
       </div>
       {player?.injuryStatus ? (
-        <div style={{ fontSize: large ? 10 : 9, fontWeight: 700, color: "#D9645C", marginTop: 1 }}>{player.injuryStatus}</div>
+        <div style={{ fontSize: large ? 10.5 : 9.5, fontWeight: 700, color: "#D9645C", marginTop: 1 }}>{player.injuryStatus}</div>
       ) : backup && (
-        <div style={{ fontSize: large ? 10.5 : 9.5, color: "#525a68", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: w, marginTop: 1 }}>
+        <div style={{ fontSize: large ? 11 : 10, color: "#525a68", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: w, marginTop: 1 }}>
           {lastName(backup.name)}
         </div>
       )}
@@ -923,14 +923,14 @@ const ST_ACCENT = "#B8862F";
 function SpecialTeamsChip({ slot, accent }) {
   const { label, player } = slot;
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1, width: 68 }}>
-      <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: 0.4, color: player ? accent : "#3d4453" }}>{label}</div>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1, width: 78 }}>
+      <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 0.4, color: player ? accent : "#3d4453" }}>{label}</div>
       <div style={{
         background: player ? tint(accent, 0.14) : "transparent",
         border: `1px solid ${player ? tint(accent, 0.6) : "#242832"}`,
-        borderRadius: 8, padding: "4px 6px", fontSize: 12, fontWeight: 700,
+        borderRadius: 9, padding: "5px 6px", fontSize: 11, fontWeight: 700,
         color: player ? "#fff" : "#3d4453", whiteSpace: "nowrap", overflow: "hidden",
-        textOverflow: "ellipsis", maxWidth: 68, textAlign: "center",
+        textOverflow: "ellipsis", maxWidth: 78, textAlign: "center",
       }}>
         {player ? lastName(player.name) : "—"}
       </div>
