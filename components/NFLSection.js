@@ -1790,12 +1790,24 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                             </div>
                           );
                         })}
-                        {rosterNeeds.FLEX_DEFICIT > 0 && (
-                          <div style={{ background: "#12141a", border: "1px solid #D6B23D55", borderRadius: 10, padding: "8px 12px", minWidth: 66, textAlign: "center" }}>
-                            <div style={{ fontSize: 10, color: "#888", fontWeight: 800 }}>FLEX</div>
-                            <div style={{ fontSize: 9.5, color: "#D6B23D", marginTop: 2 }}>need {rosterNeeds.FLEX_DEFICIT}</div>
-                          </div>
-                        )}
+                        {/* FLEX_DEFICIT counts every RB/WR/TE slot including
+                            the starters already broken out above, so it
+                            double-counts if shown raw (e.g. reads "need 6"
+                            on an empty roster that also shows RB need 2 / WR
+                            need 2 / TE need 1). Subtracting those position
+                            needs back out leaves just the shared flex
+                            spot(s) still unfilled once the position minimums
+                            themselves are met. */}
+                        {(() => {
+                          const flexOnly = Math.max(0, rosterNeeds.FLEX_DEFICIT - rosterNeeds.RB - rosterNeeds.WR - rosterNeeds.TE);
+                          return flexOnly > 0 && (
+                            <div style={{ background: "#12141a", border: "1px solid #D6B23D55", borderRadius: 10, padding: "8px 12px", minWidth: 66, textAlign: "center" }}>
+                              <div style={{ fontSize: 10, color: "#888", fontWeight: 800 }}>FLEX</div>
+                              <div style={{ fontSize: 16, fontWeight: 800, color: "#fff", marginTop: 2 }}>—</div>
+                              <div style={{ fontSize: 9.5, color: "#D6B23D", marginTop: 2 }}>need {flexOnly}</div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
 
