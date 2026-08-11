@@ -1,15 +1,40 @@
-This Or That (T|T)
+<div align="center">
 
-A production sports analytics platform combining **MLB and NFL betting picks** with a full **NFL
-fantasy football suite** — a statistical prediction model, AI-generated analysis, a live draft
-assistant, an in-app AI chat assistant, Stripe subscriptions, and fully automated daily
-operations.
+<img src="public/icon.svg" width="76" height="76" alt="This Or That logo" />
 
-**Live:** [https://thisthatpicks.com/](https://thisthatpicks.com/)
+# This Or That&nbsp;(T\|T)
+
+**AI-powered MLB & NFL betting picks, wrapped around a full NFL fantasy football suite** —
+a statistical prediction model, Claude-generated analysis, a live draft assistant, an in-app
+AI chat assistant, Stripe subscriptions, and fully automated daily operations.
+
+[![Live Site](https://img.shields.io/badge/live-thisthatpicks.com-00FF87?style=for-the-badge&logo=vercel&logoColor=white&labelColor=000000)](https://thisthatpicks.com/)
+[![Last Commit](https://img.shields.io/github/last-commit/mmarshall6402-oss/tot-app?style=for-the-badge&labelColor=000000&color=00FF87)](https://github.com/mmarshall6402-oss/tot-app/commits/main)
+[![Repo Size](https://img.shields.io/github/repo-size/mmarshall6402-oss/tot-app?style=for-the-badge&labelColor=000000&color=00FF87)](https://github.com/mmarshall6402-oss/tot-app)
+[![Follow on X](https://img.shields.io/badge/follow-%40ThisorThatPicks-000000?style=for-the-badge&logo=x&logoColor=white&labelColor=000000)](https://twitter.com/ThisorThatPicks)
+
+<br/>
+
+![Next.js](https://img.shields.io/badge/Next.js_16-000000?style=for-the-badge&logo=next.js&logoColor=white)
+![React](https://img.shields.io/badge/React_19-149ECA?style=for-the-badge&logo=react&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-3FCF8E?style=for-the-badge&logo=supabase&logoColor=white)
+![Stripe](https://img.shields.io/badge/Stripe-635BFF?style=for-the-badge&logo=stripe&logoColor=white)
+![Claude](https://img.shields.io/badge/Claude_AI-D97757?style=for-the-badge&logo=claude&logoColor=white)
+![Vercel](https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)
+![Python](https://img.shields.io/badge/Streamlit-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)
+![Resend](https://img.shields.io/badge/Resend-000000?style=for-the-badge&logo=resend&logoColor=white)
+
+</div>
 
 > Looking for the exhaustive feature-by-feature breakdown (every route, cron job, and admin tool)?
 > See [`FEATURES.md`](./FEATURES.md). For marketing/content material built on top of that
 > inventory, see [`marketing/`](./marketing/).
+
+### Contents
+
+[Features](#features) · [Tech Stack](#tech-stack) · [Architecture](#architecture) ·
+[Prediction Model](#prediction-model) · [Project Structure](#project-structure) ·
+[Local Development](#local-development) · [Deployment](#deployment)
 
 ---
 
@@ -60,6 +85,20 @@ See [`FEATURES.md`](./FEATURES.md) for the full inventory, including every autom
 
 ## Tech Stack
 
+<div align="center">
+
+![Next.js](https://img.shields.io/badge/Framework-Next.js_(App_Router)-000000?style=flat-square&logo=next.js&logoColor=white)
+![React](https://img.shields.io/badge/UI-React_19-149ECA?style=flat-square&logo=react&logoColor=white)
+![Supabase](https://img.shields.io/badge/DB_%26_Auth-Supabase-3FCF8E?style=flat-square&logo=supabase&logoColor=white)
+![Stripe](https://img.shields.io/badge/Payments-Stripe-635BFF?style=flat-square&logo=stripe&logoColor=white)
+![Claude](https://img.shields.io/badge/AI-Anthropic_Claude-D97757?style=flat-square&logo=claude&logoColor=white)
+![Resend](https://img.shields.io/badge/Email-Resend-000000?style=flat-square&logo=resend&logoColor=white)
+![X](https://img.shields.io/badge/Social-Twitter_API_v2-000000?style=flat-square&logo=x&logoColor=white)
+![Vercel](https://img.shields.io/badge/Deploy-Vercel_(incl._cron)-000000?style=flat-square&logo=vercel&logoColor=white)
+![Streamlit](https://img.shields.io/badge/Internal_Analytics-Python_%2F_Streamlit-FF4B4B?style=flat-square&logo=streamlit&logoColor=white)
+
+</div>
+
 | Layer | Technology |
 |---|---|
 | Framework | Next.js (App Router), React 19 |
@@ -74,6 +113,34 @@ See [`FEATURES.md`](./FEATURES.md) for the full inventory, including every autom
 ---
 
 ## Architecture
+
+```mermaid
+flowchart LR
+    subgraph MLB["⚾ MLB pipeline — daily @ 3PM UTC"]
+        A1[Fetch odds &<br/>starting pitchers] --> A2[Score model]
+        A2 --> A3[Claude breakdown]
+        A3 --> A4[(picks_cache)]
+    end
+
+    subgraph NFL["🏈 NFL pipeline — weekly, Tuesdays"]
+        B1[Fetch odds] --> B2[Score model]
+        B2 --> B3[Claude breakdown]
+        B3 --> B4[(picks_cache)]
+    end
+
+    subgraph Fantasy["🏆 Fantasy pipeline"]
+        C1[nflverse ingest<br/>daily] --> C2[Cheat Sheet<br/>rankings, weekly]
+        C2 --> C3[(nfl_fantasy_rankings)]
+        C3 --> C4[Draft Assistant<br/>reads live]
+    end
+
+    A4 --> D["/api/picks"]
+    B4 --> E["/api/nfl/picks"]
+    D --> F[[Live score overlay]]
+    E --> F
+    A4 --> G[["Email digest +\nTwitter/X bot"]]
+    B4 --> G
+```
 
 ### Pick pipeline (MLB)
 
@@ -125,6 +192,17 @@ Six independent signals are combined into a single home-win probability. Startin
 | Recent form | 4% | 10-game OPS (70%) blended with 7-day OPS (30%) |
 | Season standings | 0% | Folded into Elo (season W% is Elo's long-run signal); omitted to prevent double-counting |
 
+```mermaid
+pie showData
+    title Home-win probability — signal weight
+    "Starting pitcher" : 35
+    "Lineup vs handedness" : 25
+    "Bullpen quality" : 25
+    "Elo rating" : 11
+    "Park factor" : 5
+    "Recent form" : 4
+```
+
 **Pitcher scoring** uses xFIP over ERA where available (xFIP strips out park effects and BABIP luck). All stats are stabilized by sample size — a starter with 10 IP gets regressed heavily toward the league average. Recent starts (last 5) are blended in at 60% weight when a meaningful sample exists.
 
 **Bullpen scoring** weights rolling 14-day ERA most heavily. A fatigue flag triggers when a bullpen's 3-day ERA exceeds its 14-day baseline by 1.5+ points, indicating key relievers are overworked.
@@ -144,14 +222,14 @@ Every pick earns one of four verdicts:
 
 | Verdict | Meaning |
 |---|---|
-| **CLEAN** | Passes every AND-gate condition — full confidence |
-| **BET** | Minor failures only (e.g. lineup not yet posted) — still actionable |
-| **PASS** | Insufficient edge or confidence — no bet |
-| **TRAP** | Negative edge — model favors the other side |
+| 🟢 **CLEAN** | Passes every AND-gate condition — full confidence |
+| 🔵 **BET** | Minor failures only (e.g. lineup not yet posted) — still actionable |
+| ⚪ **PASS** | Insufficient edge or confidence — no bet |
+| 🔴 **TRAP** | Negative edge — model favors the other side |
 
 The AND-gate is strict. Automatic exclusions include: Coors Field (park model cannot compensate), pick-side SP with fewer than 12 IP (ERA is noise at that sample), juice above −300, and closing line movement that contradicts the model.
 
-A **HALF SIZE** flag is applied to CLEAN picks where the pick-side bullpen ERA exceeds 5.00 or recent bullpen fatigue is detected — the pick is still valid but late-game reliability is reduced.
+A **HALF SIZE** ⚠️ flag is applied to CLEAN picks where the pick-side bullpen ERA exceeds 5.00 or recent bullpen fatigue is detected — the pick is still valid but late-game reliability is reduced.
 
 ### Confidence score
 
