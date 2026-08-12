@@ -15,7 +15,7 @@
 // values that could silently drift from the host's actual theme.
 
 import { useState, useEffect, useRef, Fragment } from "react";
-import { impliedWinPct, oddsMovement } from "../lib/odds-display.js";
+import WinPctRow from "./WinPctRow.js";
 import { TeamMatchupLink } from "./TeamModal.js";
 import TeamLogo from "./TeamLogo.js";
 import { translateReasons } from "../lib/reason-labels.js";
@@ -33,27 +33,6 @@ function pickOddsFor(pick) {
 }
 
 const NFL_ORANGE = "#D9754A";
-
-// NFL picks have no openHomeOdds/openAwayOdds (no CLV tracking yet), so the
-// movement arrow just never renders here — degrades gracefully, same component
-// shape as the one duplicated in app/page.js and app/app/page.js for MLB.
-function WinPctRow({ homeTeam, awayTeam, homeOdds, awayOdds, openHomeOdds, openAwayOdds }) {
-  const wp = impliedWinPct(homeOdds, awayOdds);
-  if (!wp) return null;
-  const move = oddsMovement(openHomeOdds, homeOdds, openAwayOdds, awayOdds);
-  const arrow = move?.direction === "up" ? "▲" : move?.direction === "down" ? "▼" : null;
-  const arrowColor = move?.direction === "up" ? "#2FBF71" : move?.direction === "down" ? "#D9645C" : "#555";
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 6, fontSize: 11, fontFamily: tokens.font.mono }}>
-      <span style={{ color: "#666" }}>{(awayTeam || "").split(" ").pop()} <b style={{ color: "#bbb" }}>{wp.away}%</b></span>
-      <span style={{ color: "#3d424f" }}>·</span>
-      <span style={{ color: "#666" }}>{(homeTeam || "").split(" ").pop()} <b style={{ color: "#bbb" }}>{wp.home}%</b></span>
-      {arrow && (
-        <span style={{ color: arrowColor }}>{arrow} {move.delta}% since open</span>
-      )}
-    </div>
-  );
-}
 
 const FANTASY_POSITIONS = ["QB", "RB", "WR", "TE"];
 
@@ -1195,6 +1174,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
   const [nflPicksError, setNflPicksError] = useState(null);
   const [nflPicksLoading, setNflPicksLoading] = useState(false);
   const [nflExpanded, setNflExpanded] = useState(null);
+  const [advStatsOpen, setAdvStatsOpen] = useState(new Set()); // pick ids with the advanced-stats disclosure open
   const [nflGenerating, setNflGenerating] = useState(false);
 
   // Record state
@@ -2296,18 +2276,29 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#888", marginBottom: 4 }}>
                             <span>Confidence</span><span style={{ color: "#ccc", fontFamily: tokens.font.mono }}>{f.confidence}/10</span>
                           </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#888", marginBottom: 4 }}>
-                            <span>Model win prob</span><span style={{ color: "#ccc", fontFamily: tokens.font.mono }}>{f.trueWinProbPct}%</span>
-                          </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#888", marginBottom: 4 }}>
-                            <span>Market implied</span><span style={{ color: "#ccc", fontFamily: tokens.font.mono }}>{f.marketImpliedPct}%</span>
-                          </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#888", marginBottom: 4 }}>
-                            <span>Uncertainty</span><span style={{ color: "#ccc", fontFamily: tokens.font.mono }}>±{f.uncertaintyPct}%</span>
-                          </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#888" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#888", marginBottom: advStatsOpen.has(pick.id) ? 4 : 0 }}>
                             <span>Data variance</span><span style={{ color: "#ccc" }}>{f.variance}</span>
                           </div>
+                          {advStatsOpen.has(pick.id) ? (
+                            <>
+                              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#888", marginBottom: 4 }}>
+                                <span>Model win prob</span><span style={{ color: "#ccc", fontFamily: tokens.font.mono }}>{f.trueWinProbPct}%</span>
+                              </div>
+                              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#888", marginBottom: 4 }}>
+                                <span>Market implied</span><span style={{ color: "#ccc", fontFamily: tokens.font.mono }}>{f.marketImpliedPct}%</span>
+                              </div>
+                              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#888" }}>
+                                <span>Uncertainty</span><span style={{ color: "#ccc", fontFamily: tokens.font.mono }}>±{f.uncertaintyPct}%</span>
+                              </div>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => setAdvStatsOpen(prev => new Set(prev).add(pick.id))}
+                              style={{ background: "none", border: "none", padding: 0, fontSize: 10, color: "#555", letterSpacing: 0.5, cursor: "pointer" }}
+                            >
+                              + more stats
+                            </button>
+                          )}
                           {f.failures?.length > 0 && (
                             <div style={{ marginTop: 8, fontSize: 11, color: "#666", lineHeight: 1.5 }}>
                               {f.failures.map((fail, i) => <div key={i}>· {fail}</div>)}
