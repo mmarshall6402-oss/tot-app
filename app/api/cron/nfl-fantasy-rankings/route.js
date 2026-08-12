@@ -11,6 +11,7 @@ import { readFile } from "fs/promises";
 import { join } from "path";
 import { createClient } from "@supabase/supabase-js";
 import { timingSafeEqual } from "../../../../lib/auth.js";
+import { logError } from "../../../../lib/error-log.js";
 import { buildPlayerIndex } from "../../../../lib/nfl-roster.js";
 import { buildIdCrosswalk, normalizeName } from "../../../../lib/nfl-fantasy/id-map.js";
 import { groupByPlayer, buildRankings, POSITIONS } from "../../../../lib/nfl-fantasy/rankings.js";
@@ -190,7 +191,11 @@ async function refreshFormat(supabase, format, playersById, targetSeason, crossw
     .eq("season", targetSeason)
     .lt("updated_at", runStart);
 
-  return rows.length;
+  // adpMatched surfaces in the cron response (and the admin System tab via
+  // logError below, when it's 0) so "the value-delta badge never shows up"
+  // is diagnosable from production without re-running the ADP fetch by hand
+  // — see the adpIndex.size === 0 check where this format's rows are built.
+  return { rows: rows.length, adpMatched: rows.filter((r) => r.adp_rank != null).length };
 }
 
 export async function GET(request) {
@@ -269,8 +274,16 @@ export async function GET(request) {
     let adpIndex;
     try {
       adpIndex = buildAdpIndex(await fetchAdp(format, { season: targetSeason }));
+      // A 200 with zero usable players is silent otherwise — no exception to
+      // catch below, just an empty index that quietly means "no value-delta
+      // badge will ever show for this format." Worth its own log line since
+      // it's indistinguishable from "working as intended" without one.
+      if (adpIndex.size === 0) {
+        logError("nfl-fantasy-adp", `ADP fetch for ${format} returned zero usable players`, { route: "cron/nfl-fantasy-rankings" });
+      }
     } catch (e) {
       console.warn(`[nfl-fantasy-rankings] ADP fetch failed for ${format}:`, e.message);
+      logError("nfl-fantasy-adp", `ADP fetch failed for ${format}: ${e.message}`, { route: "cron/nfl-fantasy-rankings" });
       adpIndex = new Map();
     }
     const actualStatsByPlayer = computeActualStats(statsPlayerRows || [], format);
