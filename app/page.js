@@ -12,7 +12,7 @@ import PlayerModal from "../components/PlayerModal.js";
 import PropCard from "../components/PropCard.js";
 import DecisionCard from "../components/DecisionCard.js";
 import SkipSummary from "../components/SkipSummary.js";
-import { impliedWinPct, oddsMovement } from "../lib/odds-display.js";
+import WinPctRow from "../components/WinPctRow.js";
 import { translateReasons } from "../lib/reason-labels.js";
 import { shouldBetNow } from "../lib/fair-odds.js";
 import { S, tokens, SHARED_BUTTON_CSS, FONT_IMPORT_URL, tabButtonStyle, statTileStyle } from "../lib/ui-theme.js";
@@ -74,26 +74,6 @@ function fmtDiagnostic(d) {
     parts.push(`${key.toUpperCase()}: ${s.ok ? `${s.games} games` : s.error}`);
   }
   return parts.join(" · ");
-}
-
-// Devigged win % for both teams, plus an open→current movement arrow when
-// opening odds were captured for this pick. Renders nothing without odds.
-function WinPctRow({ homeTeam, awayTeam, homeOdds, awayOdds, openHomeOdds, openAwayOdds }) {
-  const wp = impliedWinPct(homeOdds, awayOdds);
-  if (!wp) return null;
-  const move = oddsMovement(openHomeOdds, homeOdds, openAwayOdds, awayOdds);
-  const arrow = move?.direction === "up" ? "▲" : move?.direction === "down" ? "▼" : null;
-  const arrowColor = move?.direction === "up" ? "#2FBF71" : move?.direction === "down" ? "#D9645C" : "#555";
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 6, fontSize: 11, fontFamily: "'JetBrains Mono',monospace" }}>
-      <span style={{ color: "#666" }}>{(awayTeam || "").split(" ").pop()} <b style={{ color: "#bbb" }}>{wp.away}%</b></span>
-      <span style={{ color: "#3d424f" }}>·</span>
-      <span style={{ color: "#666" }}>{(homeTeam || "").split(" ").pop()} <b style={{ color: "#bbb" }}>{wp.home}%</b></span>
-      {arrow && (
-        <span style={{ color: arrowColor }}>{arrow} {move.delta}% since open</span>
-      )}
-    </div>
-  );
 }
 
 const TIER = {
@@ -241,6 +221,7 @@ export default function ToT() {
   const [activeTab, setActiveTab] = useState("home");
   const [sortBy, setSortBy] = useState("edge");
   const [expanded, setExpanded] = useState(null);
+  const [advStatsOpen, setAdvStatsOpen] = useState(new Set()); // pick ids with the advanced-stats disclosure open
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [saving, setSaving] = useState({});
@@ -1830,7 +1811,7 @@ export default function ToT() {
                               )}
                             </div>
                           </div>
-                          <div style={{ display: "flex", gap: 14, marginBottom: 8, flexWrap: "wrap" }}>
+                          <div style={{ display: "flex", gap: 14, marginBottom: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
                             <div>
                               <div style={{ fontSize: 9, color: "#888", letterSpacing: 1 }}>CONFIDENCE</div>
                               <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: confColor, fontWeight: 700 }}>{f.confidence}/{f.confidenceOf || 10}</div>
@@ -1839,31 +1820,43 @@ export default function ToT() {
                               <div style={{ fontSize: 9, color: "#888", letterSpacing: 1 }}>VARIANCE</div>
                               <div style={{ fontSize: 11, fontWeight: 700, color: f.variance === "HIGH" ? "#D9645C" : f.variance === "MED" ? "#D6B23D" : "#2FBF71" }}>{f.variance}</div>
                             </div>
-                            <div>
-                              <div style={{ fontSize: 9, color: "#888", letterSpacing: 1 }}>WIN PROB</div>
-                              <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: "#fff" }}>{f.trueWinProbPct}%</div>
-                            </div>
-                            <div>
-                              <div style={{ fontSize: 9, color: "#888", letterSpacing: 1 }}>MKT IMPLIED</div>
-                              <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: "#fff" }}>{f.sharpImpliedPct}%</div>
-                            </div>
-                            {f.uncertaintyPct != null && (
-                              <div>
-                                <div style={{ fontSize: 9, color: "#888", letterSpacing: 1 }}>UNCERTAINTY</div>
-                                <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: f.uncertaintyPct > 10 ? "#D9645C" : f.uncertaintyPct > 6 ? "#D6B23D" : "#2FBF71" }}>±{f.uncertaintyPct}%</div>
-                              </div>
+                            {!advStatsOpen.has(pick.id) && (
+                              <button
+                                onClick={() => setAdvStatsOpen(prev => new Set(prev).add(pick.id))}
+                                style={{ background: "none", border: "none", padding: 0, fontSize: 10, color: "#555", letterSpacing: 0.5, cursor: "pointer", marginBottom: 1 }}
+                              >
+                                + more stats
+                              </button>
                             )}
-                            {f.snr != null && (
-                              <div>
-                                <div style={{ fontSize: 9, color: "#888", letterSpacing: 1 }}>SNR</div>
-                                <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: f.snr >= 1.5 ? "#2FBF71" : f.snr >= 1.0 ? "#D6B23D" : "#D9645C" }}>{f.snr}×</div>
-                              </div>
-                            )}
-                            {f.parkFactor !== 0 && (
-                              <div>
-                                <div style={{ fontSize: 9, color: "#888", letterSpacing: 1 }}>PARK</div>
-                                <div style={{ fontSize: 11, color: f.parkFactor >= 1.0 ? "#D9645C" : f.parkFactor <= -0.3 ? "#2FBF71" : "#888" }}>{f.parkFactor > 0 ? "+" : ""}{f.parkFactor}R</div>
-                              </div>
+                            {advStatsOpen.has(pick.id) && (
+                              <>
+                                <div>
+                                  <div style={{ fontSize: 9, color: "#888", letterSpacing: 1 }}>WIN PROB</div>
+                                  <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: "#fff" }}>{f.trueWinProbPct}%</div>
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: 9, color: "#888", letterSpacing: 1 }}>MKT IMPLIED</div>
+                                  <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: "#fff" }}>{f.sharpImpliedPct}%</div>
+                                </div>
+                                {f.uncertaintyPct != null && (
+                                  <div>
+                                    <div style={{ fontSize: 9, color: "#888", letterSpacing: 1 }}>UNCERTAINTY</div>
+                                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: f.uncertaintyPct > 10 ? "#D9645C" : f.uncertaintyPct > 6 ? "#D6B23D" : "#2FBF71" }}>±{f.uncertaintyPct}%</div>
+                                  </div>
+                                )}
+                                {f.snr != null && (
+                                  <div>
+                                    <div style={{ fontSize: 9, color: "#888", letterSpacing: 1 }}>SNR</div>
+                                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: f.snr >= 1.5 ? "#2FBF71" : f.snr >= 1.0 ? "#D6B23D" : "#D9645C" }}>{f.snr}×</div>
+                                  </div>
+                                )}
+                                {f.parkFactor !== 0 && (
+                                  <div>
+                                    <div style={{ fontSize: 9, color: "#888", letterSpacing: 1 }}>PARK</div>
+                                    <div style={{ fontSize: 11, color: f.parkFactor >= 1.0 ? "#D9645C" : f.parkFactor <= -0.3 ? "#2FBF71" : "#888" }}>{f.parkFactor > 0 ? "+" : ""}{f.parkFactor}R</div>
+                                  </div>
+                                )}
+                              </>
                             )}
                           </div>
                           {(f.failures || []).length > 0 && (
