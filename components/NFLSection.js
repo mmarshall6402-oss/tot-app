@@ -523,6 +523,65 @@ function DraftHistoryList({ drafted, mode, onUndo }) {
   );
 }
 
+// "My Drafts" — the account-scoped save/load layer on top of the
+// localStorage snapshot, so a team survives a browser switch and more than
+// one draft (e.g. two leagues) can be tracked at once. Save/Save New always
+// show (there's always *something* on screen to snapshot, even zero picks
+// logged) — Load/Share/Delete only apply to rows that already exist.
+function SavedTeamsPanel({ teams, loading, activeTeamId, busyId, onSave, onSaveAsNew, onLoad, onDelete, onShare }) {
+  return (
+    <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 12, padding: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+        <div style={{ fontSize: 10, color: "#555", fontWeight: 700, letterSpacing: 1 }}>MY DRAFTS</div>
+        <div style={{ display: "flex", gap: 6 }}>
+          {activeTeamId && (
+            <button onClick={onSaveAsNew} disabled={busyId === "new"}
+              style={{ background: "none", border: "1px solid #333", borderRadius: 8, color: "#888", fontSize: 10.5, padding: "6px 10px", cursor: busyId === "new" ? "default" : "pointer" }}>
+              Save As New
+            </button>
+          )}
+          <button onClick={onSave} disabled={busyId === (activeTeamId || "new")}
+            style={{ background: NFL_ORANGE, border: "none", borderRadius: 8, color: "#0b0c10", fontSize: 10.5, fontWeight: 700, padding: "6px 10px", cursor: busyId === (activeTeamId || "new") ? "default" : "pointer" }}>
+            {busyId === (activeTeamId || "new") ? "Saving…" : activeTeamId ? "Update Save" : "Save Team"}
+          </button>
+        </div>
+      </div>
+
+      {loading && teams == null && <div style={{ fontSize: 12, color: "#555" }}>Loading saved drafts…</div>}
+      {!loading && teams?.length === 0 && (
+        <div style={{ fontSize: 12, color: "#555" }}>No saved drafts yet — Save Team keeps this draft in your account so it follows you to any device.</div>
+      )}
+      {teams?.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {teams.map((t) => {
+            const active = t.id === activeTeamId;
+            const busy = busyId === t.id;
+            return (
+              <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, background: "#12141a", border: `1px solid ${active ? NFL_ORANGE : "#242832"}`, borderRadius: 8, padding: "8px 10px" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: "#ddd", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}</div>
+                  <div style={{ fontSize: 10, color: "#666", marginTop: 1 }}>{t.playerCount} player{t.playerCount === 1 ? "" : "s"} · {t.scoring_format?.toUpperCase().replace("_", " ")}</div>
+                </div>
+                {!active && (
+                  <button onClick={() => onLoad(t.id)} disabled={busy} style={{ background: "none", border: "1px solid #333", borderRadius: 6, color: "#888", fontSize: 10, padding: "5px 8px", cursor: busy ? "default" : "pointer", flexShrink: 0 }}>
+                    {busy ? "…" : "Load"}
+                  </button>
+                )}
+                <button onClick={() => onShare(t.id)} disabled={busy} style={{ background: "none", border: "1px solid #333", borderRadius: 6, color: "#888", fontSize: 10, padding: "5px 8px", cursor: busy ? "default" : "pointer", flexShrink: 0 }}>
+                  Share
+                </button>
+                <button onClick={() => onDelete(t.id)} disabled={busy} style={{ background: "none", border: "1px solid #333", borderRadius: 6, color: "#D9645C", fontSize: 10, padding: "5px 8px", cursor: busy ? "default" : "pointer", flexShrink: 0 }}>
+                  Delete
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Position accent — same swatch family as the personnel/pace/playcaller
 // note pills on DraftBoardRow, just remapped to QB/RB/WR/TE so the injury
 // report reads at a glance instead of as a wall of identical rows.
@@ -1149,6 +1208,14 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
   const [sleeperDraftIdInput, setSleeperDraftIdInput] = useState("");
   const [sleeperSlotInput, setSleeperSlotInput] = useState("");
   const [sleeperState, setSleeperState] = useState(null);
+  // Server-side saves (app/api/nfl/fantasy/draft-teams) — the account-scoped
+  // layer on top of the localStorage snapshot above. savedTeams is the
+  // sidebar list (summary rows only); activeTeamId tracks which one "Save"
+  // overwrites vs. creates fresh, cleared on Reset Draft / New Draft.
+  const [savedTeams, setSavedTeams] = useState(null);
+  const [savedTeamsLoading, setSavedTeamsLoading] = useState(false);
+  const [activeTeamId, setActiveTeamId] = useState(null);
+  const [teamActionBusy, setTeamActionBusy] = useState(null); // id (or "new") currently saving/loading/deleting/sharing
   const [sleeperError, setSleeperError] = useState(null);
   const [sleeperLoading, setSleeperLoading] = useState(false);
 
@@ -1288,6 +1355,31 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
     if (subTab === "fantasy" && fantasyMode === "draft") loadDraftPool();
   }, [subTab, fantasyMode, scoring]);
 
+  // Saved-team list for the "My Drafts" panel — loaded once per visit to the
+  // Draft tab, refreshed after any save/delete rather than re-fetched on
+  // every render.
+  const loadSavedTeams = async () => {
+    setSavedTeamsLoading(true);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch("/api/nfl/fantasy/draft-teams", { headers });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setSavedTeams(data.teams || []);
+    } catch {
+      // Logged-out visitors get a 401 here — Draft Assistant itself isn't
+      // Pro/auth-gated, so treat "can't load saved teams" as just "no saved
+      // teams to show" rather than surfacing an error banner for what's an
+      // expected state.
+      setSavedTeams([]);
+    }
+    setSavedTeamsLoading(false);
+  };
+
+  useEffect(() => {
+    if (subTab === "fantasy" && fantasyMode === "draft" && savedTeams === null) loadSavedTeams();
+  }, [subTab, fantasyMode, savedTeams]);
+
   // Persist manual-tracker picks so a reload (or coming back tomorrow)
   // doesn't lose draft-day progress.
   useEffect(() => {
@@ -1304,7 +1396,11 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
   // same "best-effort, degrade to last-known state" posture as the rest of
   // this file's Sleeper usage. Stops polling the moment the user navigates
   // away from Draft mode or switches back to manual — no point burning
-  // Sleeper's API budget for a tab that isn't visible.
+  // Sleeper's API budget for a tab that isn't visible. 4s (not the original
+  // 15s) — a live snake draft moves fast enough that 15s between refreshes
+  // meant seeing your turn well after it started; Sleeper's read API has no
+  // published rate limit tight enough for 4s polling from one draft to be a
+  // concern.
   useEffect(() => {
     const draftId = parseSleeperDraftId(sleeperDraftIdInput);
     if (!(subTab === "fantasy" && fantasyMode === "draft" && draftMode === "sleeper" && draftId)) return;
@@ -1328,7 +1424,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
       if (!cancelled) setSleeperLoading(false);
     };
     poll();
-    const interval = setInterval(poll, 15000);
+    const interval = setInterval(poll, 4000);
     return () => { cancelled = true; clearInterval(interval); };
   }, [subTab, fantasyMode, draftMode, sleeperDraftIdInput, sleeperSlotInput, scoring]);
 
@@ -1462,6 +1558,142 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
     if (!window.confirm("Clear all logged picks and start a new draft?")) return;
     setDraftedIds(new Set());
     setMyDraftedIds(new Set());
+    setActiveTeamId(null);
+  };
+
+  // Whatever's actually on screen right now, regardless of source — manual
+  // mode's own Sets, or the Sleeper poll's last-synced snapshot. Save/Load
+  // work the same way in both modes: "capture what I see" / "replace what I
+  // see," which is why loading always lands back in Manual Tracker (a saved
+  // snapshot is by definition no longer live).
+  const currentDraftIds = () => draftMode === "sleeper" ? (sleeperState?.draftedPlayerIds || []) : [...draftedIds];
+  const currentMyIds = () => draftMode === "sleeper" ? (sleeperState?.myDraftedPlayerIds || []) : [...myDraftedIds];
+
+  // Saving/loading/sharing a draft is the one part of the Draft Assistant
+  // that needs an account (everything else — the live picker itself — works
+  // logged out, same as the rest of the Fantasy tab). Checked up front
+  // rather than just letting the 401 surface, so the message actually says
+  // what to do about it.
+  const requireLoginHeaders = async () => {
+    const headers = await getAuthHeaders();
+    if (!headers.Authorization) { alert("Log in to save your team."); return null; }
+    return headers;
+  };
+
+  // No activeTeamId yet -> prompts for a name and creates a new row;
+  // already-loaded/previously-saved team -> silently overwrites it so
+  // repeated saves during a live draft don't nag for a name every time.
+  const saveCurrentTeam = async () => {
+    const myIds = currentMyIds();
+    if (myIds.length === 0) { alert("Draft at least one player to your team before saving."); return; }
+
+    setTeamActionBusy(activeTeamId || "new");
+    try {
+      const headers = await requireLoginHeaders();
+      if (!headers) { setTeamActionBusy(null); return; }
+      if (activeTeamId) {
+        const res = await fetch("/api/nfl/fantasy/draft-teams", {
+          method: "PATCH", headers: { "Content-Type": "application/json", ...headers },
+          body: JSON.stringify({ id: activeTeamId, draftedIds: currentDraftIds(), myIds }),
+        });
+        if (!res.ok) throw new Error((await res.json()).error);
+      } else {
+        const name = window.prompt("Name this draft (e.g. your league name):", "My Team");
+        if (!name) { setTeamActionBusy(null); return; }
+        const res = await fetch("/api/nfl/fantasy/draft-teams", {
+          method: "POST", headers: { "Content-Type": "application/json", ...headers },
+          body: JSON.stringify({ name, scoringFormat: scoringToFormat(scoring), draftedIds: currentDraftIds(), myIds }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        setActiveTeamId(data.team.id);
+      }
+      await loadSavedTeams();
+    } catch (e) {
+      alert(e.message || "Could not save this draft.");
+    }
+    setTeamActionBusy(null);
+  };
+
+  // Always saves as a new row even if a team is already loaded/active — the
+  // explicit escape hatch for "keep my current save as-is, also snapshot
+  // this as a second one" (e.g. forking a team before a risky pick).
+  const saveTeamAsNew = async () => {
+    const name = window.prompt("Name this draft (e.g. your league name):", "My Team");
+    if (!name) return;
+    setTeamActionBusy("new");
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch("/api/nfl/fantasy/draft-teams", {
+        method: "POST", headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify({ name, scoringFormat: scoringToFormat(scoring), draftedIds: currentDraftIds(), myIds: currentMyIds() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setActiveTeamId(data.team.id);
+      await loadSavedTeams();
+    } catch (e) {
+      alert(e.message || "Could not save this draft.");
+    }
+    setTeamActionBusy(null);
+  };
+
+  // Loading a saved snapshot always drops into Manual Tracker: a Sleeper
+  // Sync team's state came from Sleeper's own live draft, and a saved
+  // snapshot has no live draft behind it anymore, just a fixed picture.
+  const loadSavedTeam = async (id) => {
+    setTeamActionBusy(id);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/nfl/fantasy/draft-teams?id=${id}`, { headers });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      const { team } = data;
+      setDraftMode("manual");
+      setDraftedIds(new Set(team.drafted_ids || []));
+      setMyDraftedIds(new Set(team.my_ids || []));
+      setActiveTeamId(team.id);
+      if (team.scoring_format === "half_ppr") setScoring("Half-PPR");
+      else if (team.scoring_format === "standard") setScoring("Standard");
+      else setScoring("PPR");
+    } catch (e) {
+      alert(e.message || "Could not load this draft.");
+    }
+    setTeamActionBusy(null);
+  };
+
+  const deleteSavedTeam = async (id) => {
+    if (!window.confirm("Delete this saved draft? This can't be undone.")) return;
+    setTeamActionBusy(id);
+    try {
+      const headers = await getAuthHeaders();
+      await fetch(`/api/nfl/fantasy/draft-teams?id=${id}`, { method: "DELETE", headers });
+      if (activeTeamId === id) setActiveTeamId(null);
+      await loadSavedTeams();
+    } catch {}
+    setTeamActionBusy(null);
+  };
+
+  // Generates (or reuses) the share_token and copies the public read-only
+  // URL (app/draft-team/[token]) to the clipboard — same "copy + alert"
+  // pattern used elsewhere in the app rather than a custom toast component.
+  const shareSavedTeam = async (id) => {
+    setTeamActionBusy(id);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch("/api/nfl/fantasy/draft-teams/share", {
+        method: "POST", headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      const url = `${window.location.origin}/draft-team/${data.shareToken}`;
+      await navigator.clipboard.writeText(url).catch(() => {});
+      alert(`Share link copied:\n${url}`);
+    } catch (e) {
+      alert(e.message || "Could not create a share link.");
+    }
+    setTeamActionBusy(null);
   };
 
   // Unifies the two draft sources (manual clicks vs Sleeper poll) into the
@@ -1778,6 +2010,9 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                     </button>
                   )}
                 </div>
+
+                <SavedTeamsPanel teams={savedTeams} loading={savedTeamsLoading} activeTeamId={activeTeamId} busyId={teamActionBusy}
+                  onSave={saveCurrentTeam} onSaveAsNew={saveTeamAsNew} onLoad={loadSavedTeam} onDelete={deleteSavedTeam} onShare={shareSavedTeam} />
 
                 {draftMode === "sleeper" && (
                   <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 12, padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>

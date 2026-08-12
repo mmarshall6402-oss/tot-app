@@ -68,8 +68,13 @@ This is the newest and largest product surface in the app (`components/NFLSectio
     a marginal starter-need pick can outrank a higher-ranked bench pick
   - **Snake-draft turn math** — tracks whose turn it is and how many picks until you're on the
     clock
-  - **Sleeper league sync** — syncs live draft state from a connected Sleeper league
+  - **Sleeper league sync** — syncs live draft state from a connected Sleeper league, polled every
+    4s for a fast on-the-clock read
   - Persists draft picks and renders your team as a full starting-lineup card, not just a pick list
+  - **Account-scoped saves** (`app/api/nfl/fantasy/draft-teams`) — save a draft snapshot to your
+    account (not just localStorage) so it follows you across devices, track more than one draft at
+    once (e.g. two leagues), and generate a public read-only share link for any saved team
+    (`app/draft-team/[token]`)
 - **Fantasy backtesting** — projections are validated against realized historical seasons via a
   dedicated backtest runner (`lib/nfl-fantasy/backtest-runner.js`, `npm run fantasy-backtest`),
   distinct from the MLB backtest system.
