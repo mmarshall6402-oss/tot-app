@@ -404,6 +404,50 @@ function DraftBoardGrid({ players }) {
   );
 }
 
+// Full signal-badge stack — value/regression deltas plus the free-text
+// notes (change/personnel/pace/playcaller) and injury/trending flags that
+// nfl_fantasy_rankings carries per player. Shared by DraftBoardRow (Cheat
+// Sheet) and DraftAssistantRow (Draft tab) so on-the-clock decisions carry
+// the same signals as the pre-draft board instead of a stripped-down view.
+function SignalBadges({ p }) {
+  return (
+    <>
+      <ValueDeltaBadge delta={p.value_delta} />
+      <RegressionBadge delta={p.regression_delta} gamesPlayed={p.games_played_actual} />
+      {p.change_note && (
+        <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(61,191,214,0.08)", color: "#3DBFD6", border: "1px solid rgba(61,191,214,0.25)" }}>
+          {p.change_note}
+        </span>
+      )}
+      {p.injury_status && (
+        <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(217,100,92,0.1)", color: "#D9645C", border: "1px solid rgba(217,100,92,0.3)" }}>
+          {p.injury_status}
+        </span>
+      )}
+      {p.trending_add_count > 0 && (
+        <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(47,191,113,0.08)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.25)" }}>
+          {p.trending_add_count} adds/24h
+        </span>
+      )}
+      {p.personnel_note && (
+        <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(120,140,255,0.08)", color: "#7C8CFF", border: "1px solid rgba(120,140,255,0.25)" }}>
+          {p.personnel_note}
+        </span>
+      )}
+      {p.pace_note && (
+        <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(240,180,60,0.08)", color: "#F0B43C", border: "1px solid rgba(240,180,60,0.25)" }}>
+          {p.pace_note}
+        </span>
+      )}
+      {p.playcaller_note && (
+        <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(200,120,220,0.08)", color: "#C878DC", border: "1px solid rgba(200,120,220,0.25)" }}>
+          {p.playcaller_note}
+        </span>
+      )}
+    </>
+  );
+}
+
 function DraftBoardRow({ p }) {
   return (
     <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 12, padding: "10px 12px", display: "flex", alignItems: "center", gap: 10 }}>
@@ -419,38 +463,7 @@ function DraftBoardRow({ p }) {
         </div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-end", flexShrink: 0 }}>
-        <ValueDeltaBadge delta={p.value_delta} />
-        <RegressionBadge delta={p.regression_delta} gamesPlayed={p.games_played_actual} />
-        {p.change_note && (
-          <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(61,191,214,0.08)", color: "#3DBFD6", border: "1px solid rgba(61,191,214,0.25)" }}>
-            {p.change_note}
-          </span>
-        )}
-        {p.injury_status && (
-          <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(217,100,92,0.1)", color: "#D9645C", border: "1px solid rgba(217,100,92,0.3)" }}>
-            {p.injury_status}
-          </span>
-        )}
-        {p.trending_add_count > 0 && (
-          <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(47,191,113,0.08)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.25)" }}>
-            {p.trending_add_count} adds/24h
-          </span>
-        )}
-        {p.personnel_note && (
-          <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(120,140,255,0.08)", color: "#7C8CFF", border: "1px solid rgba(120,140,255,0.25)" }}>
-            {p.personnel_note}
-          </span>
-        )}
-        {p.pace_note && (
-          <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(240,180,60,0.08)", color: "#F0B43C", border: "1px solid rgba(240,180,60,0.25)" }}>
-            {p.pace_note}
-          </span>
-        )}
-        {p.playcaller_note && (
-          <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(200,120,220,0.08)", color: "#C878DC", border: "1px solid rgba(200,120,220,0.25)" }}>
-            {p.playcaller_note}
-          </span>
-        )}
+        <SignalBadges p={p} />
       </div>
     </div>
   );
@@ -478,17 +491,20 @@ function DraftAssistantRow({ p, mode, onMine, onTaken }) {
             </span>
           )}
         </div>
-        <div style={{ display: "flex", gap: 8, marginTop: 3, alignItems: "center", flexWrap: "wrap" }}>
-          <span style={{ fontSize: 10.5, color: "#888", fontFamily: tokens.font.mono }}>Proj {p.projected_points?.toFixed(1)}</span>
-          <ValueDeltaBadge delta={p.value_delta} compact />
+        <div style={{ display: "flex", gap: 10, marginTop: 3, fontSize: 10.5, color: "#888", fontFamily: tokens.font.mono, flexWrap: "wrap" }}>
+          <span>Proj {p.projected_points?.toFixed(1)}</span>
+          <span>Ceil {p.ceiling_points?.toFixed(1)} / Floor {p.floor_points?.toFixed(1)}</span>
         </div>
       </div>
-      {mode === "manual" && (
-        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-          <button onClick={onMine} style={{ background: NFL_ORANGE, border: "none", borderRadius: 8, color: "#0b0c10", fontSize: 10.5, fontWeight: 700, padding: "6px 10px", cursor: "pointer" }}>Mine</button>
-          <button onClick={onTaken} style={{ background: "#12141a", border: "1px solid #333", borderRadius: 8, color: "#888", fontSize: 10.5, padding: "6px 10px", cursor: "pointer" }}>Taken</button>
-        </div>
-      )}
+      <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-end", flexShrink: 0 }}>
+        <SignalBadges p={p} />
+        {mode === "manual" && (
+          <div style={{ display: "flex", gap: 6, marginTop: 2 }}>
+            <button onClick={onMine} style={{ background: NFL_ORANGE, border: "none", borderRadius: 8, color: "#0b0c10", fontSize: 10.5, fontWeight: 700, padding: "6px 10px", cursor: "pointer" }}>Mine</button>
+            <button onClick={onTaken} style={{ background: "#12141a", border: "1px solid #333", borderRadius: 8, color: "#888", fontSize: 10.5, padding: "6px 10px", cursor: "pointer" }}>Taken</button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
