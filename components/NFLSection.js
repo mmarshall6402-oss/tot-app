@@ -1992,7 +1992,11 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                 {!cheatSheetLoading && !cheatSheetError && cheatSheet?.length > 0 && filteredCheatSheet?.length === 0 && (
                   <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 14, padding: "28px 16px", textAlign: "center" }}>
                     <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>No players match this filter</div>
-                    <div style={{ fontSize: 13, color: "#555", lineHeight: 1.6 }}>Try a different signal or switch back to All.</div>
+                    <div style={{ fontSize: 13, color: "#555", lineHeight: 1.6 }}>
+                      {(signalFilter === "REGRESSION" || signalFilter === "CHANGE")
+                        ? "This signal needs real in-season games — it fills in once Week 1 kicks off. Try a different signal or switch back to All for now."
+                        : "Try a different signal or switch back to All."}
+                    </div>
                   </div>
                 )}
 
