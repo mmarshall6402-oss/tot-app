@@ -25,6 +25,7 @@ import { CheckIcon, RefreshIcon } from "./icons.js";
 import { nflHeadshotUrl } from "../lib/nfl-roster.js";
 import PlayerHeadshot from "./PlayerHeadshot.js";
 import { computeRosterNeeds, rankAvailable, countByPosition, buildLineup } from "../lib/nfl-fantasy/draft-assistant.js";
+import { computeVerdict } from "../lib/nfl-fantasy/verdict.js";
 
 function pickOddsFor(pick) {
   if (pick.marketType === "spread") return pick.pick === pick.homeTeam ? pick.homeSpreadOdds : pick.awaySpreadOdds;
@@ -332,6 +333,8 @@ const SIGNAL_FILTERS = [
   { id: "PERSONNEL", label: "Personnel", test: (p) => !!p.personnel_note },
   { id: "PACE", label: "Pace", test: (p) => !!p.pace_note },
   { id: "PLAYCALLER", label: "Playcaller", test: (p) => !!p.playcaller_note },
+  { id: "BUY", label: "Buy Signal", test: (p) => computeVerdict(p).verdict === "BUY" },
+  { id: "FADE", label: "Fade Risk", test: (p) => computeVerdict(p).verdict === "FADE" },
 ];
 
 // ── Cheat Sheet "draft board" ────────────────────────────────────────────
@@ -404,6 +407,73 @@ function DraftBoardGrid({ players }) {
   );
 }
 
+// Headline call on top of the other badges — see lib/nfl-fantasy/verdict.js
+// for the scoring. Shown first in the stack since it's the synthesis of
+// everything below it, not another individual signal.
+const VERDICT_STYLE = {
+  BUY:  { color: "#2FBF71", bg: "rgba(47,191,113,0.1)",  border: "rgba(47,191,113,0.35)" },
+  HOLD: { color: "#9098A6", bg: "rgba(144,152,166,0.08)", border: "rgba(144,152,166,0.3)" },
+  FADE: { color: "#D9645C", bg: "rgba(217,100,92,0.1)",  border: "rgba(217,100,92,0.35)" },
+};
+
+function VerdictBadge({ p }) {
+  const { verdict, reasons } = computeVerdict(p);
+  const s = VERDICT_STYLE[verdict];
+  return (
+    <span
+      title={reasons.length ? reasons.join(" ") : "Balanced signals — no strong value or risk edge either way."}
+      style={{ fontSize: 9.5, fontWeight: 800, padding: "2px 8px", borderRadius: 999, background: s.bg, color: s.color, border: `1px solid ${s.border}`, letterSpacing: 0.4, whiteSpace: "nowrap" }}
+    >
+      {verdict}
+    </span>
+  );
+}
+
+// Full signal-badge stack — value/regression deltas plus the free-text
+// notes (change/personnel/pace/playcaller) and injury/trending flags that
+// nfl_fantasy_rankings carries per player. Shared by DraftBoardRow (Cheat
+// Sheet) and DraftAssistantRow (Draft tab) so on-the-clock decisions carry
+// the same signals as the pre-draft board instead of a stripped-down view.
+function SignalBadges({ p }) {
+  return (
+    <>
+      <VerdictBadge p={p} />
+      <ValueDeltaBadge delta={p.value_delta} />
+      <RegressionBadge delta={p.regression_delta} gamesPlayed={p.games_played_actual} />
+      {p.change_note && (
+        <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(61,191,214,0.08)", color: "#3DBFD6", border: "1px solid rgba(61,191,214,0.25)" }}>
+          {p.change_note}
+        </span>
+      )}
+      {p.injury_status && (
+        <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(217,100,92,0.1)", color: "#D9645C", border: "1px solid rgba(217,100,92,0.3)" }}>
+          {p.injury_status}
+        </span>
+      )}
+      {p.trending_add_count > 0 && (
+        <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(47,191,113,0.08)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.25)" }}>
+          {p.trending_add_count} adds/24h
+        </span>
+      )}
+      {p.personnel_note && (
+        <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(120,140,255,0.08)", color: "#7C8CFF", border: "1px solid rgba(120,140,255,0.25)" }}>
+          {p.personnel_note}
+        </span>
+      )}
+      {p.pace_note && (
+        <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(240,180,60,0.08)", color: "#F0B43C", border: "1px solid rgba(240,180,60,0.25)" }}>
+          {p.pace_note}
+        </span>
+      )}
+      {p.playcaller_note && (
+        <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(200,120,220,0.08)", color: "#C878DC", border: "1px solid rgba(200,120,220,0.25)" }}>
+          {p.playcaller_note}
+        </span>
+      )}
+    </>
+  );
+}
+
 function DraftBoardRow({ p }) {
   return (
     <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 12, padding: "10px 12px", display: "flex", alignItems: "center", gap: 10 }}>
@@ -419,38 +489,7 @@ function DraftBoardRow({ p }) {
         </div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-end", flexShrink: 0 }}>
-        <ValueDeltaBadge delta={p.value_delta} />
-        <RegressionBadge delta={p.regression_delta} gamesPlayed={p.games_played_actual} />
-        {p.change_note && (
-          <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(61,191,214,0.08)", color: "#3DBFD6", border: "1px solid rgba(61,191,214,0.25)" }}>
-            {p.change_note}
-          </span>
-        )}
-        {p.injury_status && (
-          <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(217,100,92,0.1)", color: "#D9645C", border: "1px solid rgba(217,100,92,0.3)" }}>
-            {p.injury_status}
-          </span>
-        )}
-        {p.trending_add_count > 0 && (
-          <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(47,191,113,0.08)", color: "#2FBF71", border: "1px solid rgba(47,191,113,0.25)" }}>
-            {p.trending_add_count} adds/24h
-          </span>
-        )}
-        {p.personnel_note && (
-          <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(120,140,255,0.08)", color: "#7C8CFF", border: "1px solid rgba(120,140,255,0.25)" }}>
-            {p.personnel_note}
-          </span>
-        )}
-        {p.pace_note && (
-          <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(240,180,60,0.08)", color: "#F0B43C", border: "1px solid rgba(240,180,60,0.25)" }}>
-            {p.pace_note}
-          </span>
-        )}
-        {p.playcaller_note && (
-          <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "rgba(200,120,220,0.08)", color: "#C878DC", border: "1px solid rgba(200,120,220,0.25)" }}>
-            {p.playcaller_note}
-          </span>
-        )}
+        <SignalBadges p={p} />
       </div>
     </div>
   );
@@ -478,17 +517,20 @@ function DraftAssistantRow({ p, mode, onMine, onTaken }) {
             </span>
           )}
         </div>
-        <div style={{ display: "flex", gap: 8, marginTop: 3, alignItems: "center", flexWrap: "wrap" }}>
-          <span style={{ fontSize: 10.5, color: "#888", fontFamily: tokens.font.mono }}>Proj {p.projected_points?.toFixed(1)}</span>
-          <ValueDeltaBadge delta={p.value_delta} compact />
+        <div style={{ display: "flex", gap: 10, marginTop: 3, fontSize: 10.5, color: "#888", fontFamily: tokens.font.mono, flexWrap: "wrap" }}>
+          <span>Proj {p.projected_points?.toFixed(1)}</span>
+          <span>Ceil {p.ceiling_points?.toFixed(1)} / Floor {p.floor_points?.toFixed(1)}</span>
         </div>
       </div>
-      {mode === "manual" && (
-        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-          <button onClick={onMine} style={{ background: NFL_ORANGE, border: "none", borderRadius: 8, color: "#0b0c10", fontSize: 10.5, fontWeight: 700, padding: "6px 10px", cursor: "pointer" }}>Mine</button>
-          <button onClick={onTaken} style={{ background: "#12141a", border: "1px solid #333", borderRadius: 8, color: "#888", fontSize: 10.5, padding: "6px 10px", cursor: "pointer" }}>Taken</button>
-        </div>
-      )}
+      <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-end", flexShrink: 0 }}>
+        <SignalBadges p={p} />
+        {mode === "manual" && (
+          <div style={{ display: "flex", gap: 6, marginTop: 2 }}>
+            <button onClick={onMine} style={{ background: NFL_ORANGE, border: "none", borderRadius: 8, color: "#0b0c10", fontSize: 10.5, fontWeight: 700, padding: "6px 10px", cursor: "pointer" }}>Mine</button>
+            <button onClick={onTaken} style={{ background: "#12141a", border: "1px solid #333", borderRadius: 8, color: "#888", fontSize: 10.5, padding: "6px 10px", cursor: "pointer" }}>Taken</button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1976,7 +2018,11 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                 {!cheatSheetLoading && !cheatSheetError && cheatSheet?.length > 0 && filteredCheatSheet?.length === 0 && (
                   <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 14, padding: "28px 16px", textAlign: "center" }}>
                     <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>No players match this filter</div>
-                    <div style={{ fontSize: 13, color: "#555", lineHeight: 1.6 }}>Try a different signal or switch back to All.</div>
+                    <div style={{ fontSize: 13, color: "#555", lineHeight: 1.6 }}>
+                      {(signalFilter === "REGRESSION" || signalFilter === "CHANGE")
+                        ? "This signal needs real in-season games — it fills in once Week 1 kicks off. Try a different signal or switch back to All for now."
+                        : "Try a different signal or switch back to All."}
+                    </div>
                   </div>
                 )}
 
