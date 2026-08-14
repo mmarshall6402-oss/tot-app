@@ -25,6 +25,7 @@ import { CheckIcon, RefreshIcon } from "./icons.js";
 import { nflHeadshotUrl } from "../lib/nfl-roster.js";
 import PlayerHeadshot from "./PlayerHeadshot.js";
 import { computeRosterNeeds, rankAvailable, countByPosition, buildLineup } from "../lib/nfl-fantasy/draft-assistant.js";
+import { computeVerdict } from "../lib/nfl-fantasy/verdict.js";
 
 function pickOddsFor(pick) {
   if (pick.marketType === "spread") return pick.pick === pick.homeTeam ? pick.homeSpreadOdds : pick.awaySpreadOdds;
@@ -332,6 +333,8 @@ const SIGNAL_FILTERS = [
   { id: "PERSONNEL", label: "Personnel", test: (p) => !!p.personnel_note },
   { id: "PACE", label: "Pace", test: (p) => !!p.pace_note },
   { id: "PLAYCALLER", label: "Playcaller", test: (p) => !!p.playcaller_note },
+  { id: "BUY", label: "Buy Signal", test: (p) => computeVerdict(p).verdict === "BUY" },
+  { id: "FADE", label: "Fade Risk", test: (p) => computeVerdict(p).verdict === "FADE" },
 ];
 
 // ── Cheat Sheet "draft board" ────────────────────────────────────────────
@@ -404,6 +407,28 @@ function DraftBoardGrid({ players }) {
   );
 }
 
+// Headline call on top of the other badges — see lib/nfl-fantasy/verdict.js
+// for the scoring. Shown first in the stack since it's the synthesis of
+// everything below it, not another individual signal.
+const VERDICT_STYLE = {
+  BUY:  { color: "#2FBF71", bg: "rgba(47,191,113,0.1)",  border: "rgba(47,191,113,0.35)" },
+  HOLD: { color: "#9098A6", bg: "rgba(144,152,166,0.08)", border: "rgba(144,152,166,0.3)" },
+  FADE: { color: "#D9645C", bg: "rgba(217,100,92,0.1)",  border: "rgba(217,100,92,0.35)" },
+};
+
+function VerdictBadge({ p }) {
+  const { verdict, reasons } = computeVerdict(p);
+  const s = VERDICT_STYLE[verdict];
+  return (
+    <span
+      title={reasons.length ? reasons.join(" ") : "Balanced signals — no strong value or risk edge either way."}
+      style={{ fontSize: 9.5, fontWeight: 800, padding: "2px 8px", borderRadius: 999, background: s.bg, color: s.color, border: `1px solid ${s.border}`, letterSpacing: 0.4, whiteSpace: "nowrap" }}
+    >
+      {verdict}
+    </span>
+  );
+}
+
 // Full signal-badge stack — value/regression deltas plus the free-text
 // notes (change/personnel/pace/playcaller) and injury/trending flags that
 // nfl_fantasy_rankings carries per player. Shared by DraftBoardRow (Cheat
@@ -412,6 +437,7 @@ function DraftBoardGrid({ players }) {
 function SignalBadges({ p }) {
   return (
     <>
+      <VerdictBadge p={p} />
       <ValueDeltaBadge delta={p.value_delta} />
       <RegressionBadge delta={p.regression_delta} gamesPlayed={p.games_played_actual} />
       {p.change_note && (
