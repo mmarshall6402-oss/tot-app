@@ -1,4 +1,4 @@
-// GET /api/nfl/fantasy/draft?draftId=...&format=ppr&slot=4
+// GET /api/nfl/fantasy/draft?draftId=...&format=ppr&username=...&slot=4
 // Live Sleeper draft sync for the On-The-Clock assistant
 // (components/NFLSection.js, fantasyMode "draft"). Not Pro-gated, matching
 // the rest of the Fantasy tab. Polled client-side on an interval — this
@@ -14,9 +14,18 @@
 // lacks espn_id for very recent call-ups) falls back to matching the pick's
 // own name against the rankings by normalizeName, same "don't drop a real
 // player over a missing crosswalk row" posture as lib/nfl-fantasy/id-map.js.
+//
+// `slot` used to be the only way to tell this route which draft slot is
+// "yours" — it made the user hunt down and type a raw number. `username`
+// resolves that automatically: fetchSleeperUser() turns it into a Sleeper
+// user_id, then that id is matched against draft.draft_order (the map
+// Sleeper itself uses for slot assignment) or, once the draft is underway
+// and draft_order isn't populated for this draft type, against the first
+// pick actually made by that user_id. `slot` is kept as a manual override
+// for the rare case neither resolves.
 import { createClient } from "@supabase/supabase-js";
 import { requireAuth } from "../../../../../lib/auth.js";
-import { fetchDraft, fetchDraftPicks, fetchSleeperPlayerIndex } from "../../../../../lib/nfl-fantasy/sleeper.js";
+import { fetchDraft, fetchDraftPicks, fetchSleeperPlayerIndex, fetchSleeperUser } from "../../../../../lib/nfl-fantasy/sleeper.js";
 import { normalizeName } from "../../../../../lib/nfl-fantasy/id-map.js";
 import { pickToSlot, picksUntilSlot } from "../../../../../lib/nfl-fantasy/draft-assistant.js";
 
@@ -40,7 +49,8 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const draftId = searchParams.get("draftId");
   const format = searchParams.get("format") || "ppr";
-  const slot = searchParams.get("slot") ? parseInt(searchParams.get("slot"), 10) : null;
+  const username = searchParams.get("username");
+  const manualSlot = searchParams.get("slot") ? parseInt(searchParams.get("slot"), 10) : null;
 
   if (!draftId) return Response.json({ error: "draftId is required" }, { status: 400 });
   if (!VALID_FORMATS.has(format)) return Response.json({ error: "format must be ppr, half_ppr, or standard" }, { status: 400 });
@@ -50,6 +60,28 @@ export async function GET(request) {
 
   const picks = await fetchDraftPicks(draftId);
   const numTeams = draft.settings?.teams || Object.keys(draft.slot_to_roster_id || {}).length || 12;
+
+  // Manual slot always wins (explicit override); otherwise resolve from the
+  // username, preferring Sleeper's own draft_order map and falling back to
+  // scanning already-made picks for one this user actually made.
+  let slot = manualSlot;
+  let resolvedUsername = null;
+  let usernameNotFound = false;
+  if (slot == null && username) {
+    const sleeperUser = await fetchSleeperUser(username);
+    if (!sleeperUser) {
+      usernameNotFound = true;
+    } else {
+      resolvedUsername = sleeperUser.displayName;
+      const fromDraftOrder = draft.draft_order?.[sleeperUser.userId];
+      if (Number.isFinite(fromDraftOrder)) {
+        slot = fromDraftOrder;
+      } else {
+        const ownPick = picks.find((p) => p.picked_by === sleeperUser.userId);
+        if (ownPick) slot = ownPick.draft_slot;
+      }
+    }
+  }
 
   const sleeperIndex = await fetchSleeperPlayerIndex();
 
@@ -100,5 +132,13 @@ export async function GET(request) {
     draftedPlayerIds,
     myDraftedPlayerIds,
     unmatchedPicks: unmatched,
+    mySlot: slot,
+    resolvedUsername,
+    usernameNotFound,
+    // true once a username was given but neither draft_order nor an
+    // already-made pick could place it in a slot yet — distinct from
+    // usernameNotFound (bad username) so the UI can explain "we know who
+    // you are, we just don't know your slot yet" separately from a typo.
+    slotUnresolved: !!username && !usernameNotFound && slot == null,
   });
 }
