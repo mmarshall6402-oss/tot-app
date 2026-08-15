@@ -320,6 +320,29 @@ function parseSleeperDraftId(input) {
   return digitRuns.reduce((longest, run) => (run.length > longest.length ? run : longest), "");
 }
 
+// Programmatic two-tone chime for the on-the-clock alert — no bundled audio
+// asset to manage, just loud enough over a TV/room noise to notice without
+// being obnoxious. Safe to call even if the browser blocks autoplay-ish
+// audio contexts (wrapped, silently no-ops).
+function playOnClockChime() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    const ctx = new Ctx();
+    const now = ctx.currentTime;
+    [523.25, 659.25].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.15, now + i * 0.18);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.18 + 0.35);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(now + i * 0.18);
+      osc.stop(now + i * 0.18 + 0.4);
+    });
+  } catch {}
+}
+
 // Cheat Sheet "signal" filter — narrows the list to players carrying a
 // specific ceilingVorp-adjustment badge (see lib/nfl-fantasy/*-adjustment.js)
 // instead of scrolling the full board looking for them.
@@ -418,6 +441,13 @@ const VERDICT_STYLE = {
 
 function VerdictBadge({ p }) {
   const { verdict, reasons } = computeVerdict(p);
+  // No badge at all rather than a HOLD pill that isn't really saying
+  // anything — most of the pool carries zero live signal before ADP data
+  // is populated and before the season has 3 games in the books (see
+  // computeVerdict's hasSignal comment). A wall of identical HOLD badges
+  // reads as broken; no badge reads as "nothing to grade yet," which is
+  // the true state.
+  if (verdict === "NO_SIGNAL") return null;
   const s = VERDICT_STYLE[verdict];
   return (
     <span
@@ -1173,17 +1203,32 @@ function VerdictCard({ result, label, scoring }) {
 }
 
 // Manual-tracker draft picks persist across reloads/sessions in
-// localStorage (there's no server-side draft-session concept — the Sleeper
-// Sync mode doesn't need this since Sleeper's own server is the source of
-// truth there). Guarded for SSR since this module also runs server-side.
+// localStorage, and so does the Sleeper Sync mode's draft id/username —
+// Sleeper's own server is the source of truth for *pick* state there, but
+// which draft/slot you're even watching used to live only in component
+// state, so a refresh silently dropped the sync and looked like it had
+// stopped updating. Account-level cross-device sync layers on top of this
+// via /api/nfl/fantasy/sleeper-sync (see the loadSleeperSync effect below);
+// this is the fallback for logged-out use and the first paint before that
+// server fetch resolves. Guarded for SSR since this module also runs
+// server-side.
 const DRAFT_STORAGE_KEY = "tot-nfl-fantasy-draft-v1";
 function loadStoredDraft() {
-  if (typeof window === "undefined") return { draftedIds: [], myDraftedIds: [] };
+  if (typeof window === "undefined") {
+    return { draftedIds: [], myDraftedIds: [], draftMode: "manual", sleeperDraftId: "", sleeperUsername: "", sleeperSlotOverride: "" };
+  }
   try {
     const parsed = JSON.parse(window.localStorage.getItem(DRAFT_STORAGE_KEY) || "{}");
-    return { draftedIds: parsed.draftedIds || [], myDraftedIds: parsed.myDraftedIds || [] };
+    return {
+      draftedIds: parsed.draftedIds || [],
+      myDraftedIds: parsed.myDraftedIds || [],
+      draftMode: parsed.draftMode === "sleeper" ? "sleeper" : "manual",
+      sleeperDraftId: parsed.sleeperDraftId || "",
+      sleeperUsername: parsed.sleeperUsername || "",
+      sleeperSlotOverride: parsed.sleeperSlotOverride || "",
+    };
   } catch {
-    return { draftedIds: [], myDraftedIds: [] };
+    return { draftedIds: [], myDraftedIds: [], draftMode: "manual", sleeperDraftId: "", sleeperUsername: "", sleeperSlotOverride: "" };
   }
 }
 
@@ -1240,16 +1285,30 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
   const [draftPoolLoading, setDraftPoolLoading] = useState(false);
   const [draftPoolError, setDraftPoolError] = useState(null);
   const [draftPositionFilter, setDraftPositionFilter] = useState("ALL");
-  const [draftMode, setDraftMode] = useState("manual"); // "manual" | "sleeper"
+  const [draftMode, setDraftMode] = useState(() => loadStoredDraft().draftMode); // "manual" | "sleeper"
   // Manual mode: every drafted player (mine + everyone else's) lives in
   // draftedIds; myDraftedIds is the subset that's mine. Kept as two Sets
   // rather than one Map so the "is this drafted at all" filter (shared with
   // Sleeper mode's draftedPlayerIds) doesn't need to branch on shape.
   const [draftedIds, setDraftedIds] = useState(() => new Set(loadStoredDraft().draftedIds));
   const [myDraftedIds, setMyDraftedIds] = useState(() => new Set(loadStoredDraft().myDraftedIds));
-  const [sleeperDraftIdInput, setSleeperDraftIdInput] = useState("");
-  const [sleeperSlotInput, setSleeperSlotInput] = useState("");
+  // sleeperUsernameInput is the normal path — the draft/backend API resolves
+  // it to a slot automatically (see app/api/nfl/fantasy/draft/route.js).
+  // sleeperSlotOverride is a manual fallback for the rare draft where that
+  // resolution can't find a slot (e.g. draft_order isn't set and no pick has
+  // been made yet). Both, plus the draft id itself, are seeded from
+  // localStorage so a refresh resumes the same sync instead of going blank;
+  // loadSleeperSync below then overlays the account-level copy once it
+  // loads, which is what makes this follow the user across devices too.
+  const [sleeperDraftIdInput, setSleeperDraftIdInput] = useState(() => loadStoredDraft().sleeperDraftId);
+  const [sleeperUsernameInput, setSleeperUsernameInput] = useState(() => loadStoredDraft().sleeperUsername);
+  const [sleeperSlotOverride, setSleeperSlotOverride] = useState(() => loadStoredDraft().sleeperSlotOverride);
+  const [sleeperSyncLoaded, setSleeperSyncLoaded] = useState(false);
   const [sleeperState, setSleeperState] = useState(null);
+  // Tracks the previous onTheClock value across polls so the notify effect
+  // fires once on the false->true transition, not on every 4s poll while
+  // still on the clock.
+  const sleeperOnClockRef = useRef(false);
   // Server-side saves (app/api/nfl/fantasy/draft-teams) — the account-scoped
   // layer on top of the localStorage snapshot above. savedTeams is the
   // sidebar list (summary rows only); activeTeamId tracks which one "Save"
@@ -1260,6 +1319,20 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
   const [teamActionBusy, setTeamActionBusy] = useState(null); // id (or "new") currently saving/loading/deleting/sharing
   const [sleeperError, setSleeperError] = useState(null);
   const [sleeperLoading, setSleeperLoading] = useState(false);
+  // The user's own Sleeper drafts for the season (app/api/nfl/fantasy/sleeper-drafts)
+  // — doubles as both "auto-detect my draft" (no draft id to paste) and "switch
+  // between drafts" (a second league drafting the same week) since it's always
+  // a live read from Sleeper rather than a list this app stores itself.
+  const [sleeperDraftsList, setSleeperDraftsList] = useState(null);
+  const [sleeperDraftsLoading, setSleeperDraftsLoading] = useState(false);
+  const [sleeperDraftsError, setSleeperDraftsError] = useState(null);
+  // Notify-when-on-the-clock is a device-local preference (no value in
+  // syncing a notification permission across devices), so it's plain
+  // localStorage rather than going through the account-sync plumbing above.
+  const [sleeperNotify, setSleeperNotify] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try { return window.localStorage.getItem("tot-nfl-sleeper-notify") === "1"; } catch { return false; }
+  });
 
   // Depth Chart state
   const [depthChartTeam, setDepthChartTeam] = useState(null);
@@ -1422,53 +1495,163 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
     if (subTab === "fantasy" && fantasyMode === "draft" && savedTeams === null) loadSavedTeams();
   }, [subTab, fantasyMode, savedTeams]);
 
-  // Persist manual-tracker picks so a reload (or coming back tomorrow)
-  // doesn't lose draft-day progress.
+  // Persist manual-tracker picks, plus which mode and Sleeper draft/username
+  // are active, so a reload (or coming back tomorrow) resumes exactly where
+  // the draft was left rather than losing the sync.
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
       window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify({
         draftedIds: [...draftedIds],
         myDraftedIds: [...myDraftedIds],
+        draftMode,
+        sleeperDraftId: sleeperDraftIdInput,
+        sleeperUsername: sleeperUsernameInput,
+        sleeperSlotOverride,
       }));
     } catch {}
-  }, [draftedIds, myDraftedIds]);
+  }, [draftedIds, myDraftedIds, draftMode, sleeperDraftIdInput, sleeperUsernameInput, sleeperSlotOverride]);
+
+  // Account-level copy of the same sync target, so opening the Draft tab on
+  // a different device (or after clearing localStorage) picks up where the
+  // last device left off instead of starting blank. Loaded once per visit
+  // to the tab; only overlays local state if nothing's already been typed
+  // this session, so it never clobbers an in-progress edit. Logged-out
+  // visitors get a 401 here — same "not fatal, just no cross-device copy"
+  // posture as loadSavedTeams.
+  useEffect(() => {
+    if (!(subTab === "fantasy" && fantasyMode === "draft" && !sleeperSyncLoaded)) return;
+    setSleeperSyncLoaded(true);
+    (async () => {
+      try {
+        const headers = await getAuthHeaders();
+        if (!headers.Authorization) return;
+        const res = await fetch("/api/nfl/fantasy/sleeper-sync", { headers });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.draftId && !sleeperDraftIdInput) setSleeperDraftIdInput(data.draftId);
+        if (data.username && !sleeperUsernameInput) setSleeperUsernameInput(data.username);
+        if (data.slot != null && !sleeperSlotOverride) setSleeperSlotOverride(String(data.slot));
+      } catch {}
+    })();
+  }, [subTab, fantasyMode, sleeperSyncLoaded]);
+
+  // Mirrors the same sync target back to the account, debounced so it
+  // upserts once typing settles rather than on every keystroke. Clearing a
+  // sync (clearSleeperSync, below) does its own explicit DELETE, so this
+  // only needs to fire once there's actually something to sync — otherwise
+  // every visit to the Draft tab would PUT an all-null row for users who've
+  // never touched Sleeper Sync at all.
+  useEffect(() => {
+    if (!(subTab === "fantasy" && fantasyMode === "draft" && sleeperSyncLoaded)) return;
+    if (!(sleeperDraftIdInput || sleeperUsernameInput || sleeperSlotOverride)) return;
+    const timer = setTimeout(async () => {
+      try {
+        const headers = await getAuthHeaders();
+        if (!headers.Authorization) return;
+        const slotNum = parseInt(sleeperSlotOverride, 10);
+        await fetch("/api/nfl/fantasy/sleeper-sync", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", ...headers },
+          body: JSON.stringify({
+            draftId: parseSleeperDraftId(sleeperDraftIdInput) || null,
+            username: sleeperUsernameInput || null,
+            slot: Number.isFinite(slotNum) ? slotNum : null,
+          }),
+        });
+      } catch {}
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [subTab, fantasyMode, sleeperSyncLoaded, sleeperDraftIdInput, sleeperUsernameInput, sleeperSlotOverride]);
+
+  // Looks up the username's live draft list — debounced so it fires once
+  // typing settles, not per keystroke. Same list serves two purposes: the
+  // first-run "pick your draft instead of pasting a URL" case, and later
+  // "switch to my other league" once more than one draft is in progress.
+  useEffect(() => {
+    if (!(subTab === "fantasy" && fantasyMode === "draft" && draftMode === "sleeper")) return;
+    const username = sleeperUsernameInput.trim();
+    if (username.length < 3) { setSleeperDraftsList(null); setSleeperDraftsError(null); return; }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setSleeperDraftsLoading(true);
+      try {
+        const headers = await getAuthHeaders();
+        const res = await fetch(`/api/nfl/fantasy/sleeper-drafts?username=${encodeURIComponent(username)}`, { headers });
+        const data = await res.json();
+        if (cancelled) return;
+        if (!res.ok) throw new Error(data.error || "Error");
+        setSleeperDraftsList(data.drafts || []);
+        setSleeperDraftsError(null);
+      } catch (e) {
+        if (!cancelled) { setSleeperDraftsError(e.message || "Could not load your drafts"); setSleeperDraftsList(null); }
+      }
+      if (!cancelled) setSleeperDraftsLoading(false);
+    }, 700);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [subTab, fantasyMode, draftMode, sleeperUsernameInput]);
 
   // Sleeper live sync: polls picks on an interval while a draft id is set,
   // same "best-effort, degrade to last-known state" posture as the rest of
   // this file's Sleeper usage. Stops polling the moment the user navigates
-  // away from Draft mode or switches back to manual — no point burning
-  // Sleeper's API budget for a tab that isn't visible. 4s (not the original
-  // 15s) — a live snake draft moves fast enough that 15s between refreshes
-  // meant seeing your turn well after it started; Sleeper's read API has no
-  // published rate limit tight enough for 4s polling from one draft to be a
-  // concern.
+  // away from Draft mode, switches back to manual, or the draft itself
+  // reports "complete" — no point burning Sleeper's API budget on a tab
+  // that isn't visible or a draft that's already over. 2s (down from an
+  // original 15s, then 4s) — a fast live snake draft with a short pick
+  // clock can move through several picks a minute, and even 4s was enough
+  // lag that "someone else took my guy" showed up after the fact often
+  // enough to matter; Sleeper's read API has no published rate limit tight
+  // enough for 2s polling from one draft to be a concern. Also re-polls
+  // immediately on tab focus/visibility — mobile browsers throttle
+  // background-tab timers to roughly once a minute, which otherwise makes
+  // the sync look stalled after switching apps mid-draft.
   useEffect(() => {
     const draftId = parseSleeperDraftId(sleeperDraftIdInput);
     if (!(subTab === "fantasy" && fantasyMode === "draft" && draftMode === "sleeper" && draftId)) return;
     let cancelled = false;
+    let interval = null;
     const poll = async () => {
       setSleeperLoading(true);
       try {
         const headers = await getAuthHeaders();
         const params = new URLSearchParams({ draftId, format: scoringToFormat(scoring) });
-        const slot = parseInt(sleeperSlotInput, 10);
-        if (Number.isFinite(slot)) params.set("slot", String(slot));
+        const slotNum = parseInt(sleeperSlotOverride, 10);
+        if (Number.isFinite(slotNum)) params.set("slot", String(slotNum));
+        else if (sleeperUsernameInput.trim()) params.set("username", sleeperUsernameInput.trim());
         const res = await fetch(`/api/nfl/fantasy/draft?${params}`, { headers });
         const data = await res.json();
         if (cancelled) return;
         if (!res.ok) throw new Error(data.error || "Error");
         setSleeperState(data);
         setSleeperError(null);
+
+        if (sleeperNotify && data.onTheClock && !sleeperOnClockRef.current) {
+          if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+            new Notification("You're on the clock!", { body: `Round ${data.round}, Pick ${data.currentPickNo}` });
+          }
+          playOnClockChime();
+          if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+        }
+        sleeperOnClockRef.current = data.onTheClock;
+
+        if (data.status === "complete" && interval) { clearInterval(interval); interval = null; }
       } catch (e) {
         if (!cancelled) setSleeperError(e.message || "Could not sync draft");
       }
       if (!cancelled) setSleeperLoading(false);
     };
     poll();
-    const interval = setInterval(poll, 4000);
-    return () => { cancelled = true; clearInterval(interval); };
-  }, [subTab, fantasyMode, draftMode, sleeperDraftIdInput, sleeperSlotInput, scoring]);
+    interval = setInterval(poll, 2000);
+    const onVisible = () => { if (document.visibilityState === "visible") poll(); };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      cancelled = true;
+      if (interval) clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, [subTab, fantasyMode, draftMode, sleeperDraftIdInput, sleeperUsernameInput, sleeperSlotOverride, scoring, sleeperNotify]);
 
   const loadDepthChart = async (team) => {
     setDepthChartLoading(true); setDepthChartError(null);
@@ -1601,6 +1784,40 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
     setDraftedIds(new Set());
     setMyDraftedIds(new Set());
     setActiveTeamId(null);
+  };
+
+  // Clears the Sleeper sync target locally and on the account so switching
+  // to a different draft (a new league, a redo) doesn't require deleting
+  // text out of the inputs by hand — and so the old draft doesn't come back
+  // on the next device via the cross-device sync fetch.
+  const clearSleeperSync = async () => {
+    if (!window.confirm("Stop syncing this draft?")) return;
+    setSleeperDraftIdInput("");
+    setSleeperUsernameInput("");
+    setSleeperSlotOverride("");
+    setSleeperState(null);
+    setSleeperError(null);
+    try {
+      const headers = await getAuthHeaders();
+      if (headers.Authorization) await fetch("/api/nfl/fantasy/sleeper-sync", { method: "DELETE", headers });
+    } catch {}
+  };
+
+  // Turning the alert on asks for Notification permission right then (not
+  // proactively on page load — a permission prompt for a feature the user
+  // hasn't asked for yet is exactly the kind of thing that gets browser
+  // notifications globally disabled for a site). If they decline, the
+  // toggle stays off rather than silently doing nothing when it fires.
+  const toggleSleeperNotify = async () => {
+    if (!sleeperNotify && typeof Notification !== "undefined" && Notification.permission === "default") {
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") return;
+    }
+    setSleeperNotify(prev => {
+      const next = !prev;
+      try { window.localStorage.setItem("tot-nfl-sleeper-notify", next ? "1" : "0"); } catch {}
+      return next;
+    });
   };
 
   // Whatever's actually on screen right now, regardless of source — manual
@@ -2062,12 +2279,75 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
 
                 {draftMode === "sleeper" && (
                   <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 12, padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <input value={sleeperUsernameInput} onChange={e => setSleeperUsernameInput(e.target.value)}
+                        placeholder="Your Sleeper username" style={{ ...inputStyle, flex: 1 }} />
+                      {(sleeperDraftIdInput || sleeperUsernameInput) && (
+                        <button onClick={clearSleeperSync} style={{ background: "none", border: "1px solid #333", borderRadius: 8, color: "#888", fontSize: 11, padding: "9px 10px", cursor: "pointer", flexShrink: 0, whiteSpace: "nowrap" }}>
+                          Change Draft
+                        </button>
+                      )}
+                    </div>
+
+                    {sleeperDraftsLoading && <div style={{ fontSize: 12, color: "#555" }}>Looking up your drafts…</div>}
+                    {sleeperDraftsError && <div style={{ fontSize: 12, color: "#D9645C" }}>{sleeperDraftsError}</div>}
+                    {sleeperDraftsList?.length === 0 && (
+                      <div style={{ fontSize: 12, color: "#555" }}>No drafts found for this username this season — paste a draft ID/URL below instead.</div>
+                    )}
+                    {/* Doubles as "pick your draft" (nothing selected yet) and
+                        "switch draft" (a second league drafting the same
+                        week) — always a live read from Sleeper, so a newly
+                        created draft shows up here without this app having
+                        to store anything about it itself. */}
+                    {sleeperDraftsList?.length > 0 && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                        {sleeperDraftsList.map(d => {
+                          const active = parseSleeperDraftId(sleeperDraftIdInput) === d.draftId;
+                          const statusLabel = d.status === "drafting" ? "Live" : d.status === "complete" ? "Final" : "Not started";
+                          const statusColor = d.status === "drafting" ? "#2FBF71" : d.status === "complete" ? "#666" : "#D6B23D";
+                          return (
+                            <button key={d.draftId} onClick={() => setSleeperDraftIdInput(d.draftId)}
+                              style={{
+                                display: "flex", alignItems: "center", gap: 8, textAlign: "left",
+                                background: active ? "rgba(217,117,74,0.1)" : "#12141a",
+                                border: `1px solid ${active ? NFL_ORANGE : "#242832"}`, borderRadius: 8,
+                                padding: "8px 10px", cursor: "pointer", color: "#eee", fontSize: 12.5,
+                              }}>
+                              <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: active ? 700 : 500 }}>
+                                {d.leagueName || `Draft …${d.draftId.slice(-4)}`}
+                              </span>
+                              {d.numTeams && <span style={{ color: "#666", fontSize: 11, flexShrink: 0 }}>{d.numTeams} teams</span>}
+                              <span style={{ color: statusColor, fontSize: 10.5, fontWeight: 700, flexShrink: 0 }}>{statusLabel}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
                     <input value={sleeperDraftIdInput} onChange={e => setSleeperDraftIdInput(e.target.value)}
-                      placeholder="Sleeper draft ID or URL" style={inputStyle} />
-                    <input value={sleeperSlotInput} onChange={e => setSleeperSlotInput(e.target.value.replace(/\D/g, ""))}
-                      placeholder="Your draft slot # (optional — e.g. 4)" style={inputStyle} />
+                      placeholder="Or paste a draft ID/URL directly" style={{ ...inputStyle, fontSize: 12 }} />
+
+                    {/* Only surfaced once auto-detection has actually failed
+                        for this username/draft — a numeric slot field up
+                        front is exactly the manual step this is meant to
+                        remove. */}
+                    {(sleeperState?.slotUnresolved || sleeperState?.usernameNotFound) && (
+                      <input value={sleeperSlotOverride} onChange={e => setSleeperSlotOverride(e.target.value.replace(/\D/g, ""))}
+                        placeholder="Couldn’t auto-detect your slot — enter it manually (e.g. 4)" style={inputStyle} />
+                    )}
                     {sleeperError && <div style={{ fontSize: 12, color: "#D9645C" }}>{sleeperError}</div>}
+                    {!sleeperError && sleeperState?.usernameNotFound && (
+                      <div style={{ fontSize: 12, color: "#D9645C" }}>Couldn’t find a Sleeper user named “{sleeperUsernameInput}” — double-check the spelling.</div>
+                    )}
                     {sleeperLoading && !sleeperState && <div style={{ fontSize: 12, color: "#555" }}>Syncing with Sleeper…</div>}
+                    {sleeperState?.resolvedUsername && sleeperState?.mySlot != null && (
+                      <div style={{ fontSize: 12, color: "#2FBF71" }}>Synced as {sleeperState.resolvedUsername} — Slot {sleeperState.mySlot}</div>
+                    )}
+
+                    <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: "#888", cursor: "pointer", marginTop: 2 }}>
+                      <input type="checkbox" checked={sleeperNotify} onChange={toggleSleeperNotify} style={{ accentColor: NFL_ORANGE }} />
+                      Notify me (sound + alert) when I’m on the clock
+                    </label>
                   </div>
                 )}
 
@@ -2078,11 +2358,13 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                     border: `1px solid ${sleeperState.onTheClock ? "#2FBF71" : "#242832"}`,
                     color: sleeperState.onTheClock ? "#2FBF71" : "#888",
                   }}>
-                    {sleeperState.onTheClock
-                      ? `🚨 YOU'RE ON THE CLOCK — Round ${sleeperState.round}, Pick ${sleeperState.currentPickNo}`
-                      : sleeperState.picksUntilYou != null
-                        ? `${sleeperState.picksUntilYou} pick${sleeperState.picksUntilYou === 1 ? "" : "s"} until you're on the clock · Round ${sleeperState.round}, Pick ${sleeperState.currentPickNo} now`
-                        : `Round ${sleeperState.round}, Pick ${sleeperState.currentPickNo} · enter your draft slot above to track your turn`}
+                    {sleeperState.status === "complete"
+                      ? "✅ Draft complete"
+                      : sleeperState.onTheClock
+                        ? `🚨 YOU'RE ON THE CLOCK — Round ${sleeperState.round}, Pick ${sleeperState.currentPickNo}`
+                        : sleeperState.picksUntilYou != null
+                          ? `${sleeperState.picksUntilYou} pick${sleeperState.picksUntilYou === 1 ? "" : "s"} until you're on the clock · Round ${sleeperState.round}, Pick ${sleeperState.currentPickNo} now`
+                          : `Round ${sleeperState.round}, Pick ${sleeperState.currentPickNo} · enter your Sleeper username above to track your turn`}
                   </div>
                 )}
 
@@ -2186,6 +2468,17 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
 
                     <div>
                       <div style={{ fontSize: 10, color: "#555", fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>BEST AVAILABLE</div>
+                      {/* skillPositionUnmatched (app/api/nfl/fantasy/draft)
+                          counts picks Sleeper reports as a QB/RB/WR/TE that
+                          couldn't be bridged to a ranked player_id — those
+                          picks are real but can't be removed from this list,
+                          so say so rather than let the board silently drift
+                          out of sync with the actual draft. */}
+                      {draftMode === "sleeper" && sleeperState?.skillPositionUnmatched > 0 && (
+                        <div style={{ fontSize: 11.5, color: "#D6B23D", background: "rgba(214,178,61,0.08)", border: "1px solid rgba(214,178,61,0.3)", borderRadius: 8, padding: "6px 10px", marginBottom: 8 }}>
+                          {sleeperState.skillPositionUnmatched} recent pick{sleeperState.skillPositionUnmatched === 1 ? "" : "s"} couldn’t be matched to a ranked player and may still show as available.
+                        </div>
+                      )}
                       {availableFiltered.length === 0 ? (
                         <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 14, padding: "20px 16px", textAlign: "center", color: "#555", fontSize: 13 }}>
                           No players left at this position.
