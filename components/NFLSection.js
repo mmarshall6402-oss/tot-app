@@ -441,6 +441,13 @@ const VERDICT_STYLE = {
 
 function VerdictBadge({ p }) {
   const { verdict, reasons } = computeVerdict(p);
+  // No badge at all rather than a HOLD pill that isn't really saying
+  // anything — most of the pool carries zero live signal before ADP data
+  // is populated and before the season has 3 games in the books (see
+  // computeVerdict's hasSignal comment). A wall of identical HOLD badges
+  // reads as broken; no badge reads as "nothing to grade yet," which is
+  // the true state.
+  if (verdict === "NO_SIGNAL") return null;
   const s = VERDICT_STYLE[verdict];
   return (
     <span
@@ -1589,14 +1596,15 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
   // this file's Sleeper usage. Stops polling the moment the user navigates
   // away from Draft mode, switches back to manual, or the draft itself
   // reports "complete" — no point burning Sleeper's API budget on a tab
-  // that isn't visible or a draft that's already over. 4s (not the
-  // original 15s) — a live snake draft moves fast enough that 15s between
-  // refreshes meant seeing your turn well after it started; Sleeper's read
-  // API has no published rate limit tight enough for 4s polling from one
-  // draft to be a concern. Also re-polls immediately on tab focus/visibility
-  // — mobile browsers throttle background-tab timers to roughly once a
-  // minute, which otherwise makes the sync look stalled after switching
-  // apps mid-draft.
+  // that isn't visible or a draft that's already over. 2s (down from an
+  // original 15s, then 4s) — a fast live snake draft with a short pick
+  // clock can move through several picks a minute, and even 4s was enough
+  // lag that "someone else took my guy" showed up after the fact often
+  // enough to matter; Sleeper's read API has no published rate limit tight
+  // enough for 2s polling from one draft to be a concern. Also re-polls
+  // immediately on tab focus/visibility — mobile browsers throttle
+  // background-tab timers to roughly once a minute, which otherwise makes
+  // the sync look stalled after switching apps mid-draft.
   useEffect(() => {
     const draftId = parseSleeperDraftId(sleeperDraftIdInput);
     if (!(subTab === "fantasy" && fantasyMode === "draft" && draftMode === "sleeper" && draftId)) return;
@@ -1633,7 +1641,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
       if (!cancelled) setSleeperLoading(false);
     };
     poll();
-    interval = setInterval(poll, 4000);
+    interval = setInterval(poll, 2000);
     const onVisible = () => { if (document.visibilityState === "visible") poll(); };
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", onVisible);
@@ -2460,6 +2468,17 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
 
                     <div>
                       <div style={{ fontSize: 10, color: "#555", fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>BEST AVAILABLE</div>
+                      {/* skillPositionUnmatched (app/api/nfl/fantasy/draft)
+                          counts picks Sleeper reports as a QB/RB/WR/TE that
+                          couldn't be bridged to a ranked player_id — those
+                          picks are real but can't be removed from this list,
+                          so say so rather than let the board silently drift
+                          out of sync with the actual draft. */}
+                      {draftMode === "sleeper" && sleeperState?.skillPositionUnmatched > 0 && (
+                        <div style={{ fontSize: 11.5, color: "#D6B23D", background: "rgba(214,178,61,0.08)", border: "1px solid rgba(214,178,61,0.3)", borderRadius: 8, padding: "6px 10px", marginBottom: 8 }}>
+                          {sleeperState.skillPositionUnmatched} recent pick{sleeperState.skillPositionUnmatched === 1 ? "" : "s"} couldn’t be matched to a ranked player and may still show as available.
+                        </div>
+                      )}
                       {availableFiltered.length === 0 ? (
                         <div style={{ background: "#15171d", border: "1px solid #242832", borderRadius: 14, padding: "20px 16px", textAlign: "center", color: "#555", fontSize: 13 }}>
                           No players left at this position.

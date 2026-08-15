@@ -35,6 +35,14 @@ const getSupabase = () => createClient(
 );
 
 const VALID_FORMATS = new Set(["ppr", "half_ppr", "standard"]);
+// Same positions the Cheat Sheet actually ranks (app/api/nfl/fantasy/rankings).
+// A kicker/DST pick failing to bridge is expected and harmless — it was
+// never listed as "available" to begin with. A QB/RB/WR/TE pick failing to
+// bridge is the real failure mode: that player stays wrongly listed as
+// available on the board until someone else's pick or a name fix clears
+// it, which is exactly the "keep up as others take players" complaint this
+// counter exists to make visible instead of silent.
+const SKILL_POSITIONS = new Set(["QB", "RB", "WR", "TE"]);
 
 // Same rule used elsewhere in this codebase (app/api/cron/nfl-fantasy-rankings,
 // app/api/cron/nflverse-ingest): NFL season "year" runs Sept-Feb.
@@ -102,6 +110,7 @@ export async function GET(request) {
   const draftedPlayerIds = [];
   const myDraftedPlayerIds = [];
   let unmatched = 0;
+  let skillPositionUnmatched = 0;
   for (const pick of picks) {
     const sleeperPlayer = sleeperIndex.get(String(pick.player_id));
     let playerId = sleeperPlayer?.espnId ? byEspnId.get(sleeperPlayer.espnId) : null;
@@ -111,8 +120,15 @@ export async function GET(request) {
     }
     // Kickers/DST and anyone the crosswalk can't bridge don't appear on the
     // QB/RB/WR/TE Cheat Sheet anyway, so they're not "missing" — just out
-    // of scope. Only worth counting for the response, not erroring on.
-    if (!playerId) { unmatched++; continue; }
+    // of scope. A known skill position that still failed to bridge is
+    // different: that pick is real and stays wrongly "available" below,
+    // so it's counted separately (skillPositionUnmatched) rather than
+    // folded into the same harmless bucket.
+    if (!playerId) {
+      unmatched++;
+      if (sleeperPlayer?.position && SKILL_POSITIONS.has(sleeperPlayer.position)) skillPositionUnmatched++;
+      continue;
+    }
     draftedPlayerIds.push(playerId);
     if (slot != null && pick.draft_slot === slot) myDraftedPlayerIds.push(playerId);
   }
@@ -132,6 +148,7 @@ export async function GET(request) {
     draftedPlayerIds,
     myDraftedPlayerIds,
     unmatchedPicks: unmatched,
+    skillPositionUnmatched,
     mySlot: slot,
     resolvedUsername,
     usernameNotFound,
