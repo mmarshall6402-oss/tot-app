@@ -401,31 +401,43 @@ function DraftBoardGrid({ players }) {
   const tiers = [...grid.entries()].sort((a, b) => a[0] - b[0]);
 
   return (
-    <div style={{ overflowX: "auto", paddingBottom: 4 }}>
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(${BOARD_POSITIONS.length}, minmax(150px, 1fr))`, gap: 6, minWidth: BOARD_POSITIONS.length * 156 }}>
-        {BOARD_POSITIONS.map(pos => (
-          <div key={pos} style={{ fontSize: 11, fontWeight: 700, color: NFL_ORANGE, letterSpacing: 1, textAlign: "center", padding: "4px 0" }}>
-            {pos}
-          </div>
-        ))}
-        {tiers.map(([tierNum, byPos]) => {
-          const t = draftTierStyle(tierNum);
-          return (
-            <Fragment key={tierNum}>
-              <div style={{ gridColumn: "1 / -1", fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: t.color, background: t.bg, border: `1px solid ${t.color}33`, borderRadius: 6, padding: "4px 10px", marginTop: 6 }}>
-                TIER {tierNum}
-              </div>
-              {BOARD_POSITIONS.map(pos => (
-                <div key={pos} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  {byPos[pos].length
-                    ? byPos[pos].map(p => <BoardChip key={p.player_id} p={p} />)
-                    : <div style={{ fontSize: 10, color: "#2b2f3a", textAlign: "center", padding: "8px 0" }}>—</div>}
+    // Below ~624px (BOARD_POSITIONS.length * 156) this scrolls horizontally
+    // instead of squeezing columns — same tradeoff a printed cheat sheet
+    // has, per the design note above. On a phone that's every viewport, and
+    // with nothing marking the grid as scrollable it just read as content
+    // cut off mid-card at the right edge. The edge-fade overlay is a
+    // no-op sibling when the grid isn't actually overflowing (desktop) —
+    // it just dims the last few px of whatever's already fully in view —
+    // so it's safe to render unconditionally rather than needing a JS
+    // overflow check.
+    <div style={{ position: "relative" }}>
+      <div style={{ overflowX: "auto", paddingBottom: 4 }}>
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${BOARD_POSITIONS.length}, minmax(150px, 1fr))`, gap: 6, minWidth: BOARD_POSITIONS.length * 156 }}>
+          {BOARD_POSITIONS.map(pos => (
+            <div key={pos} style={{ fontSize: 11, fontWeight: 700, color: NFL_ORANGE, letterSpacing: 1, textAlign: "center", padding: "4px 0" }}>
+              {pos}
+            </div>
+          ))}
+          {tiers.map(([tierNum, byPos]) => {
+            const t = draftTierStyle(tierNum);
+            return (
+              <Fragment key={tierNum}>
+                <div style={{ gridColumn: "1 / -1", fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: t.color, background: t.bg, border: `1px solid ${t.color}33`, borderRadius: 6, padding: "4px 10px", marginTop: 6 }}>
+                  TIER {tierNum}
                 </div>
-              ))}
-            </Fragment>
-          );
-        })}
+                {BOARD_POSITIONS.map(pos => (
+                  <div key={pos} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {byPos[pos].length
+                      ? byPos[pos].map(p => <BoardChip key={p.player_id} p={p} />)
+                      : <div style={{ fontSize: 10, color: "#2b2f3a", textAlign: "center", padding: "8px 0" }}>—</div>}
+                  </div>
+                ))}
+              </Fragment>
+            );
+          })}
+        </div>
       </div>
+      <div style={{ position: "absolute", top: 0, right: 0, bottom: 4, width: 28, background: `linear-gradient(90deg, transparent, ${tokens.color.bg})`, pointerEvents: "none" }} />
     </div>
   );
 }
@@ -703,9 +715,17 @@ function MyTeamLineup({ starters, bench }) {
 // into the handful of designations that actually matter for a start/sit
 // call, worst-case first, so the report reads as a triage list rather than
 // an alphabetical dump.
+// Doubtful previously reused NFL_ORANGE (#D9754A) — the app's own brand
+// accent color, already meaning "active tab / selected / primary CTA"
+// everywhere else on screen — which made it read as ordinary UI chrome
+// rather than an injury-severity signal, and put it close enough to Out's
+// red that the two were hard to tell apart at the a-glance triage read this
+// list is designed for. #E0A23F sits clearly apart from both Out and
+// Questionable (and from the unrelated pace_note gold, #F0B43C, elsewhere
+// on this tab) while still reading as "between red and yellow."
 const INJURY_SEVERITY = [
   { key: "out",         label: "OUT / IR",     color: "#D9645C", test: s => /\b(out|ir|pup|nfi|susp)\b/i.test(s) },
-  { key: "doubtful",    label: "DOUBTFUL",     color: "#D9754A", test: s => /doubtful/i.test(s) },
+  { key: "doubtful",    label: "DOUBTFUL",     color: "#E0A23F", test: s => /doubtful/i.test(s) },
   { key: "questionable", label: "QUESTIONABLE", color: "#D6B23D", test: s => /questionable/i.test(s) },
 ];
 function injurySeverity(status) {
@@ -943,7 +963,8 @@ function TeamSwitchBar({ team, accent, onChange }) {
 // defined (see layoutFormation), which is what makes e.g. the three "WR"
 // fallback slots land the first three receivers on a non-split depth chart
 // rather than all three showing the same one. x stays within [8,92] and
-// chips are 54px wide so nothing clips the field's rounded edge.
+// chips are 78px wide (52px for the tightly-packed O-line slots, see
+// FormationChip's `narrow`) so nothing clips the field's rounded edge.
 // Every offense tier is spaced with enough margin for its chips at their
 // TALLEST — label + name + one secondary line (FormationChip caps a chip to
 // at most one of injury status or "next up" backup, never both, so 3 lines
@@ -957,11 +978,11 @@ function TeamSwitchBar({ team, accent, onChange }) {
 const OFFENSE_SLOTS = [
   { key: "WR1", label: "WR", x: 12, y: 53, codes: ["LWR", "WR"], showBackup: true },
   { key: "WR2", label: "WR", x: 88, y: 53, codes: ["RWR", "WR"], showBackup: true },
-  { key: "LT", label: "LT", x: 27, y: 60, codes: ["LT", "OT", "OL"] },
-  { key: "LG", label: "LG", x: 39, y: 62, codes: ["LG", "OG", "OL"] },
-  { key: "C", label: "C", x: 50, y: 63, codes: ["C", "OL"] },
-  { key: "RG", label: "RG", x: 61, y: 62, codes: ["RG", "OG", "OL"] },
-  { key: "RT", label: "RT", x: 73, y: 60, codes: ["RT", "OT", "OL"] },
+  { key: "LT", label: "LT", x: 18, y: 60, codes: ["LT", "OT", "OL"], narrow: true },
+  { key: "LG", label: "LG", x: 34, y: 62, codes: ["LG", "OG", "OL"], narrow: true },
+  { key: "C", label: "C", x: 50, y: 63, codes: ["C", "OL"], narrow: true },
+  { key: "RG", label: "RG", x: 66, y: 62, codes: ["RG", "OG", "OL"], narrow: true },
+  { key: "RT", label: "RT", x: 82, y: 60, codes: ["RT", "OT", "OL"], narrow: true },
   { key: "TE", label: "TE", x: 86, y: 67, codes: ["TE"], showBackup: true },
   { key: "WR3", label: "WR", x: 65, y: 72, codes: ["SWR", "WR"], showBackup: true },
   { key: "FB", label: "FB", x: 30, y: 72, codes: ["FB"] },
@@ -1040,9 +1061,17 @@ function tint(hex, alpha) {
 // layoutFormation for data purposes, just not rendered) since QB sits
 // between two other backup-showing tiers and is already the visually
 // prominent chip without one.
+// The five O-line slots sit only ~11-16% of field width apart (see
+// OFFENSE_SLOTS) — a fixed 78px chip, the same width every other slot uses,
+// stopped fitting between them the moment this width was bumped up from an
+// earlier, narrower version (they'd overlap at ANY field width, worse on a
+// phone-width card where the field itself shrinks below its 480px max), so
+// O-line slots opt into a dedicated narrower width via slot.narrow instead
+// of shrinking every position's chip to accommodate the one row that's
+// actually tight.
 function FormationChip({ slot, accent }) {
-  const { label, x, y, player, backup, large } = slot;
-  const w = large ? 96 : 78;
+  const { label, x, y, player, backup, large, narrow } = slot;
+  const w = large ? 96 : narrow ? 52 : 78;
   return (
     <div style={{
       position: "absolute", left: `${x}%`, top: `${y}%`, transform: "translate(-50%, -50%)",
