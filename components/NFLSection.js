@@ -2306,7 +2306,14 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                           const statusLabel = d.status === "drafting" ? "Live" : d.status === "complete" ? "Final" : "Not started";
                           const statusColor = d.status === "drafting" ? "#2FBF71" : d.status === "complete" ? "#666" : "#D6B23D";
                           return (
-                            <button key={d.draftId} onClick={() => setSleeperDraftIdInput(d.draftId)}
+                            <button key={d.draftId} onClick={() => {
+                              // A slot override from a previously-synced draft must not
+                              // silently carry over — it would resolve immediately (no
+                              // slotUnresolved warning) and quietly attribute this new
+                              // draft's picks to the wrong slot.
+                              if (!active) { setSleeperSlotOverride(""); setSleeperState(null); }
+                              setSleeperDraftIdInput(d.draftId);
+                            }}
                               style={{
                                 display: "flex", alignItems: "center", gap: 8, textAlign: "left",
                                 background: active ? "rgba(217,117,74,0.1)" : "#12141a",
