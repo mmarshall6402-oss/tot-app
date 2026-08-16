@@ -1454,7 +1454,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
     setDraftPoolLoading(true); setDraftPoolError(null);
     try {
       const headers = await getAuthHeaders();
-      const params = new URLSearchParams({ format: scoringToFormat(scoring), limit: "300" });
+      const params = new URLSearchParams({ format: scoringToFormat(scoring), limit: "600" });
       const res = await fetch(`/api/nfl/fantasy/rankings?${params}`, { headers });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error");
@@ -1529,9 +1529,15 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
         const res = await fetch("/api/nfl/fantasy/sleeper-sync", { headers });
         if (!res.ok) return;
         const data = await res.json();
-        if (data.draftId && !sleeperDraftIdInput) setSleeperDraftIdInput(data.draftId);
-        if (data.username && !sleeperUsernameInput) setSleeperUsernameInput(data.username);
-        if (data.slot != null && !sleeperSlotOverride) setSleeperSlotOverride(String(data.slot));
+        // Functional updates rather than checking the outer sleeperDraftIdInput
+        // etc. directly — this effect's deps don't include them (by design, it
+        // only runs once per tab visit), so those closures go stale the moment
+        // the user types anything while this fetch is still in flight. Reading
+        // current state at apply time (not effect-run time) keeps "never
+        // clobber an in-progress edit" true even in that race.
+        if (data.draftId) setSleeperDraftIdInput(prev => prev || data.draftId);
+        if (data.username) setSleeperUsernameInput(prev => prev || data.username);
+        if (data.slot != null) setSleeperSlotOverride(prev => prev || String(data.slot));
       } catch {}
     })();
   }, [subTab, fantasyMode, sleeperSyncLoaded]);
@@ -1797,6 +1803,7 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
     setSleeperSlotOverride("");
     setSleeperState(null);
     setSleeperError(null);
+    sleeperOnClockRef.current = false;
     try {
       const headers = await getAuthHeaders();
       if (headers.Authorization) await fetch("/api/nfl/fantasy/sleeper-sync", { method: "DELETE", headers });
@@ -2307,11 +2314,13 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                           const statusColor = d.status === "drafting" ? "#2FBF71" : d.status === "complete" ? "#666" : "#D6B23D";
                           return (
                             <button key={d.draftId} onClick={() => {
-                              // A slot override from a previously-synced draft must not
-                              // silently carry over — it would resolve immediately (no
-                              // slotUnresolved warning) and quietly attribute this new
-                              // draft's picks to the wrong slot.
-                              if (!active) { setSleeperSlotOverride(""); setSleeperState(null); }
+                              // A slot override — or an "already on the clock" flag — from
+                              // a previously-synced draft must not silently carry over: the
+                              // override would resolve immediately (no slotUnresolved
+                              // warning) and attribute this new draft's picks to the wrong
+                              // slot, and a stale onClockRef would suppress a real, first
+                              // on-the-clock alert for this draft.
+                              if (!active) { setSleeperSlotOverride(""); setSleeperState(null); sleeperOnClockRef.current = false; }
                               setSleeperDraftIdInput(d.draftId);
                             }}
                               style={{

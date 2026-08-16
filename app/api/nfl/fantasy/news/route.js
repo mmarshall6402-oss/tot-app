@@ -13,6 +13,14 @@ const getSupabase = () => createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+// Same rule used elsewhere in this codebase (app/api/cron/nfl-fantasy-rankings,
+// app/api/nfl/fantasy/draft): NFL season "year" runs Sept-Feb. Without this,
+// a player with a stale injury_status row from a prior season (never
+// purged by the cron) could show up twice or surface an outdated note.
+function currentNflSeason(now = new Date()) {
+  return now.getMonth() >= 2 ? now.getFullYear() : now.getFullYear() - 1;
+}
+
 export async function GET(request) {
   const { error: authError } = await requireAuth(request);
   if (authError) return authError;
@@ -24,6 +32,7 @@ export async function GET(request) {
       .from("nfl_fantasy_rankings")
       .select("player_id, name, position, team, injury_status, injury_risk, rank_overall")
       .eq("scoring_format", "ppr")
+      .eq("season", currentNflSeason())
       .not("injury_status", "is", null)
       .order("rank_overall", { ascending: true })
       .limit(100),
