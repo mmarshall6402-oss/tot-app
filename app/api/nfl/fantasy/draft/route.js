@@ -138,6 +138,19 @@ export async function GET(request) {
   const onTheClock = slot != null && pickSlot === slot;
   const picksUntilYou = slot == null ? null : (onTheClock ? 0 : picksUntilSlot(currentPickNo, numTeams, slot));
 
+  // The live pick clock — same countdown Sleeper's own draft room shows.
+  // last_picked (ms, set the instant the previous pick lands) plus this
+  // league's per-pick timer gives the deadline for whoever's up now; before
+  // the first pick, start_time anchors it instead. pick_timer is 0/absent
+  // for untimed drafts, in which case there's no deadline to compute — the
+  // client just won't render a clock rather than showing a fake one.
+  // Computed server-side (not just "seconds remaining" as of this response)
+  // so the client can tick it down locally between polls without drifting
+  // from what the poll cycle happens to catch.
+  const pickTimerSeconds = draft.settings?.pick_timer || null;
+  const pickAnchor = draft.last_picked || draft.start_time || null;
+  const pickDeadline = (pickTimerSeconds && pickAnchor) ? pickAnchor + pickTimerSeconds * 1000 : null;
+
   return Response.json({
     numTeams,
     currentPickNo,
@@ -145,6 +158,8 @@ export async function GET(request) {
     status: draft.status || null,
     onTheClock,
     picksUntilYou,
+    pickDeadline,
+    pickTimerSeconds,
     draftedPlayerIds,
     myDraftedPlayerIds,
     unmatchedPicks: unmatched,
