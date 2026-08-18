@@ -7,7 +7,7 @@ export default function Terms() {
       <p style={{ color: "#444", fontSize: 13, marginBottom: 32 }}>Last updated: May 2026</p>
 
       <Section title="1. Entertainment Only">
-        ToT provides sports analysis and picks for <strong>entertainment and informational purposes only</strong>. Nothing on this platform constitutes gambling advice, financial advice, or a guarantee of any outcome. Past model performance does not guarantee future results.
+        ToT provides sports analysis and picks for <strong>entertainment and informational purposes only</strong>. Nothing on this platform constitutes gambling advice, financial advice, or a guarantee of any outcome. Past model performance does not guarantee future results. Pick breakdowns, game recaps, and chat responses are generated in part by AI (Anthropic's Claude) and may contain errors — verify anything important independently.
       </Section>
 
       <Section title="2. Eligibility">
