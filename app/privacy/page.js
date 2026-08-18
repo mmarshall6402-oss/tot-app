@@ -16,30 +16,36 @@ export default function Privacy() {
         We use your data to provide the ToT service — displaying picks, tracking your saved bets, and managing your subscription. We do not sell your data. We do not use it for advertising.
       </Section>
 
-      <Section title="3. Third-Party Services">
+      <Section title="3. AI Use">
+        ToT uses Anthropic's Claude AI to generate pick breakdowns, game recaps, and responses in the in-app chat assistant. When you use the chat assistant, your messages and relevant picks data are sent to Anthropic to generate a response. Anthropic does not use this data to train its models. AI-generated content is analysis, not guaranteed fact — see our Terms for details.
+      </Section>
+
+      <Section title="4. Third-Party Services">
         <strong>Supabase</strong> — authentication and database hosting.{"\n"}
         <strong>Stripe</strong> — payment processing and subscription management.{"\n"}
-        <strong>Vercel</strong> — application hosting and serverless functions.{"\n\n"}
+        <strong>Vercel</strong> — application hosting and serverless functions.{"\n"}
+        <strong>Anthropic</strong> — AI-generated picks, recaps, and chat responses.{"\n"}
+        <strong>Resend</strong> — delivery of account and pick-digest emails to your address.{"\n\n"}
         Each provider has its own privacy policy and data practices.
       </Section>
 
-      <Section title="4. Data Retention">
+      <Section title="5. Data Retention">
         Your account data is retained as long as your account is active. You may request deletion of your account and associated data at any time by contacting us.
       </Section>
 
-      <Section title="5. Security">
+      <Section title="6. Security">
         We use industry-standard practices including encrypted connections (HTTPS), hashed authentication tokens, and row-level security on our database. No system is perfectly secure — use a strong, unique password.
       </Section>
 
-      <Section title="6. Cookies">
+      <Section title="7. Cookies">
         We use a session cookie to keep you logged in. No advertising cookies or third-party tracking cookies are used.
       </Section>
 
-      <Section title="7. Your Rights">
+      <Section title="8. Your Rights">
         You may access, correct, or delete your personal data at any time. To request this, sign in and contact us through the app. We will respond within 30 days.
       </Section>
 
-      <Section title="8. Changes">
+      <Section title="9. Changes">
         We may update this policy as the service evolves. Material changes will be communicated via email or in-app notice.
       </Section>
     </div>
