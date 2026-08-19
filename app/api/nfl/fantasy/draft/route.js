@@ -7,13 +7,15 @@
 //
 // Sleeper's pick objects are keyed by Sleeper's own player_id, which has no
 // direct relationship to nflverse's gsis_id (the id nfl_fantasy_rankings
-// uses). Bridged via espn_id: fetchSleeperPlayerIndex() already carries
-// espn_id per Sleeper player, and nfl_fantasy_rankings stores espn_id per
-// row (crosswalked at write time — see app/api/cron/nfl-fantasy-rankings).
-// A pick that can't be bridged that way (rare — Sleeper's index sometimes
-// lacks espn_id for very recent call-ups) falls back to matching the pick's
-// own name against the rankings by normalizeName, same "don't drop a real
-// player over a missing crosswalk row" posture as lib/nfl-fantasy/id-map.js.
+// uses). Matched three ways, tried in order: (1) sleeper_id (sql/030) — a
+// direct exact join, resolved once per player at cron time rather than
+// re-derived on every poll; (2) espn_id — fetchSleeperPlayerIndex() carries
+// espn_id per Sleeper player, and nfl_fantasy_rankings stores its own
+// espn_id per row, for rows written before sleeper_id existed; (3) fuzzy
+// name matching via normalizeName, same "don't drop a real player over a
+// missing crosswalk row" posture as lib/nfl-fantasy/id-map.js, for whatever
+// neither id-based path resolves (rare — usually a very recent call-up
+// Sleeper hasn't indexed yet).
 //
 // `slot` used to be the only way to tell this route which draft slot is
 // "yours" — it made the user hunt down and type a raw number. `username`
@@ -96,13 +98,20 @@ export async function GET(request) {
   const supabase = getSupabase();
   const { data: rankingRows } = await supabase
     .from("nfl_fantasy_rankings")
-    .select("player_id, espn_id, name")
+    .select("player_id, espn_id, sleeper_id, name")
     .eq("scoring_format", format)
     .eq("season", currentNflSeason());
 
+  // sleeper_id (sql/030) is a direct, exact join — resolved once per player
+  // at cron time (app/api/cron/nfl-fantasy-rankings) rather than re-derived
+  // on every poll of a live draft. Tried first; espn_id and then fuzzy name
+  // matching stay as fallbacks for rows written before that column existed
+  // or where the crosswalk itself couldn't place a sleeper_id.
+  const bySleeperId = new Map();
   const byEspnId = new Map();
   const byName = new Map();
   for (const r of rankingRows || []) {
+    if (r.sleeper_id) bySleeperId.set(String(r.sleeper_id), r.player_id);
     if (r.espn_id) byEspnId.set(String(r.espn_id), r.player_id);
     if (r.name) byName.set(normalizeName(r.name), r.player_id);
   }
@@ -113,7 +122,8 @@ export async function GET(request) {
   let skillPositionUnmatched = 0;
   for (const pick of picks) {
     const sleeperPlayer = sleeperIndex.get(String(pick.player_id));
-    let playerId = sleeperPlayer?.espnId ? byEspnId.get(sleeperPlayer.espnId) : null;
+    let playerId = bySleeperId.get(String(pick.player_id)) || null;
+    if (!playerId && sleeperPlayer?.espnId) playerId = byEspnId.get(sleeperPlayer.espnId) || null;
     if (!playerId) {
       const fallbackName = sleeperPlayer?.name || [pick.metadata?.first_name, pick.metadata?.last_name].filter(Boolean).join(" ");
       if (fallbackName) playerId = byName.get(normalizeName(fallbackName));
@@ -138,6 +148,19 @@ export async function GET(request) {
   const onTheClock = slot != null && pickSlot === slot;
   const picksUntilYou = slot == null ? null : (onTheClock ? 0 : picksUntilSlot(currentPickNo, numTeams, slot));
 
+  // The live pick clock — same countdown Sleeper's own draft room shows.
+  // last_picked (ms, set the instant the previous pick lands) plus this
+  // league's per-pick timer gives the deadline for whoever's up now; before
+  // the first pick, start_time anchors it instead. pick_timer is 0/absent
+  // for untimed drafts, in which case there's no deadline to compute — the
+  // client just won't render a clock rather than showing a fake one.
+  // Computed server-side (not just "seconds remaining" as of this response)
+  // so the client can tick it down locally between polls without drifting
+  // from what the poll cycle happens to catch.
+  const pickTimerSeconds = draft.settings?.pick_timer || null;
+  const pickAnchor = draft.last_picked || draft.start_time || null;
+  const pickDeadline = (pickTimerSeconds && pickAnchor) ? pickAnchor + pickTimerSeconds * 1000 : null;
+
   return Response.json({
     numTeams,
     currentPickNo,
@@ -145,6 +168,8 @@ export async function GET(request) {
     status: draft.status || null,
     onTheClock,
     picksUntilYou,
+    pickDeadline,
+    pickTimerSeconds,
     draftedPlayerIds,
     myDraftedPlayerIds,
     unmatchedPicks: unmatched,

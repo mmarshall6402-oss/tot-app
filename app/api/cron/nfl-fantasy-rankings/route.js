@@ -87,6 +87,12 @@ async function attachInjuryContext(ranked, crosswalk, espnIndex, historicalMisse
     return {
       ...p,
       espnId: espnId || null,
+      // Stored so app/api/nfl/fantasy/draft can join a live Sleeper pick
+      // (keyed by Sleeper's own player_id) directly to this row, instead of
+      // re-deriving the same espn_id bridge (or falling back to fuzzy name
+      // matching) on every poll of a live draft. Resolved here for free —
+      // sleeperPlayer is already looked up for depthChartOrder above.
+      sleeperId: sleeperPlayer?.sleeperId || null,
       injuryStatus: espnPlayer?.injuryStatus || null,
       injuryRisk: classifyInjuryRisk(historicalRate),
       trendingAddCount: (espnId && trendingByEspnId.get(espnId)) || 0,
@@ -143,6 +149,7 @@ async function refreshFormat(supabase, format, playersById, targetSeason, crossw
     return {
       player_id: p.playerId,
       espn_id: p.espnId,
+      sleeper_id: p.sleeperId,
       name: p.name,
       position: p.position,
       team: p.team,

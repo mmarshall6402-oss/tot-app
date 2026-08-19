@@ -320,6 +320,38 @@ function parseSleeperDraftId(input) {
   return digitRuns.reduce((longest, run) => (run.length > longest.length ? run : longest), "");
 }
 
+// Live pick countdown — the same clock Sleeper's own draft room shows,
+// ticking down from app/api/nfl/fantasy/draft's server-computed
+// pickDeadline. Deliberately its own 1s interval independent of the poll
+// cycle below: the poll's job is to catch new picks and resync the
+// deadline, not to redraw a countdown only every couple of seconds in
+// visible jumps. deadline is a plain ms epoch on the server's clock, not
+// the viewer's, so this stays correct even if the viewer's system clock is
+// off — it just isn't literally millisecond-exact against Sleeper's own
+// timer between polls.
+function DraftClock({ deadline }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!deadline) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [deadline]);
+  if (!deadline) return null;
+
+  const secondsLeft = Math.max(0, Math.round((deadline - now) / 1000));
+  const mm = Math.floor(secondsLeft / 60);
+  const ss = String(secondsLeft % 60).padStart(2, "0");
+  const urgent = secondsLeft <= 10;
+  const soon = secondsLeft <= 30;
+  const color = urgent ? "#D9645C" : soon ? "#D6B23D" : "#eee";
+
+  return (
+    <div style={{ fontFamily: tokens.font.mono, fontSize: 26, fontWeight: 800, color, letterSpacing: 1 }}>
+      {mm}:{ss}
+    </div>
+  );
+}
+
 // Programmatic two-tone chime for the on-the-clock alert — no bundled audio
 // asset to manage, just loud enough over a TV/room noise to notice without
 // being obnoxious. Safe to call even if the browser blocks autoplay-ish
@@ -2402,14 +2434,18 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
                     background: sleeperState.onTheClock ? "rgba(47,191,113,0.12)" : "#15171d",
                     border: `1px solid ${sleeperState.onTheClock ? "#2FBF71" : "#242832"}`,
                     color: sleeperState.onTheClock ? "#2FBF71" : "#888",
+                    display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
                   }}>
-                    {sleeperState.status === "complete"
-                      ? "✅ Draft complete"
-                      : sleeperState.onTheClock
-                        ? `🚨 YOU'RE ON THE CLOCK — Round ${sleeperState.round}, Pick ${sleeperState.currentPickNo}`
-                        : sleeperState.picksUntilYou != null
-                          ? `${sleeperState.picksUntilYou} pick${sleeperState.picksUntilYou === 1 ? "" : "s"} until you're on the clock · Round ${sleeperState.round}, Pick ${sleeperState.currentPickNo} now`
-                          : `Round ${sleeperState.round}, Pick ${sleeperState.currentPickNo} · enter your Sleeper username above to track your turn`}
+                    {sleeperState.status !== "complete" && <DraftClock deadline={sleeperState.pickDeadline} />}
+                    <div>
+                      {sleeperState.status === "complete"
+                        ? "✅ Draft complete"
+                        : sleeperState.onTheClock
+                          ? `🚨 YOU'RE ON THE CLOCK — Round ${sleeperState.round}, Pick ${sleeperState.currentPickNo}`
+                          : sleeperState.picksUntilYou != null
+                            ? `${sleeperState.picksUntilYou} pick${sleeperState.picksUntilYou === 1 ? "" : "s"} until you're on the clock · Round ${sleeperState.round}, Pick ${sleeperState.currentPickNo} now`
+                            : `Round ${sleeperState.round}, Pick ${sleeperState.currentPickNo} · enter your Sleeper username above to track your turn`}
+                    </div>
                   </div>
                 )}
 
