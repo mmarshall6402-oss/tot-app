@@ -227,7 +227,6 @@ export default function ToT() {
   const [saving, setSaving] = useState({});
   const [freePick, setFreePick] = useState(null);
   const [homeNflPicks, setHomeNflPicks] = useState(null);
-  const [carouselIdx, setCarouselIdx] = useState(0);
   const weekDates = getWeekDates();
   const todayStr = weekDates[7];
   const [selectedDate, setSelectedDate] = useState(todayStr);
@@ -335,15 +334,13 @@ export default function ToT() {
     return () => clearInterval(poll);
   }, [user?.id]);
 
-  // Load free pick, global model record, start carousel
+  // Load free pick, global model record
   useEffect(() => {
     fetch("/api/free-pick").then(r => r.json()).then(d => {
       setFreePick(d.pick || null);
       if (d.quietDay) setFreePick({ _quietDay: true });
     }).catch(() => {});
     fetch("/api/model-record?days=30").then(r => r.json()).then(d => setModelRecord(d)).catch(() => {});
-    const t = setInterval(() => setCarouselIdx(i => i + 1), 3000);
-    return () => clearInterval(t);
   }, []);
 
   // Today's live W/L record, per sport — polls so the header banner updates
@@ -833,14 +830,6 @@ export default function ToT() {
     streakType = settledByDate[0].result;
     for (const p of settledByDate) { if (p.result === streakType) streakLen++; else break; }
   }
-
-  // Carousel slides: [free pick, model record, promo]
-  const carouselSlides = [
-    { type: "free-pick" },
-    { type: "record" },
-    { type: "promo" },
-  ];
-  const slide = carouselSlides[carouselIdx % carouselSlides.length];
 
   const fmtOddsL = o => o == null ? "" : o > 0 ? `+${o}` : `${o}`;
   const landWinPct = modelRecord?.pct;
@@ -1335,62 +1324,6 @@ export default function ToT() {
         );
       })()}
 
-      {/* Carousel — cycles between free pick, model record, and promo */}
-      {currentSport === "mlb" && <div style={S.carousel}>
-        {slide.type === "free-pick" && (
-          <>
-            <div style={S.carouselTag}>FREE PICK</div>
-            {freePick ? (
-              <>
-                <div style={S.carouselMatchup}><TeamMatchupLink sport="mlb" awayTeam={freePick.awayTeam} homeTeam={freePick.homeTeam} onPick={openTeam} /></div>
-                <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6 }}>
-                  <span style={{ ...S.badge, background: TIER[freePick.tier?.level]?.bg, color: TIER[freePick.tier?.level]?.color }}>
-                    {TIER[freePick.tier?.level]?.label}
-                  </span>
-                  <span style={{ fontSize: 12, color: "#999" }}>Take {freePick.pick}</span>
-                </div>
-              </>
-            ) : (
-              <div style={{ color: "#777", fontSize: 13 }}>No actionable bet today — check back tomorrow</div>
-            )}
-          </>
-        )}
-        {slide.type === "record" && (
-          <>
-            <div style={S.carouselTag}>LAST 30 DAYS</div>
-            {modelRecord?.total > 0 ? (
-              <>
-                <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 20, fontWeight: 700, marginTop: 4 }}>
-                  <span style={{ color: "#2FBF71" }}>{modelRecord.wins}</span>
-                  <span style={{ color: "#888" }}>-</span>
-                  <span style={{ color: "#D9645C" }}>{modelRecord.losses}</span>
-                </div>
-                <div style={{ fontSize: 12, color: "#888", marginTop: 4 }}>
-                  {modelRecord.pct}% win rate · {modelRecord.total} tracked bets
-                </div>
-              </>
-            ) : (
-              <div style={{ color: "#777", fontSize: 13, marginTop: 4 }}>Track record populates as picks resolve</div>
-            )}
-          </>
-        )}
-        {slide.type === "promo" && (
-          <>
-            <div style={S.carouselTag}>SHARP FILTER</div>
-            <div style={{ fontSize: 13, color: "#888", marginTop: 4, lineHeight: 1.5 }}>
-              Every bet must pass 13+ conditions: confidence, variance, edge, juice, park factor, pitcher quality & more.
-            </div>
-            <div style={{ fontSize: 11, color: "#2FBF71", marginTop: 6 }}>CLEAN = all conditions passed</div>
-          </>
-        )}
-        <div style={{ display: "flex", gap: 5, marginTop: 10 }}>
-          {carouselSlides.map((_, i) => (
-            <div key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: carouselIdx % carouselSlides.length === i ? "#2FBF71" : "#242832", cursor: "pointer" }}
-              onClick={() => setCarouselIdx(i)} />
-          ))}
-        </div>
-      </div>}
-
       {(activeTab === "picks" || activeTab === "steals" || activeTab === "parlay" || activeTab === "props") && (
         <div ref={dateScrollRef} style={S.dateScroll}>
           {weekDates.map(date => (
@@ -1458,17 +1391,6 @@ export default function ToT() {
       </div>}
 
       {currentSport === "mlb" && <div style={S.content}>
-        {activeTab === "picks" && modelRecord?.total > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0 2px", flexWrap: "wrap" }}>
-            <span style={{ fontSize: 10, color: "#777", letterSpacing: 1 }}>MODEL RECORD</span>
-            <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, fontWeight: 700, color: modelRecord.pct == null ? "#888" : modelRecord.pct >= 55 ? "#2FBF71" : modelRecord.pct >= 50 ? "#D6B23D" : "#D9645C" }}>
-              {modelRecord.wins}-{modelRecord.losses}
-            </span>
-            <span style={{ fontSize: 11, color: "#888" }}>({modelRecord.pct}%)</span>
-            <span style={{ fontSize: 10, color: "#2b2f3a" }}>last 30 days</span>
-          </div>
-        )}
-
         {activeTab === "picks" && picks?.length > 0 && (() => {
           const nBet   = picks.filter(p => p.isBet).length;
           const nClean = picks.filter(p => p.filter?.verdict === "CLEAN").length;
@@ -1476,11 +1398,22 @@ export default function ToT() {
           const quietDay = isPro && nBet === 0 && picks.filter(p => p.filter != null).length > 0;
           return (
             <>
-              <div style={{ display: "flex", gap: 12, padding: "4px 0", borderBottom: "1px solid #1c1f26", marginBottom: 2 }}>
-                <span style={{ fontSize: 11, color: "#777" }}>{picks.filter(p => p.filter != null).length} games</span>
-                {nBet > 0 && <span style={{ fontSize: 11, color: "#2FBF71" }}>{nBet} BET</span>}
-                {nClean > 0 && <span style={{ fontSize: 11, color: "#2FBF71", fontWeight: 700 }}>{nClean} CLEAN</span>}
-                <span style={{ fontSize: 11, color: "#555" }}>{nPass} PASS</span>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "5px 0 6px", borderBottom: "1px solid #1c1f26", marginBottom: 2, flexWrap: "wrap" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 11, color: "#777" }}>{picks.filter(p => p.filter != null).length} games</span>
+                  {nBet > 0 && <span style={{ fontSize: 11, color: "#2FBF71" }}>{nBet} BET</span>}
+                  {nClean > 0 && <span style={{ fontSize: 11, color: "#2FBF71", fontWeight: 700 }}>{nClean} CLEAN</span>}
+                  <span style={{ fontSize: 11, color: "#555" }}>{nPass} PASS</span>
+                </div>
+                {modelRecord?.total > 0 && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontSize: 10, color: "#777", letterSpacing: 1 }}>30-DAY</span>
+                    <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, fontWeight: 700, color: modelRecord.pct == null ? "#888" : modelRecord.pct >= 55 ? "#2FBF71" : modelRecord.pct >= 50 ? "#D6B23D" : "#D9645C" }}>
+                      {modelRecord.wins}-{modelRecord.losses}
+                    </span>
+                    <span style={{ fontSize: 11, color: "#888" }}>({modelRecord.pct}%)</span>
+                  </div>
+                )}
               </div>
               {quietDay && (
                 <div style={{ background: "rgba(214,178,61,0.04)", border: "1px solid rgba(214,178,61,0.12)", borderRadius: 10, padding: "10px 14px", marginBottom: 10, display: "flex", gap: 10, alignItems: "flex-start" }}>
@@ -1553,7 +1486,6 @@ export default function ToT() {
             {[
               { away: "Yankees", home: "Red Sox",   verdict: "CLEAN", pick: "Yankees", odds: "-118", edge: "4.2" },
               { away: "Dodgers", home: "Padres",    verdict: "BET",   pick: "Dodgers", odds: "-132", edge: "3.1" },
-              { away: "Astros",  home: "Rangers",   verdict: "BET",   pick: "Rangers", odds: "+104", edge: "2.7" },
             ].map((p, i) => (
               <div key={i} style={{ ...S.card, position: "relative", overflow: "hidden", cursor: "pointer" }}
                 onClick={() => setUpgradeModal(true)}>
