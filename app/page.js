@@ -1486,7 +1486,6 @@ export default function ToT() {
             {[
               { away: "Yankees", home: "Red Sox",   verdict: "CLEAN", pick: "Yankees", odds: "-118", edge: "4.2" },
               { away: "Dodgers", home: "Padres",    verdict: "BET",   pick: "Dodgers", odds: "-132", edge: "3.1" },
-              { away: "Astros",  home: "Rangers",   verdict: "BET",   pick: "Rangers", odds: "+104", edge: "2.7" },
             ].map((p, i) => (
               <div key={i} style={{ ...S.card, position: "relative", overflow: "hidden", cursor: "pointer" }}
                 onClick={() => setUpgradeModal(true)}>
