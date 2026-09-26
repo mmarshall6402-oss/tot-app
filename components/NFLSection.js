@@ -1303,7 +1303,13 @@ function loadStoredDraft() {
 // switches to "fantasy" (different call site in app/page.js), so a plain
 // useState initializer is enough without an effect to re-sync later.
 export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgradeModal, savePick, saving, selectedDate, onTeamClick, standalone = false, initialFantasyMode }) {
-  const [subTab, setSubTab] = useState("fantasy");
+  // Reached via the dedicated bottom-nav Fantasy tab (standalone), this
+  // should open on Fantasy tools, same as before. Reached via the NFL
+  // (moneyline) pill, it should open on Picks — that pill is about betting,
+  // and Fantasy already has its own first-class entry point, so the
+  // sub-nav below doesn't offer a second "Fantasy" path into the same
+  // content (see the sub-nav's option list further down).
+  const [subTab, setSubTab] = useState(standalone ? "fantasy" : "picks");
   const [scoring, setScoring] = useState("PPR");
   const [fantasyMode, setFantasyMode] = useState(initialFantasyMode || "startSit");
 
@@ -2057,7 +2063,6 @@ export default function NFLSection({ S, getAuthHeaders, isPro, isAdmin, setUpgra
         ) : (
           <div style={{ display: "flex", gap: 6, overflowX: "auto" }}>
             {[
-              { id: "fantasy", label: "Fantasy" },
               { id: "picks",   label: "Picks" },
               { id: "record",  label: "Record" },
             ].map(({ id, label }) => (
