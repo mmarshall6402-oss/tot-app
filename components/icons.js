@@ -143,6 +143,15 @@ export function CalendarIcon({ size = 16, style, ...props }) {
   );
 }
 
+export function CameraIcon({ size = 16, style, ...props }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" style={{ display: "inline-block", verticalAlign: "middle", ...style }} {...base} {...props}>
+      <path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z" />
+      <circle cx="12" cy="13.5" r="3.5" />
+    </svg>
+  );
+}
+
 export function FootballIcon({ size = 16, style, ...props }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" style={{ display: "inline-block", verticalAlign: "middle", ...style }} {...base} {...props}>

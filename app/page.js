@@ -12,6 +12,7 @@ import PlayerModal from "../components/PlayerModal.js";
 import PropCard from "../components/PropCard.js";
 import DecisionCard from "../components/DecisionCard.js";
 import SkipSummary from "../components/SkipSummary.js";
+import SlipUploader from "../components/SlipUploader.jsx";
 import WinPctRow from "../components/WinPctRow.js";
 import { translateReasons } from "../lib/reason-labels.js";
 import { shouldBetNow } from "../lib/fair-odds.js";
@@ -2883,6 +2884,8 @@ export default function ToT() {
         return (
         <div style={{ padding: "16px 20px 84px", display: "flex", flexDirection: "column", gap: 20 }}>
           <FantasySpotlightCard data={fantasySpotlight} onOpen={openFantasy} />
+
+          <SlipUploader getAuthHeaders={getAuthHeaders} />
 
           {heroPick ? (
             <div>

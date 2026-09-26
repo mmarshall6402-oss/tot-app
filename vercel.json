@@ -69,6 +69,7 @@
     "app/api/cron/picks/route.js": { "maxDuration": 300 },
     "app/api/cron/props/route.js": { "maxDuration": 300 },
     "app/api/props/route.js": { "maxDuration": 60 },
+    "app/api/bets/route.js": { "maxDuration": 30 },
     "app/api/cron/resolve/route.js": { "maxDuration": 60 },
     "app/api/cron/recalibrate/route.js": { "maxDuration": 60 },
     "app/api/cron/email/route.js": { "maxDuration": 60 },
